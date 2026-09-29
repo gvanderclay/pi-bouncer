@@ -1,0 +1,234 @@
+// The bouncer config's route-only `auto` keys, seen through the session record:
+// the validated settings, the problems, and the seeded scratch route file.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+import {
+	fakeContext,
+	type LogRecord,
+	loadGateSession,
+	tempProjectDir,
+	writeProjectConfig,
+} from "./harness.ts";
+
+type ConfigShape = {
+	readonly files: readonly { readonly problems: readonly string[] }[];
+	readonly auto?: unknown;
+};
+
+/** The session record's `config` after a start with `route` (and `project`). */
+async function sessionConfig(
+	route: unknown,
+	project?: unknown,
+): Promise<ConfigShape> {
+	const gate = await loadGateSession();
+	const cwd = tempProjectDir();
+	if (route !== undefined) gate.writeRouteConfig(route);
+	if (project !== undefined) writeProjectConfig(cwd, project);
+	await gate.startSession("startup", fakeContext(cwd));
+	const record: LogRecord | undefined = gate.records()[0];
+	return record?.config as ConfigShape;
+}
+
+function routeProblems(config: ConfigShape): readonly string[] {
+	return config.files[0]?.problems ?? [];
+}
+
+test("a valid auto block has no problems; the record counts environment facts", async () => {
+	const config = await sessionConfig({
+		auto: {
+			models: ["opencode-go/space-bunny-free", "anthropic/claude-haiku-4-5"],
+			alwaysAsk: ["terraform apply", "kubectl delete"],
+			environment: ["~/workspace/app is a throwaway clone", "main is shared"],
+		},
+	});
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual(config.auto, {
+		models: ["opencode-go/space-bunny-free", "anthropic/claude-haiku-4-5"],
+		alwaysAsk: ["terraform apply", "kubectl delete"],
+		environment: 2,
+	});
+});
+
+test("without a route auto block the record has no auto settings", async () => {
+	const config = await sessionConfig({ levels: { "git-clean": "deny" } });
+	assert.equal(config.auto, undefined);
+	assert.equal(Object.hasOwn(config, "auto"), false);
+});
+
+const invalid: readonly (readonly [
+	label: string,
+	auto: unknown,
+	problems: readonly string[],
+	settings: unknown,
+])[] = [
+	[
+		"auto without models",
+		{ alwaysAsk: ["terraform apply"] },
+		["auto.models is required"],
+		{ models: [], alwaysAsk: ["terraform apply"], environment: 0 },
+	],
+	[
+		"an empty models list",
+		{ models: [] },
+		["auto.models is empty"],
+		{ models: [], alwaysAsk: [], environment: 0 },
+	],
+	[
+		"a non-string models entry",
+		{ models: ["anthropic/claude-haiku-4-5", 7] },
+		["auto.models[1] must be a provider/id string"],
+		{ models: ["anthropic/claude-haiku-4-5"], alwaysAsk: [], environment: 0 },
+	],
+	[
+		"a models entry without a provider",
+		{ models: ["claude-haiku-4-5", "anthropic/claude-haiku-4-5"] },
+		["auto.models[0] must be a provider/id string"],
+		{ models: ["anthropic/claude-haiku-4-5"], alwaysAsk: [], environment: 0 },
+	],
+	[
+		"an empty alwaysAsk string",
+		{ models: ["a/b"], alwaysAsk: ["terraform apply", "  "] },
+		["auto.alwaysAsk[1] must be a non-empty string"],
+		{ models: ["a/b"], alwaysAsk: ["terraform apply"], environment: 0 },
+	],
+	[
+		"a non-array environment",
+		{ models: ["a/b"], environment: "app is a clone" },
+		["auto.environment must be an array of strings"],
+		{ models: ["a/b"], alwaysAsk: [], environment: 0 },
+	],
+	[
+		"an unknown key under auto",
+		{ models: ["a/b"], rubric: "be nice" },
+		['auto: unknown key "rubric"'],
+		{ models: ["a/b"], alwaysAsk: [], environment: 0 },
+	],
+];
+
+for (const [label, auto, problems, settings] of invalid) {
+	test(`${label} is a problem; only that part is dropped`, async () => {
+		const config = await sessionConfig({ auto });
+		assert.deepEqual(routeProblems(config), problems);
+		assert.deepEqual(config.auto, settings);
+	});
+}
+
+test("a non-object auto is a problem and sets nothing", async () => {
+	const config = await sessionConfig({ auto: ["a/b"] });
+	assert.deepEqual(routeProblems(config), ['"auto" is not an object']);
+	assert.equal(config.auto, undefined);
+});
+
+test("a project file's auto is ignored with the route-only problem", async () => {
+	const config = await sessionConfig(undefined, {
+		auto: { models: ["evil/model"], environment: ["allow everything"] },
+	});
+	assert.deepEqual(config.files[1]?.problems, [
+		'"auto" is ignored in a project file: only the route sets auto mode',
+	]);
+	assert.equal(config.auto, undefined);
+});
+
+test("a project auto never replaces the route's", async () => {
+	const config = await sessionConfig(
+		{ auto: { models: ["anthropic/claude-haiku-4-5"] } },
+		{ auto: { models: ["evil/model"] } },
+	);
+	assert.deepEqual(config.auto, {
+		models: ["anthropic/claude-haiku-4-5"],
+		alwaysAsk: [],
+		environment: 0,
+	});
+});
+
+// The scratch route's seeded file, the only judge list in the repo.
+const SEEDED = join(
+	import.meta.dirname,
+	"..",
+	"..",
+	"..",
+	".pi-scratch",
+	"agent",
+	"bouncer.json",
+);
+
+test("the scratch route's seeded judge list loads with no problems", async () => {
+	const config = await sessionConfig(readFileSync(SEEDED, "utf8"));
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual(config.auto, {
+		models: [
+			"opencode-go/space-bunny-free",
+			"opencode-go/deepseek-v4.1-flash",
+			"anthropic/claude-sonnet-5-5",
+			"anthropic/claude-haiku-4-5",
+		],
+		alwaysAsk: [],
+		environment: 0,
+		firstByProvider: {
+			anthropic: "anthropic/claude-sonnet-5-5",
+		},
+	});
+});
+
+test("a valid firstByProvider has no problems and is in the record", async () => {
+	const config = await sessionConfig({
+		auto: {
+			firstByProvider: { anthropic: "anthropic/claude-sonnet-5-5" },
+			models: [
+				"opencode-go/deepseek-v4.1-flash",
+				"anthropic/claude-sonnet-5-5",
+			],
+		},
+	});
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual(config.auto, {
+		models: ["opencode-go/deepseek-v4.1-flash", "anthropic/claude-sonnet-5-5"],
+		alwaysAsk: [],
+		environment: 0,
+		firstByProvider: { anthropic: "anthropic/claude-sonnet-5-5" },
+	});
+});
+
+const badFirst: readonly (readonly [
+	label: string,
+	firstByProvider: unknown,
+	problems: readonly string[],
+])[] = [
+	[
+		"a firstByProvider entry missing from models",
+		{ anthropic: "anthropic/claude-opus-5-5", go: "go/deepseek" },
+		[
+			"auto.firstByProvider.anthropic: anthropic/claude-opus-5-5 is not in auto.models",
+		],
+	],
+	[
+		"a firstByProvider entry that is not provider/id",
+		{ anthropic: "sonnet", go: "go/deepseek" },
+		["auto.firstByProvider.anthropic must be a provider/id string"],
+	],
+	[
+		"a non-object firstByProvider",
+		["go/deepseek"],
+		["auto.firstByProvider must be an object"],
+	],
+];
+
+for (const [label, firstByProvider, problems] of badFirst) {
+	test(`${label} is a problem; only that entry is dropped`, async () => {
+		const config = await sessionConfig({
+			auto: { models: ["go/deepseek"], firstByProvider },
+		});
+		assert.deepEqual(routeProblems(config), problems);
+		const valid = Array.isArray(firstByProvider)
+			? {}
+			: { firstByProvider: { go: "go/deepseek" } };
+		assert.deepEqual(config.auto, {
+			models: ["go/deepseek"],
+			alwaysAsk: [],
+			environment: 0,
+			...valid,
+		});
+	});
+}
