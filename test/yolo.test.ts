@@ -603,3 +603,14 @@ test("without --yolo, a session start leaves YOLO mode off", async () => {
 		["session"],
 	);
 });
+
+test("YOLO mode blocks grep x f with the steer reason and no notice", async () => {
+	const { handler } = await yoloGate();
+	const { ctx, dialogs, notices } = scriptedUI();
+	const result = await handler(bashCall("grep x f"), ctx);
+	assert.equal(result?.block, true);
+	assert.match(result?.reason ?? "", /\(rule: grep\)/);
+	assert.match(result?.reason ?? "", /rg/);
+	assert.deepEqual(dialogs, []);
+	assert.deepEqual(notices, []);
+});

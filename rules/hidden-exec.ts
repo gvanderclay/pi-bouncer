@@ -9,17 +9,25 @@ import {
 import { findWith } from "./filesystem.ts";
 import type { Rule } from "./rule.ts";
 
+/** find's actions whose next argument is a command it runs. */
+export const FIND_EXEC_ACTIONS: readonly string[] = [
+	"-exec",
+	"-execdir",
+	"-ok",
+	"-okdir",
+];
+
 export const findExec: Rule = {
 	name: "find-exec",
 	summary: "find -exec, -execdir, -ok and -okdir run arbitrary commands",
 	matches: (invocation: Invocation): boolean =>
-		findWith(invocation, ["-exec", "-execdir", "-ok", "-okdir"]),
+		findWith(invocation, FIND_EXEC_ACTIONS),
 };
 
 // `fdfind` is Debian's name for fd. fd 10.4.2's value-taking short options
 // (`fd --help`); a cluster letter after one of them is its value.
-const FD_NAMES = new Set(["fd", "fdfind"]);
-const FD_VALUE_LETTERS = "dEteSoxXcjC";
+export const FD_NAMES: ReadonlySet<string> = new Set(["fd", "fdfind"]);
+export const FD_VALUE_LETTERS = "dEteSoxXcjC";
 
 export const fdExec: Rule = {
 	name: "fd-exec",

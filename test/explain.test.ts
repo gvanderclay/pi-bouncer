@@ -74,6 +74,42 @@ test("a deny after an ask wins with a UI", () => {
 	});
 });
 
+test("grep alone is a steer block in every mode", () => {
+	const deny = { kind: "deny", rule: "grep" };
+	assert.deepEqual(inspected(parse, "grep y f"), {
+		matches: [{ rule: "grep", level: "deny", source: "grep y f" }],
+		withUI: deny,
+		withoutUI: deny,
+		withYolo: deny,
+		withAuto: deny,
+	});
+});
+
+test("grep is a steer block in every mode", () => {
+	const deny = { kind: "deny", rule: "grep" };
+	assert.deepEqual(inspected(parse, "rm -rf x && grep y f"), {
+		matches: [RM_X, { rule: "grep", level: "deny", source: "grep y f" }],
+		withUI: deny,
+		withoutUI: deny,
+		withYolo: deny,
+		withAuto: deny,
+	});
+});
+
+test("a real deny after grep wins in every mode", () => {
+	const deny = { kind: "deny", rule: "privilege" };
+	assert.deepEqual(inspected(parse, "grep y f && sudo ls"), {
+		matches: [
+			{ rule: "grep", level: "deny", source: "grep y f" },
+			{ rule: "privilege", level: "deny", source: "sudo ls" },
+		],
+		withUI: deny,
+		withoutUI: deny,
+		withYolo: deny,
+		withAuto: deny,
+	});
+});
+
 test("with no parser, every command is parser-unavailable", () => {
 	assert.deepEqual(inspected(undefined, "ls"), {
 		matches: [{ rule: "parser-unavailable", level: "deny", source: "ls" }],

@@ -1,6 +1,6 @@
-// The built-in policy: every built-in rule and unreadable-command deny, in
-// evaluation order, at the level the bouncer ships with. Only `config.ts` turns
-// it into an effective policy.
+// The built-in policy: every built-in rule, steer rule and unreadable-command
+// deny, in evaluation order, at the level the bouncer ships with. Only
+// `config.ts` turns it into an effective policy.
 
 import type { RuleName } from "../verdict.ts";
 import { findDelete, recursiveRm, rmRoot } from "./filesystem.ts";
@@ -12,6 +12,7 @@ import {
 	gitStashDestroy,
 } from "./git.ts";
 import { gitPushDelete, gitPushForce } from "./git-push.ts";
+import { grep, grepInstead } from "./grep.ts";
 import { fdExec, findExec, rgPre } from "./hidden-exec.ts";
 import { privilege } from "./privilege.ts";
 import { ghDelete, publish } from "./publish.ts";
@@ -43,12 +44,14 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: remoteScript, level: "ask" },
 	{ kind: "rule", rule: publish, level: "ask" },
 	{ kind: "rule", rule: ghDelete, level: "ask" },
+	{ kind: "steer", rule: grep, instead: grepInstead, level: "deny" },
 ];
 
 /**
  * The rules YOLO mode still denies, whatever the bouncer config's levels say:
  * fixed here, so no config can shrink or grow it. The unreadable-command
- * denies stay denied in YOLO mode by their kind, not by this list.
+ * denies and the steer rules stay denied in YOLO mode by their kind, not by
+ * this list.
  */
 export const alwaysDenySet: ReadonlySet<RuleName> = new Set<RuleName>([
 	"privilege",

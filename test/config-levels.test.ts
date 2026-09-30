@@ -149,3 +149,22 @@ test("the session's project file overrides the route's level", async () => {
 	await gate.handler(bashCall("git push --force"), ctx);
 	assert.equal(dialogs.length, 1);
 });
+
+test("a route config setting levels.grep reports a problem, and grep stays blocked", async () => {
+	const { handler, startSession, writeRouteConfig, agentDir } =
+		await loadGateSession();
+	writeRouteConfig({ levels: { grep: "ask" } });
+	const ui = uiContext();
+	await startSession("startup", ui.ctx);
+	const path = join(agentDir, "bouncer.json");
+	assert.ok(
+		ui.notices.some((notice) =>
+			notice.message.includes(`${path}: levels: "grep" is always deny`),
+		),
+		JSON.stringify(ui.notices),
+	);
+	const { ctx, dialogs } = scriptedUI();
+	const result = await handler(bashCall("grep x f"), ctx);
+	assert.equal(dialogs.length, 0);
+	assert.match(result?.reason ?? "", /\(rule: grep\)/);
+});

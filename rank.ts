@@ -4,13 +4,14 @@
 import { alwaysAskHits } from "./always-ask.ts";
 import type { Ask } from "./ask.ts";
 import { alwaysDenySet } from "./rules/built-in-policy.ts";
-import type { Policy, RuleEntry, Where } from "./rules/rule.ts";
+import type { Policy, RuleEntry, SteerEntry, Where } from "./rules/rule.ts";
 import { type Invocation, type ParseFn, scan } from "./scan/walk.ts";
 import {
 	inlineTooDeep,
 	parserUnavailable,
 	type RuleName,
 	ruleDenied,
+	steerDenied,
 	unparseable,
 	type Verdict,
 	type VerdictLevel,
@@ -34,6 +35,8 @@ export type Ranking =
 			readonly kind: "deny";
 			readonly verdict: Verdict;
 			readonly matches: readonly Match[];
+			/** Set when a steer rule denied: no warning goes to the user. */
+			readonly steer?: true;
 	  }
 	| {
 			readonly kind: "ask";
@@ -49,8 +52,11 @@ function wholeCommandDeny(verdict: Verdict): Ranking {
 	return { kind: "deny", verdict, matches: [{ rule, level, source }] };
 }
 
-/** One policy rule that caught one invocation. */
-type Hit = { readonly entry: RuleEntry; readonly source: string };
+/** One policy rule or steer rule that caught one invocation. */
+type Hit = {
+	readonly entry: RuleEntry | SteerEntry;
+	readonly source: string;
+};
 
 /** Every (invocation, policy rule) match, in evaluation order, lazily. */
 function* hits(
@@ -60,7 +66,8 @@ function* hits(
 ): Generator<Hit> {
 	for (const invocation of invocations) {
 		for (const entry of policy) {
-			if (entry.kind === "rule" && entry.rule.matches(invocation, where)) {
+			if (entry.kind === "unreadable") continue;
+			if (entry.rule.matches(invocation, where)) {
 				yield { entry, source: invocation.source };
 			}
 		}
@@ -69,7 +76,8 @@ function* hits(
 
 /**
  * Ranks the matches in evaluation order: a match for which `denies` holds
- * wins outright; every other match is an ask, once per (rule, source).
+ * wins outright; otherwise the first steer match denies the line, whatever
+ * asks it holds; every other match is an ask, once per (rule, source).
  */
 function rankHits(
 	found: Iterable<Hit>,
@@ -78,9 +86,16 @@ function rankHits(
 	const asks: Ask[] = [];
 	const matches: Match[] = [];
 	let fallback: Verdict | undefined;
+	let steer: Verdict | undefined;
 	for (const { entry, source } of found) {
 		const { name: rule, summary } = entry.rule;
 		const { level } = entry;
+		if (entry.kind === "steer") {
+			// Held, not returned: a real deny later on the line still wins.
+			matches.push({ rule, level, source });
+			steer ??= steerDenied(entry.rule, entry.instead, source);
+			continue;
+		}
 		if (denies(entry)) {
 			matches.push({ rule, level, source });
 			const verdict = ruleDenied({ rule: entry.rule, level: "deny" }, source);
@@ -93,6 +108,7 @@ function rankHits(
 		matches.push({ rule, level, source });
 		fallback ??= ruleDenied(entry, source);
 	}
+	if (steer) return { kind: "deny", verdict: steer, matches, steer: true };
 	return fallback ? { kind: "ask", asks, fallback, matches } : undefined;
 }
 

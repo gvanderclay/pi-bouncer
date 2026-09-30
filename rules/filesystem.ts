@@ -101,7 +101,7 @@ export const rmRoot: Rule = {
 	},
 };
 
-const FIND_NAMES = new Set(["find", "gfind"]);
+export const FIND_NAMES: ReadonlySet<string> = new Set(["find", "gfind"]);
 
 /** `find`/`gfind` (GNU findutils from Homebrew) with an argument exactly `word`. */
 export function findWith(

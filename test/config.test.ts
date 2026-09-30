@@ -40,6 +40,7 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["remote-script", "ask"],
 	["publish", "ask"],
 	["gh-delete", "ask"],
+	["grep", "deny"],
 ];
 
 /** A policy as `[rule, level]` rows, in evaluation order. */
@@ -132,6 +133,12 @@ const problems: readonly (readonly [
 		"an unreadable-command deny",
 		{ levels: { unparseable: "ask", privilege: "ask" } },
 		'levels: "unparseable" is always deny',
+		{ privilege: "ask" },
+	],
+	[
+		"a steer rule",
+		{ levels: { grep: "ask", privilege: "ask" } },
+		'levels: "grep" is always deny',
 		{ privilege: "ask" },
 	],
 	[

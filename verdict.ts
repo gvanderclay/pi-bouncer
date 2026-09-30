@@ -26,6 +26,7 @@ export type RuleName =
 	| "remote-script"
 	| "publish"
 	| "gh-delete"
+	| "grep"
 	/** Auto mode's pseudo-rule for the route's `auto.alwaysAsk` prefixes. */
 	| "always-ask";
 
@@ -98,6 +99,23 @@ export function ruleDenied(
 		level: entry.level,
 		rule: rule.name,
 		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.`,
+		command,
+	};
+}
+
+/**
+ * A steer rule's deny: it invites a retry with what `instead` names, so it
+ * never says not to retry or to tell the user.
+ */
+export function steerDenied(
+	rule: { readonly name: RuleName; readonly summary: string },
+	instead: string,
+	command: string,
+): Verdict {
+	return {
+		level: "deny",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. ${instead}`,
 		command,
 	};
 }

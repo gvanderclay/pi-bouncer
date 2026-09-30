@@ -61,7 +61,8 @@ export type AutoTrace = {
 export type Trace = {
 	/**
 	 * Every match, in evaluation order; a deny match ends the list (under
-	 * YOLO mode, only a match in the always-deny set does).
+	 * YOLO mode, only a match in the always-deny set does). A steer match
+	 * does not end it.
 	 */
 	readonly matches: readonly Match[];
 	readonly ui: boolean;
@@ -127,6 +128,12 @@ function blocked(verdict: Verdict): Outcome {
 	};
 }
 
+/** A deny ranking's block: a steer rule's carries no warning. */
+function denied(ranking: Ranking & { readonly kind: "deny" }): Outcome {
+	if (!ranking.steer) return blocked(ranking.verdict);
+	return { kind: "block", reason: ranking.verdict.reason, stop: false };
+}
+
 function askingFor(command: string, call: Call, allowed: Set<string>): Asking {
 	const { cwd, signal, autoChoice } = call;
 	return {
@@ -155,7 +162,7 @@ async function decided(
 	if (!ranking) return { kind: "allow" };
 	const { matches } = ranking;
 	const trace: Trace = { matches, ui: call.ui !== undefined, asks: [] };
-	if (ranking.kind === "deny") return { ...blocked(ranking.verdict), trace };
+	if (ranking.kind === "deny") return { ...denied(ranking), trace };
 	if (!call.ui) return { ...blocked(ranking.fallback), trace };
 	const asking = askingFor(command, call, allowed);
 	const asked = await askUser(ranking.asks, call.ui, asking);
@@ -196,7 +203,7 @@ function yoloDecided(
 		yolo: { withoutYolo: withoutYolo(ranking, call, asking) },
 	};
 	if (yoloRanking.kind === "deny") {
-		return { ...blocked(yoloRanking.verdict), trace };
+		return { ...denied(yoloRanking), trace };
 	}
 	const asks = yoloAnswers(yoloRanking.asks, asking);
 	return { kind: "allow", trace: { ...trace, asks } };
@@ -237,7 +244,7 @@ async function autoDecided(
 		withoutAuto: withoutYolo(ranking, call, asking),
 	};
 	if (autoRanking.kind === "deny") {
-		return { ...blocked(autoRanking.verdict), trace };
+		return { ...denied(autoRanking), trace };
 	}
 	const { asks } = autoRanking;
 	const open = uncovered(asks, asking);

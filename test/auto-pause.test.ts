@@ -160,3 +160,26 @@ test("pausing and resuming write no record of their own", async () => {
 	const types = gate.records().map((record) => record.type);
 	assert.deepEqual(types, ["session", "auto", "call", "call", "call", "call"]);
 });
+
+test("auto mode blocks grep with no judge call and no notice", async () => {
+	const { gate, fake } = await gateAnswering([ALLOW]);
+	const ui = judgedUI(fake);
+	const result = await gate.handler(bashCall("grep x f"), ui.ctx);
+	assert.equal(result?.block, true);
+	assert.match(result?.reason ?? "", /\(rule: grep\)/);
+	assert.equal(fake.requests.length, 0);
+	assert.deepEqual(ui.dialogs, []);
+	assert.deepEqual(ui.notices, []);
+});
+
+test("grep blocks in a row do not pause auto mode", async () => {
+	const { gate, fake } = await gateAnswering([ALLOW]);
+	for (let i = 0; i < 4; i += 1) {
+		await gate.handler(bashCall("grep x f"), noUI(fake));
+	}
+	const ui = judgedUI(fake);
+	assert.equal(await gate.handler(bashCall("rm -rf dist"), ui.ctx), undefined);
+	assert.equal(ui.statuses["bouncer"], AUTO_STATUS);
+	assert.deepEqual(ui.dialogs, []);
+	assert.equal(fake.requests.length, 1);
+});

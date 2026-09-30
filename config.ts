@@ -114,7 +114,8 @@ function validLevels(value: unknown, problems: string[]): Levels {
 	const levels: Partial<Record<RuleName, VerdictLevel>> = {};
 	for (const [rule, level] of Object.entries(value)) {
 		const entry = POLICY_ENTRIES.get(rule);
-		if (entry?.kind === "unreadable") {
+		// Unreadable-command denies and steer rules have a fixed level.
+		if (entry?.kind === "unreadable" || entry?.kind === "steer") {
 			problems.push(`levels: "${rule}" is always deny`);
 		} else if (!entry) {
 			problems.push(`levels: unknown rule "${rule}"`);
@@ -346,7 +347,10 @@ export function projectConfigFile(cwd: string): string {
 	return join(cwd, ".pi", "bouncer.json");
 }
 
-/** The built-in policy with `levels` applied; unreadable denies stay deny. */
+/**
+ * The built-in policy with `levels` applied; unreadable denies and steer
+ * rules stay deny.
+ */
 function effectivePolicy(levels: Levels): Policy {
 	return builtInPolicy.map((entry) =>
 		entry.kind === "rule"

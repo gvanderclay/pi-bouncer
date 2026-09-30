@@ -11,6 +11,12 @@
  * every match denies. Session allows are in memory and cleared on every
  * `session_start`.
  *
+ * Steer rule: `grep` (`rules/grep.ts`) blocks every grep, egrep or fgrep
+ * the scan finds and sends the model to `rg`, in every bouncer mode, with no
+ * dialog, judge call or warning; each block is logged. Its level is fixed. A
+ * real deny on the same line wins; the grep block wins over every ask. It
+ * moves to a custom rule once the bouncer config supports them.
+ *
  * Bouncer mode: off, auto or YOLO, one process-wide setting (`mode.ts`); turning
  * one on leaves the other. `mode-switch.ts` holds the one switch path, the
  * commands, the flags, the footer status and the judge's Pi wiring.
@@ -19,8 +25,8 @@
  * and `pi --yolo` turn it on; it then answers every ask with allow, with or
  * without a UI, and no dialog opens. The always-deny set (`privilege`,
  * `power`, `disk-format`, `dd-device`, `rm-root`, fixed in
- * `rules/built-in-policy.ts`) and the unreadable-command denies still deny,
- * whatever the bouncer config's levels say. It is process-wide and in memory
+ * `rules/built-in-policy.ts`), the unreadable-command denies and the steer
+ * rule still deny, whatever the bouncer config's levels say. It is process-wide and in memory
  * only (`mode.ts`, on `globalThis` so it survives `/reload`), survives every
  * `session_start`, and ends with the process; `--yolo` applies only at the
  * process's first `session_start`. The footer shows a bold red `🔥 YOLO`
@@ -41,9 +47,10 @@
  * line quietly; deny (or a provider's usage-policy refusal) blocks it in the
  * hard-deny form with the judge's reason;
  * a hand-off, or no judge answering, opens the dialog (blocks without a UI).
- * Rule-level denies, the always-deny set and the unreadable-command denies
- * are denied before any judge is asked, and the route's `auto.alwaysAsk`
- * prefixes (`always-ask.ts`) always open the dialog. Three judge denies in a
+ * Rule-level denies, the always-deny set, the unreadable-command denies and
+ * the steer rule are denied before any judge is asked, and the route's
+ * `auto.alwaysAsk` prefixes (`always-ask.ts`) open the dialog unless the
+ * steer rule blocks the line. Three judge denies in a
  * row, or 20 in a session, pause it: calls go to the dialog until one is
  * allowed. A mode switch while the judge is out drops its verdict and the
  * new mode decides. The footer shows `🤖 AUTO`, `🤖 AUTO (paused)` or
@@ -53,8 +60,8 @@
  * `<agent dir>/bouncer.json` and the project's
  * `<cwd>/.pi/bouncer.json` (plain JSON; the project overrides the
  * route entry by entry). `levels` sets any built-in rule to ask or deny (the
- * unreadable-command denies stay deny); the route's `log` sets the log's
- * rotation size, generations kept and age pruning, and the route's `auto`
+ * unreadable-command denies and the steer rule stay deny); the route's `log`
+ * sets the log's rotation size, generations kept and age pruning, and the route's `auto`
  * sets auto mode's `models`, `alwaysAsk`, `environment` and
  * `firstByProvider` (both are ignored,
  * with a warning, in a project file). An invalid part falls

@@ -127,7 +127,7 @@ const allowed = [
 	"echo shutdown",
 	"man sudo",
 	"which sudo",
-	"grep sudo /etc/group",
+	"rg sudo /etc/group",
 	"cat /etc/sudoers.d/README",
 	"ls /dev",
 	"echo reboot > notes.txt",

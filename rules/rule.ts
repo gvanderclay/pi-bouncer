@@ -10,7 +10,10 @@ export type Where = {
 	readonly home: string;
 };
 
-/** A rule only recognises a dangerous invocation; a `Policy` sets its level. */
+/**
+ * A rule only recognises an invocation (a dangerous one, or one a steer entry
+ * redirects); a `Policy` sets its level.
+ */
 export type Rule = {
 	readonly name: RuleName;
 	readonly summary: string;
@@ -31,14 +34,28 @@ export type RuleEntry = {
 	readonly level: VerdictLevel;
 };
 
-export type PolicyEntry = UnreadableDeny | RuleEntry;
+/**
+ * A steer rule: it blocks what its rule matches in every bouncer mode, with
+ * no dialog, judge or warning, and tells the model what to run `instead`. Its
+ * level is fixed.
+ */
+export type SteerEntry = {
+	readonly kind: "steer";
+	readonly rule: Rule;
+	/** The sentence that tells the model what to run instead. */
+	readonly instead: string;
+	readonly level: "deny";
+};
+
+export type PolicyEntry = UnreadableDeny | RuleEntry | SteerEntry;
 
 /**
- * Every rule and unreadable-command deny, in evaluation order, each at its
- * rule level: the shape of the built-in policy and of an effective policy.
+ * Every rule, steer rule and unreadable-command deny, in evaluation order,
+ * each at its rule level: the shape of the built-in policy and of an
+ * effective policy.
  */
 export type Policy = readonly PolicyEntry[];
 
 export function policyEntryName(entry: PolicyEntry): RuleName {
-	return entry.kind === "rule" ? entry.rule.name : entry.name;
+	return entry.kind === "unreadable" ? entry.name : entry.rule.name;
 }

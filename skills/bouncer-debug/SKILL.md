@@ -35,8 +35,9 @@ A rule's level can differ from the built-in one. At every session start the
 bouncer reads the route's `<agent dir>/bouncer.json` and the project's
 `<cwd>/.pi/bouncer.json` (the session's working directory only; the
 project overrides the route entry by entry). `levels` maps a built-in rule to
-`ask` or `deny`; `unparseable`, `inline-too-deep` and `parser-unavailable`
-always deny. An invalid part falls back to its built-in value. Edits apply
+`ask` or `deny`; `unparseable`, `inline-too-deep`, `parser-unavailable`
+and the `grep` steer rule always deny, and setting one is a config
+problem. An invalid part falls back to its built-in value. Edits apply
 from the next session start, never mid-session. The route file alone may
 also set `auto` (auto mode's `models`, `alwaysAsk`, `environment` and
 `firstByProvider`); a
@@ -54,7 +55,8 @@ survives session starts and `/reload` and ends when the process exits.
 
 Even in YOLO mode the **always-deny set** (`privilege`, `power`,
 `disk-format`, `dd-device`, `rm-root`) and the unreadable-command denies
-still deny, with the usual reason and warning. The set is fixed in code:
+still deny, with the usual reason and warning. The `grep` steer rule still
+denies too, with its `rg` reason and no warning. The set is fixed in code:
 YOLO mode ignores the bouncer config's `levels`, so a `privilege` lowered to
 `ask` still denies and a rule raised to `deny` is allowed. A session allow
 still answers its ask first.
@@ -78,8 +80,9 @@ model registry. Its lifetime is YOLO mode's.
   which never mentions a judge) or `ask` (the dialog opens with a
   `Judge: <reason>` line). With no UI a hand-off blocks.
 - Denied before any judge call: rule-level denies (the effective policy's
-  `deny`), the always-deny set whatever its level, and the
-  unreadable-command denies.
+  `deny`), the always-deny set whatever its level, the
+  unreadable-command denies, and the `grep` steer rule, which also wins over
+  an `auto.alwaysAsk` prefix and never counts toward the pause.
 - Never judged: a command matching one of the route's `auto.alwaysAsk`
   prefixes gets the pseudo-rule `always-ask` and always opens the dialog.
 - Each model has 10 s and the line 20 s; any failure (not in Pi's catalogue,
@@ -135,7 +138,9 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
   - `reason`: the exact text the model was told; absent when allowed.
   - `matches`: every `{rule, level, source}` the bouncer found, in evaluation
     order. `level` is `ask` or `deny`; `source` is the part of the line that
-    matched. A `deny` match ends the list: the bouncer stopped there.
+    matched. A `deny` match ends the list: the bouncer stopped there. A
+    `grep` match does not: the steer rule is held while the rest of the line
+    is scanned, and a later real deny wins over it.
   - `asks`: what happened to each ask, in order: `{rule, source, answer}`,
     plus `userReason` when the user typed one. The list ends at the first
     deny, so later asks were never shown. Empty when no dialog ran (a hard

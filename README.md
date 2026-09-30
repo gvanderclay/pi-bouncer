@@ -16,6 +16,14 @@ recursive `rm` of `/`, a system directory, `~` or an important folder in it,
 and commands that cannot be parsed. A deny anywhere on a line wins. Each
 rule's level is built in and can be changed in the bouncer config.
 
+One steer rule, `grep`, blocks every `grep`, `egrep` or `fgrep` the scan
+finds, and grep in the command slot of `find -exec`/`-execdir`/`-ok`/`-okdir`
+and `fd -x`/`-X`, and tells the model to run the search with `rg` instead.
+It denies in every mode, including YOLO, with no dialog, no judge call and no
+warning, and every block is logged. Its level is fixed. A real deny on the same line wins
+with its warning; the grep block wins over every ask. It is built in for now
+and moves to a custom rule once the bouncer config supports them.
+
 ## Install
 
 ```bash
@@ -55,7 +63,7 @@ YOLO mode off, and the other way round.
 | --- | --- | --- |
 | normal (off) | none | every ask opens the dialog |
 | auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason, and a hand-off or no answer opens the dialog. Three judge denies in a row, or 20 in a session, pause it until you allow a call. It refuses to turn on when no list entry resolves |
-| YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set and unreadable commands still deny |
+| YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set, unreadable commands and the `grep` steer rule still deny |
 
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
 after allowing the current line.
@@ -72,8 +80,10 @@ provider. The judge sees the command, the flagged rules, the working
 directory, the git branch and remotes, your last message and the route's
 `auto.environment` facts. It never sees tool output. A model that refuses the
 request under its provider's usage policy counts as a deny. Rule-level denies,
-the always-deny set and unparseable commands are denied before any judge is
-asked, and `auto.alwaysAsk` prefixes always open the dialog.
+the always-deny set, unparseable commands and the `grep` steer rule are denied
+before any judge is asked, and `auto.alwaysAsk` prefixes always open the
+dialog unless the line holds a grep. A grep block never counts toward the
+pause.
 
 ## Dialog
 
@@ -91,6 +101,8 @@ a device and `rm-root` (a recursive `rm` of `/`, a system directory, `~` or an
 important folder in it such as `~/Documents`, `~/workspace` or `~/.ssh`;
 relative paths resolve against the session's working directory). YOLO and
 auto mode never allow it, nor unparseable commands, whatever the config says.
+A line with a grep and no real deny gets the `grep` steer block, with no
+dialog and no warning, however many asks it holds.
 `!` commands are never gated.
 
 ## Configuration
@@ -98,8 +110,9 @@ auto mode never allow it, nor unparseable commands, whatever the config says.
 At every session start the bouncer reads `<agent dir>/bouncer.json` for
 the route, and `.pi/bouncer.json` in the session's working directory
 overrides it entry by entry. Both are plain JSON. `levels` sets any built-in
-rule to `ask` or `deny`; the route's file also carries `log` (the log's
-rotation size, generations kept and age pruning) and `auto` (the judge list
+rule to `ask` or `deny`, except the unreadable-command denies and the `grep`
+steer rule, whose level is fixed; the route's file also carries `log` (the
+log's rotation size, generations kept and age pruning) and `auto` (the judge list
 `models`, `alwaysAsk` prefixes, `environment` facts and `firstByProvider`).
 An invalid part falls back to its built-in value, and one warning lists every
 problem. Without this file the built-in levels apply.

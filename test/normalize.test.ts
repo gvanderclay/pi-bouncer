@@ -38,7 +38,7 @@ const data = [
 	"echo rm -rf x",
 	'echo "sudo rm -rf /"',
 	"printf '%s\\n' 'rm -rf x'",
-	'grep -r "rm -rf" .',
+	'rg -F "rm -rf" .',
 	"rg 'rm -rf'",
 	'FOO="rm -rf x" ls',
 	"FOO='rm -rf x'",
