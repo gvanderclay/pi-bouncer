@@ -60,6 +60,33 @@ YOLO mode off, and the other way round.
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
 after allowing the current line.
 
+In auto mode each judge-list entry gets 10 s, and a line gets 20 s in total.
+`auto.firstByProvider` names the entry to ask first for the session model's
+provider. The judge sees the command, the flagged rules, the working
+directory, the git branch and remotes, your last message and the route's
+`auto.environment` facts. It never sees tool output. A model that refuses the
+request under its provider's usage policy counts as a deny. Rule-level denies,
+the always-deny set and unparseable commands are denied before any judge is
+asked, and `auto.alwaysAsk` prefixes always open the dialog.
+
+## Dialog
+
+An ask names the rule and quotes the command. The choices are Allow once;
+Allow for this session (only that exact command, in that directory, for that
+rule, in memory until the next session start, `/new`, `/resume`, `/fork` or
+`/reload`); Deny; Deny with reason (your text goes to the model); Deny and stop
+(also aborts the turn); Auto mode and Allow all (YOLO), each of which allows
+the rest of the line and turns that mode on (Auto shows only when the judge
+list resolves). Escape or aborting the turn denies, and a line with several
+dangers asks once for each ("1 of N"). Without a UI every ask denies. A deny
+anywhere on a line wins, and a deny tells the model not to work around it.
+The always-deny set is `sudo`/`su`/`doas`, shutdown, disk formatting, `dd` to
+a device and `rm-root` (a recursive `rm` of `/`, a system directory, `~` or an
+important folder in it such as `~/Documents`, `~/workspace` or `~/.ssh`;
+relative paths resolve against the session's working directory). YOLO and
+auto mode never allow it, nor unparseable commands, whatever the config says.
+`!` commands are never gated.
+
 ## Configuration
 
 At every session start the bouncer reads `<agent dir>/bouncer.json` for

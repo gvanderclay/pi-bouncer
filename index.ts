@@ -80,9 +80,8 @@
  *
  * Requires: `pnpm install` in this directory, once per machine.
  *
- * History: the package's design notes (spec-ask.md, the v1 `spec.md`;
- * spec-log.md for the log; spec-config.md for the config; spec-yolo.md for
- * YOLO mode and `rm-root`; spec-auto.md for auto mode; design.md).
+ * History: the design notes (design.md and the spec*.md files) lived in
+ * .scratch/permission-gate/ and are now in git history.
  */
 
 import { homedir } from "node:os";

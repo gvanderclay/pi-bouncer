@@ -1,4 +1,5 @@
-// Argument conventions shared by rules (design.md § Argument conventions).
+// Argument conventions shared by rules (design notes § Argument conventions;
+// see index.ts).
 
 /** The arguments before the first `--`: the only ones that can be options. */
 export function optionArgs(args: readonly string[]): readonly string[] {
@@ -89,7 +90,7 @@ function readShortArg(arg: string, spec: OptionSpec, state: Parsing): void {
 	}
 }
 
-/** Reads `args` per design.md § Argument conventions. */
+/** Reads `args` per the design notes' § Argument conventions. */
 export function parseArgs(
 	args: readonly string[],
 	spec: OptionSpec = {},
