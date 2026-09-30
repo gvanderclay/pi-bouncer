@@ -1,5 +1,17 @@
-// Argument conventions shared by rules (design notes § Argument conventions;
-// see index.ts).
+// Argument conventions shared by rules. Rules judge `Invocation.args`
+// (dequoted), and unless a rule says otherwise:
+// - `--` ends options; everything after it is an operand.
+// - A short cluster is an argument starting with a single `-` and one or more
+//   letters (`-rf`). A flag is present when its letter appears in a cluster,
+//   scanning stops at the first letter that takes a value (the rest of the
+//   cluster is that value).
+// - A long option is `--name` or `--name=value`. A dangerous long option
+//   matches any `--p` where `p` is a prefix of its name (git and GNU tools
+//   accept unambiguous abbreviations, and denying an ambiguous one is harmless
+//   because the tool would refuse it anyway). A long option that allows
+//   something (`--staged`, `--dry-run`) matches exactly only.
+// - A lone `-` is an operand.
+// - An unknown option is skipped as a bare flag and processing continues.
 
 /** The arguments before the first `--`: the only ones that can be options. */
 export function optionArgs(args: readonly string[]): readonly string[] {
@@ -90,7 +102,7 @@ function readShortArg(arg: string, spec: OptionSpec, state: Parsing): void {
 	}
 }
 
-/** Reads `args` per the design notes' § Argument conventions. */
+/** Reads `args` per the conventions in the header comment. */
 export function parseArgs(
 	args: readonly string[],
 	spec: OptionSpec = {},

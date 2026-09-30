@@ -88,7 +88,7 @@ const denied = [
 	'ls && timeout 5 /bin/rm "-rf" x',
 	"timeout --made-up 5 rm -rf x",
 	"env --made-up rm -rf x",
-	// Ticket 07 re-parses env -S strings (was an accepted miss).
+	// env -S strings are re-parsed (this was once an accepted miss).
 	"env -S 'rm -rf x'",
 ];
 

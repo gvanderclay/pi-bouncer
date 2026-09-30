@@ -237,9 +237,8 @@ export const REFUSAL_REASON = "It was refused as likely harmful.";
 
 /**
  * A usage-policy refusal: pi-ai's Anthropic adapter ends it as an `error`
- * with the provider's raw stop reason `refusal` (design notes § Auto mode:
- * refusal signal; see index.ts). The message is never matched, so any other error stays
- * a failure.
+ * with the provider's raw stop reason `refusal`. The message is never
+ * matched, so any other error stays a failure.
  */
 function refused(message: JudgeMessage): boolean {
 	return message.stopReason === "error" && message.rawStopReason === "refusal";

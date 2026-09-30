@@ -60,6 +60,12 @@ YOLO mode off, and the other way round.
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
 after allowing the current line.
 
+The footer shows the mode: a bold red `🔥 YOLO`, or `🤖 AUTO`,
+`🤖 AUTO (paused)` and, while a judge call is out, `🤖 judging…`. The model is
+never told either mode is on: a YOLO-allowed call just runs, and an auto-mode
+deny is sent in the same hard-deny form as any other deny, naming neither auto
+mode nor a judge (the judge's one-line reason is the deny's reason).
+
 In auto mode each judge-list entry gets 10 s, and a line gets 20 s in total.
 `auto.firstByProvider` names the entry to ask first for the session model's
 provider. The judge sees the command, the flagged rules, the working
@@ -98,13 +104,26 @@ rotation size, generations kept and age pruning) and `auto` (the judge list
 An invalid part falls back to its built-in value, and one warning lists every
 problem. Without this file the built-in levels apply.
 
+```json
+{
+  "levels": { "privilege": "ask" },
+  "log": { "rotateAboveMiB": 5, "generations": 5, "maxAgeDays": 90 }
+}
+```
+
+The `log` values shown are the defaults: rotate above 5 MiB, keep 5 gzipped
+generations, prune anything older than 90 days. The scratch route's file holds
+its judge list and asks Sonnet first on `anthropic` (`firstByProvider`).
+
 ## Log
 
-Every call the bouncer does more than let through, every mode switch and every
-session start appends one JSON line to `<agent dir>/bouncer/log.jsonl`
-(or `$PI_BOUNCER_LOG_DIR`). The log rotates into gzipped generations
-within the config's limits, and a write failure never changes a decision. The
-location never depends on the bouncer config.
+One JSON line is appended to `<agent dir>/bouncer/log.jsonl` (or
+`$PI_BOUNCER_LOG_DIR`) for each of these: a hard deny, a no-UI deny, each dialog
+answer, a session-allow hit, a call YOLO mode allowed, a call auto mode decided,
+every mode switch and every session start. Calls the bouncer lets through
+untouched are not logged. The log rotates into gzipped generations within the
+config's limits, and a write failure never changes a decision. The location
+never depends on the bouncer config, so the `log` limits cannot move it.
 
 ## Commands and skills
 
