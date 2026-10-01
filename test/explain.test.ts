@@ -9,6 +9,7 @@ import { parse } from "unbash";
 import { explain } from "../explain.ts";
 import type { Inspection, ParseFn } from "../gate.ts";
 import {
+	projectConfigPath,
 	tempAgentDir,
 	tempProjectDir,
 	writeConfig,
@@ -161,7 +162,7 @@ test("the route and project config drive the replay, and come back with it", () 
 		config.files.map(({ path, loaded }) => [path, loaded]),
 		[
 			[join(agentDir, "bouncer.json"), true],
-			[join(cwd, ".pi", "extensions", "bouncer", "config.json"), true],
+			[projectConfigPath(cwd), true],
 		],
 	);
 	assert.deepEqual(inspection, {

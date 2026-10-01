@@ -7,6 +7,7 @@ import { loadConfig } from "../config.ts";
 import { builtInPolicy } from "../rules/built-in-policy.ts";
 import { type Policy, policyEntryName } from "../rules/rule.ts";
 import {
+	projectConfigPath,
 	tempAgentDir,
 	tempProjectDir,
 	writeConfig,
@@ -80,7 +81,7 @@ test("a missing route file is the built-in policy, with no problems", () => {
 		files: [
 			{ path, loaded: false, problems: [] },
 			{
-				path: join(cwd, ".pi", "extensions", "bouncer", "config.json"),
+				path: projectConfigPath(cwd),
 				loaded: false,
 				problems: [],
 			},
@@ -278,7 +279,7 @@ function routeAndProject(
 	projectConfig: unknown,
 ): { agentDir: string; cwd: string; projectPath: string } {
 	const { agentDir, cwd } = route(routeConfig);
-	const projectPath = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	const projectPath = projectConfigPath(cwd);
 	if (projectConfig !== undefined) writeProjectConfig(cwd, projectConfig);
 	return { agentDir, cwd, projectPath };
 }
@@ -319,7 +320,7 @@ test("a project file in a parent of the cwd is not read", () => {
 	const config = loadConfig(agentDir, below, true);
 	assert.deepEqual(config.policy, builtInPolicy);
 	assert.deepEqual(config.files[1], {
-		path: join(below, ".pi", "extensions", "bouncer", "config.json"),
+		path: projectConfigPath(below),
 		loaded: false,
 		problems: [],
 	});

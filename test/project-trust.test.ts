@@ -7,6 +7,7 @@ import {
 	fakeContext,
 	type LogRecord,
 	loadGateSession,
+	projectConfigPath,
 	scriptedUI,
 	tempProjectDir,
 	uiContext,
@@ -131,7 +132,7 @@ test("an untrusted project config setting git-push-force to ask is ignored with 
 	assert.equal(result?.block, true);
 	assert.ok(result?.reason?.includes("(rule: git-push-force)"));
 	assert.equal(notices.length, 1, JSON.stringify(notices));
-	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	const path = projectConfigPath(cwd);
 	assert.ok(
 		notices[0]?.message.includes(
 			`${path}: levels: "git-push-force" would loosen the rule, and the project is not trusted`,
@@ -176,7 +177,7 @@ test("a config at the old .pi/bouncer.json is not applied, with a move warning",
 	assert.equal(call.dialogs.length, 1);
 	assert.equal(notices.length, 1, JSON.stringify(notices));
 	const oldPath = join(cwd, ".pi", "bouncer.json");
-	const newPath = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	const newPath = projectConfigPath(cwd);
 	assert.ok(
 		notices[0]?.message.includes(
 			`${oldPath}: no longer read; move it to ${newPath}`,
@@ -200,7 +201,7 @@ test("a project config's route-only keys are each ignored with their own message
 	writeProjectConfig(cwd, { log: {}, auto: {}, startMode: "off" });
 	const { ctx, notices } = uiContext(cwd, true);
 	await gate.startSession("startup", ctx);
-	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	const path = projectConfigPath(cwd);
 	assert.equal(notices.length, 1, JSON.stringify(notices));
 	assert.equal(notices[0]?.level, "warning");
 	assert.equal(
@@ -220,7 +221,7 @@ test("a project config loosening an always-deny rule gets the exact refusal mess
 	writeProjectConfig(cwd, { levels: { "rm-root": "ask" } });
 	const { ctx, notices } = uiContext(cwd, true);
 	await gate.startSession("startup", ctx);
-	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	const path = projectConfigPath(cwd);
 	assert.equal(notices.length, 1, JSON.stringify(notices));
 	assert.equal(notices[0]?.level, "warning");
 	assert.equal(
@@ -242,7 +243,7 @@ test("a project config's parse problems come before its level refusals", async (
 	});
 	const { ctx, notices } = uiContext(cwd, false);
 	await gate.startSession("startup", ctx);
-	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	const path = projectConfigPath(cwd);
 	assert.equal(notices.length, 1, JSON.stringify(notices));
 	assert.equal(notices[0]?.level, "warning");
 	assert.equal(

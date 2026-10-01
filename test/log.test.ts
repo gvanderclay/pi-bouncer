@@ -8,6 +8,7 @@ import {
 	bashCall,
 	fakeContext,
 	loadGateSession,
+	projectConfigPath,
 	SESSION_FILE,
 	SESSION_ID,
 	scriptedUI,
@@ -399,7 +400,7 @@ test("with no config files, the session record lists built-in config", async () 
 				problems: [],
 			},
 			{
-				path: join(cwd, ".pi", "extensions", "bouncer", "config.json"),
+				path: projectConfigPath(cwd),
 				loaded: false,
 				problems: [],
 			},
@@ -429,7 +430,7 @@ test("with a route and a project file, the session record merges them", async ()
 				problems: ['unknown key "extra"'],
 			},
 			{
-				path: join(cwd, ".pi", "extensions", "bouncer", "config.json"),
+				path: projectConfigPath(cwd),
 				loaded: true,
 				problems: [],
 			},
