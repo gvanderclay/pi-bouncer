@@ -5,8 +5,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ConfigFile } from "./config.ts";
-import { alwaysDenySet, builtInPolicy } from "./rules/built-in-policy.ts";
-import { policyEntryName } from "./rules/rule.ts";
+import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
 import type { RuleName, VerdictLevel } from "./verdict.ts";
 
 /** Level changes by rule name; a rule absent here keeps its level. */
@@ -30,10 +29,6 @@ export function oldProjectFile(cwd: string): ConfigFile[] {
 	const problem = `no longer read; move it to ${projectConfigFile(cwd)}`;
 	return [{ path, loaded: false, problems: [problem] }];
 }
-
-const BUILT_IN_LEVELS: ReadonlyMap<string, VerdictLevel> = new Map(
-	builtInPolicy.map((entry) => [policyEntryName(entry), entry.level]),
-);
 
 /**
  * Why a project may not set `rule` to `level` over `routeLevel` (the level
@@ -71,7 +66,7 @@ export function projectLevels(
 		RuleName,
 		VerdictLevel,
 	][]) {
-		const routeLevel = routeLevels[rule] ?? BUILT_IN_LEVELS.get(rule);
+		const routeLevel = routeLevels[rule] ?? builtInEntries.get(rule)?.level;
 		const why = refusal(rule, level, routeLevel, trusted);
 		if (why) problems.push(why);
 		else kept[rule] = level;

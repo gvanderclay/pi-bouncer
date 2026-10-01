@@ -17,7 +17,7 @@ import { fdExec, findExec, rgPre } from "./hidden-exec.ts";
 import { privilege } from "./privilege.ts";
 import { ghDelete, publish } from "./publish.ts";
 import { remoteScript } from "./remote-script.ts";
-import type { Policy } from "./rule.ts";
+import { type Policy, type PolicyEntry, policyEntryName } from "./rule.ts";
 import { ddDevice, diskFormat, power } from "./system.ts";
 
 export const builtInPolicy: Policy = [
@@ -46,6 +46,11 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: ghDelete, level: "ask" },
 	{ kind: "steer", rule: grep, instead: grepInstead, level: "deny" },
 ];
+
+/** Every built-in policy entry by its name (`policyEntryName`). */
+export const builtInEntries: ReadonlyMap<string, PolicyEntry> = new Map(
+	builtInPolicy.map((entry) => [policyEntryName(entry), entry]),
+);
 
 /**
  * The rules YOLO mode still denies, whatever the bouncer config's levels say:

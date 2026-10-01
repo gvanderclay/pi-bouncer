@@ -12,12 +12,8 @@ import {
 	projectConfigFile,
 	projectLevels,
 } from "./project-config.ts";
-import { builtInPolicy } from "./rules/built-in-policy.ts";
-import {
-	type Policy,
-	type PolicyEntry,
-	policyEntryName,
-} from "./rules/rule.ts";
+import { builtInEntries, builtInPolicy } from "./rules/built-in-policy.ts";
+import { type Policy, policyEntryName } from "./rules/rule.ts";
 import type { RuleName, VerdictLevel } from "./verdict.ts";
 
 /** The bouncer log's limits; only the route file sets them. */
@@ -73,10 +69,6 @@ export const BUILT_IN_LOG_LIMITS: LogLimits = {
 	generations: 5,
 };
 
-const POLICY_ENTRIES: ReadonlyMap<string, PolicyEntry> = new Map(
-	builtInPolicy.map((entry) => [policyEntryName(entry), entry]),
-);
-
 type Json = Readonly<Record<string, unknown>>;
 
 function isObject(value: unknown): value is Json {
@@ -125,7 +117,7 @@ function validLevels(value: unknown, problems: string[]): Levels {
 	}
 	const levels: Partial<Record<RuleName, VerdictLevel>> = {};
 	for (const [rule, level] of Object.entries(value)) {
-		const entry = POLICY_ENTRIES.get(rule);
+		const entry = builtInEntries.get(rule);
 		// Unreadable-command denies and steer rules have a fixed level.
 		if (entry?.kind === "unreadable" || entry?.kind === "steer") {
 			problems.push(`levels: "${rule}" is always deny`);
