@@ -199,6 +199,19 @@ test("a long earlier message is cut to 1,000 characters, keeping its start", asy
 	assert.ok(text.endsWith("… (cut)"), text.slice(-20));
 });
 
+test("the earlier messages are sized for the widest number in the list before the budget, so 8 of 10 are kept, not 9", async () => {
+	const { cwd, gate, fake } = await dirGate();
+	const letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+	const branch = letters.map((letter) => said(letter.repeat(439)));
+	branch.push(said("go"));
+	const block = earlierBlock(await inputFor(gate, fake, cwd, branch));
+	const expected = letters
+		.slice(2)
+		.map((letter, i) => `[${i + 1}] ${letter.repeat(439)}`)
+		.join("\n");
+	assert.equal(block, expected);
+});
+
 test("the earlier messages stay within 4,000 characters, the newest kept", async () => {
 	const { cwd, gate, fake } = await dirGate();
 	const branch = ["A", "B", "C", "D", "E", "F"].map((letter) =>

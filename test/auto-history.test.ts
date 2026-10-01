@@ -249,6 +249,29 @@ test("the newest 50 entries are kept, an over-long one is cut, and the block sta
 	assert.match(block, /^1\. bash: echo /);
 });
 
+test("the session history is sized for the widest number in the list before the budget, so 8 of 10 are kept, not 9", async () => {
+	const { gate, fake } = await handingOff();
+	const letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+	for (const letter of letters)
+		await gate.finishTool(bashResult(`echo ${letter.repeat(874)}`));
+	const expected = letters
+		.slice(2)
+		.map((letter, i) => `${i + 1}. bash: echo ${letter.repeat(874)}`)
+		.join("\n");
+	assert.equal(historyBlock(await inputFor(gate, fake)), expected);
+});
+
+test("the call record counts the history entries left after the 8,000-character budget", async () => {
+	const { gate, fake } = await handingOff();
+	for (const letter of "ABCDEFGHIJ")
+		await gate.finishTool(bashResult(`echo ${letter.repeat(900)}`));
+	const input = await inputFor(gate, fake);
+	const lines = historyBlock(input)?.split("\n") ?? [];
+	assert.equal(lines.length, 8);
+	const auto = gate.records().at(-1)?.auto as { sent?: unknown };
+	assert.deepEqual(auto.sent, { history: 8, earlierMessages: 0 });
+});
+
 test("a command's later lines are indented and a closing tag is escaped", async () => {
 	const { gate, fake } = await handingOff();
 	await gate.finishTool(

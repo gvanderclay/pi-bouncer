@@ -18,12 +18,15 @@ import {
 } from "./auto-harness.ts";
 import {
 	bashCall,
+	bashResult,
 	fakeRegistry,
 	loadGateSession,
 	type ModelReply,
+	messageEntry,
 	tempProjectDir,
 	uiContext,
 	verdict,
+	withBranch,
 	writeProjectConfig,
 } from "./harness.ts";
 import {
@@ -924,6 +927,103 @@ test("/auto off while Jev is out drops its allow, with auto.discarded", async (t
 	assert.equal(auto.model, JEV);
 	assert.equal(auto.jev?.answer, "safe");
 	assert.equal(auto.discarded, true);
+});
+
+/** A held Jev reply: `release` answers it once the line is out. */
+function heldReply(): { held: Promise<string>; release: (b: string) => void } {
+	let release: (body: string) => void = () => {};
+	const held = new Promise<string>((resolve) => {
+		release = resolve;
+	});
+	return { held, release };
+}
+
+test("a tool result that lands while Jev is out reaches neither Jev's state nor the judge input", async (t) => {
+	const { held, release } = heldReply();
+	const sent = stubJev(t, () => held);
+	const { gate, fake } = await jevGate(
+		{ allowAt: 0.9 },
+		verdict("ask", "not sure"),
+	);
+	await gate.finishTool(bashResult("mkdir before"));
+	const ui = judgedUI(fake, ["Deny"]);
+	const pending = gate.handler(bashCall("rm -rf dist"), ui.ctx);
+	await flush();
+	assert.equal(sent.length, 1);
+	await gate.finishTool(bashResult("mkdir during"));
+	release(jevReply(0.5, 0.05, 0.5));
+	assert.equal((await pending)?.block, true);
+	assert.deepEqual(sent[0]?.body.state, {
+		flagged: [
+			{
+				rule: "recursive-rm",
+				summary: "recursive rm deletes whole directory trees",
+				source: "rm -rf dist",
+			},
+		],
+		working_directory: "/work",
+		git: { kind: "unknown" },
+		session_history: [{ tool: "bash", text: "mkdir before", cwd: "/work" }],
+		command: "rm -rf dist",
+	});
+	assert.equal(fake.requests.length, 1);
+	const input = fake.requests[0]?.input ?? "";
+	assert.match(input, /\n1\. bash: mkdir before\n/);
+	assert.doesNotMatch(input, /mkdir during/);
+});
+
+test("Jev's earlier messages and session history are exactly the judge input's blocks, over budget", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.5, 0.05, 0.5));
+	const { gate, fake } = await jevGate(
+		{ allowAt: 0.9 },
+		verdict("ask", "not sure"),
+	);
+	const letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+	for (const letter of letters)
+		await gate.finishTool(bashResult(`echo ${letter.repeat(900)}`));
+	const branch = [...letters.slice(0, 6), "go"].map((text, i) =>
+		messageEntry({
+			role: "user",
+			content: text.length === 1 ? text.repeat(900) : text,
+			timestamp: i,
+		}),
+	);
+	const ui = judgedUI(fake, ["Deny"]);
+	await gate.handler(bashCall("rm -rf dist"), withBranch(ui.ctx, branch));
+	const state = sent[0]?.body.state as Record<string, unknown>;
+	const kept = (from: number, to: number): string[] => letters.slice(from, to);
+	assert.deepEqual(
+		state["earlier_user_messages"],
+		kept(2, 6).map((letter) => letter.repeat(900)),
+	);
+	assert.deepEqual(
+		state["session_history"],
+		kept(2, 10).map((letter) => ({
+			tool: "bash",
+			text: `echo ${letter.repeat(900)}`,
+			cwd: "/work",
+		})),
+	);
+	const input = fake.requests[0]?.input ?? "";
+	const earlier =
+		/\n<earlier_user_messages>\n([\s\S]*)\n<\/earlier_user_messages>\n/.exec(
+			input,
+		)?.[1];
+	const history = /\n<session_history>\n([\s\S]*)\n<\/session_history>\n/.exec(
+		input,
+	)?.[1];
+	assert.equal(
+		earlier,
+		kept(2, 6)
+			.map((letter, i) => `[${i + 1}] ${letter.repeat(900)}`)
+			.join("\n"),
+	);
+	assert.equal(
+		history,
+		kept(2, 10)
+			.map((letter, i) => `${i + 1}. bash: echo ${letter.repeat(900)}`)
+			.join("\n"),
+	);
 });
 
 /** The `/auto status` notice, with the registry `fake` in the context. */
