@@ -6,7 +6,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { Ask } from "./ask.ts";
-import { type GateConfig, judgeOrder } from "./config.ts";
+import type { GateConfig } from "./config.ts";
 import { errorText } from "./error-text.ts";
 import {
 	type Remotes,
@@ -21,18 +21,17 @@ import {
 	type ToolHistory,
 	userTexts,
 } from "./history.ts";
-import { jevFailures, jevStatus, jevThenJudge } from "./jev.ts";
+import { jevStatus } from "./jev.ts";
 import {
 	earlierWithinBudget,
 	historyWithinBudget,
 	type JudgeRegistry,
-	type JudgeResult,
 	NOT_FOUND,
 	resolveEntry,
-	runJudge,
 } from "./judge.ts";
 import { appendRecord, logFile } from "./log.ts";
 import type { GateMode, ModeHolder } from "./mode.ts";
+import { type Ruling, ruleLine, rulingFailures } from "./ruling.ts";
 
 /** The fields every log record carries: format, time, session and cwd. */
 export function recordHead(
@@ -352,12 +351,11 @@ export function trackPause(
  * skill that fixes the list.
  */
 function notifyFailures(
-	result: JudgeResult,
+	result: Ruling,
 	session: SessionState,
 	ctx: ExtensionContext,
 ): void {
-	// Jev's failure counts as one more model given up on.
-	const tried = [...jevFailures(result), ...result.tried];
+	const tried = rulingFailures(result);
 	for (const { model, error } of tried) session.lastFailure.set(model, error);
 	const fresh = tried.filter(({ model }) => !session.reported.has(model));
 	for (const { model } of fresh) session.reported.add(model);
@@ -499,7 +497,7 @@ export function judgeFor(
 	session: SessionState,
 	onSent: (sent: JudgeSent) => void = () => {},
 ): Judge {
-	return async (asks: readonly Ask[]): Promise<JudgeResult> => {
+	return async (asks: readonly Ask[]): Promise<Ruling> => {
 		// A result that lands while the judge runs does not change its request.
 		const history = historyWithinBudget(session.history.entries, ctx.cwd);
 		showJudging(ctx);
@@ -535,10 +533,7 @@ export function judgeFor(
 				...(ctx.signal && { signal: ctx.signal }),
 			};
 			const auto = session.config?.auto;
-			const models = judgeOrder(auto, ctx.model?.provider);
-			const result = auto?.jev
-				? await jevThenJudge(models, request, run, auto.jev)
-				: await runJudge(models, request, run);
+			const result = await ruleLine(request, auto, ctx.model?.provider, run);
 			notifyFailures(result, session, ctx);
 			return result;
 		} finally {

@@ -247,7 +247,7 @@ export const JEV_ENTRY = `${JEV_PROVIDER}/${JEV_MODEL}`;
 export const JEV_ALLOW_REASON = "Jev rated it safe.";
 
 /** What the log keeps of an answer: the reading, or the error. */
-function jevRecord(answer: JevAnswer): JevRecord {
+export function jevRecord(answer: JevAnswer): JevRecord {
 	if ("error" in answer) return { error: answer.error, ms: answer.ms };
 	const { safe, unsafe, confidence, ms } = answer;
 	const { effect, created, user_intent, risky_target } = answer;

@@ -14,7 +14,7 @@ import {
 	yoloAnswers,
 } from "./ask.ts";
 import type { JevRecord } from "./jev-questions.ts";
-import type { JudgeFailure, JudgeResult } from "./judge.ts";
+import type { JudgeFailure } from "./judge.ts";
 import type { GateMode } from "./mode.ts";
 import {
 	type Match,
@@ -25,6 +25,7 @@ import {
 	read,
 } from "./rank.ts";
 import type { Policy, Where } from "./rules/rule.ts";
+import type { Ruling } from "./ruling.ts";
 import type { ParseFn } from "./scan/walk.ts";
 import {
 	notification,
@@ -89,8 +90,8 @@ export type Decision = Outcome & {
 	readonly autoOn?: true;
 };
 
-/** Runs the judge list on a line's uncovered asks. */
-export type Judge = (asks: readonly Ask[]) => Promise<JudgeResult>;
+/** Rules a line's uncovered asks: the auto-mode ruling. */
+export type Judge = (asks: readonly Ask[]) => Promise<Ruling>;
 
 /** One bash call: where it runs, and who can be asked about it. */
 export type Call = {
@@ -212,7 +213,7 @@ function yoloDecided(
 	return { kind: "allow", trace: { ...trace, asks } };
 }
 
-function autoTrace(result: JudgeResult): AutoTrace {
+function autoTrace(result: Ruling): AutoTrace {
 	const jev = result.jev && { jev: result.jev };
 	if (result.kind === "none") {
 		return { verdict: "none", tried: result.tried, ...jev };
@@ -268,7 +269,7 @@ async function autoDecided(
 			auto,
 		});
 	}
-	const result: JudgeResult = call.judge
+	const result: Ruling = call.judge
 		? await call.judge(open)
 		: { kind: "none", tried: [] };
 	const again = call.redecide?.();
