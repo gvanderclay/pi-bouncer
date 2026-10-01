@@ -20,8 +20,10 @@ const RM_X = { rule: "recursive-rm", level: "ask", source: "rm -rf x" };
 
 /** The replay's inspection under a route and project with no config. */
 function inspected(parser: ParseFn | undefined, command: string): Inspection {
-	return explain(parser, command, tempAgentDir(), tempProjectDir(), true)
-		.inspection;
+	return explain(parser, command, tempAgentDir(), {
+		cwd: tempProjectDir(),
+		trusted: true,
+	}).inspection;
 }
 
 test("rm -rf x is one ask: asked with a UI, denied without", () => {
@@ -128,13 +130,10 @@ test("with privilege set to ask, sudo ls is asked with a UI and denied without",
 	writeConfig(join(agentDir, "bouncer.json"), {
 		levels: { privilege: "ask" },
 	});
-	const { inspection } = explain(
-		parse,
-		"sudo ls",
-		agentDir,
-		tempProjectDir(),
-		true,
-	);
+	const { inspection } = explain(parse, "sudo ls", agentDir, {
+		cwd: tempProjectDir(),
+		trusted: true,
+	});
 	assert.deepEqual(inspection, {
 		matches: [{ rule: "privilege", level: "ask", source: "sudo ls" }],
 		withUI: { kind: "ask" },
@@ -155,8 +154,7 @@ test("the route and project config drive the replay, and come back with it", () 
 		parse,
 		"git push --force && sudo ls",
 		agentDir,
-		cwd,
-		true,
+		{ cwd, trusted: true },
 	);
 	assert.deepEqual(
 		config.files.map(({ path, loaded }) => [path, loaded]),
@@ -184,8 +182,10 @@ function withYolo(
 ): Inspection["withYolo"] {
 	const agentDir = tempAgentDir();
 	writeConfig(join(agentDir, "bouncer.json"), { levels });
-	return explain(parse, command, agentDir, tempProjectDir(), true).inspection
-		.withYolo;
+	return explain(parse, command, agentDir, {
+		cwd: tempProjectDir(),
+		trusted: true,
+	}).inspection.withYolo;
 }
 
 const yoloRows: readonly (readonly [
@@ -280,13 +280,10 @@ const autoRows: readonly (readonly [
 for (const [label, command, config, expected] of autoRows) {
 	test(`with auto: ${label} is ${expected.kind}`, () => {
 		const agentDir = routeWith(config);
-		const { inspection } = explain(
-			parse,
-			command,
-			agentDir,
-			tempProjectDir(),
-			true,
-		);
+		const { inspection } = explain(parse, command, agentDir, {
+			cwd: tempProjectDir(),
+			trusted: true,
+		});
 		assert.deepEqual(inspection.withAuto, expected);
 	});
 }
@@ -359,7 +356,10 @@ function loosenedPush(): { agentDir: string; cwd: string } {
 
 test("an untrusted project cannot loosen git-push-force in the replay; a trusted one can", () => {
 	const { agentDir, cwd } = loosenedPush();
-	const untrusted = explain(parse, "git push --force", agentDir, cwd, false);
+	const untrusted = explain(parse, "git push --force", agentDir, {
+		cwd,
+		trusted: false,
+	});
 	assert.deepEqual(untrusted.inspection.withUI, {
 		kind: "deny",
 		rule: "git-push-force",
@@ -370,7 +370,10 @@ test("an untrusted project cannot loosen git-push-force in the replay; a trusted
 		),
 		JSON.stringify(untrusted.config.problems),
 	);
-	const trusted = explain(parse, "git push --force", agentDir, cwd, true);
+	const trusted = explain(parse, "git push --force", agentDir, {
+		cwd,
+		trusted: true,
+	});
 	assert.deepEqual(trusted.inspection.withUI, { kind: "ask" });
 });
 
@@ -378,13 +381,10 @@ for (const trusted of [true, false]) {
 	test(`a project setting rm-root to ask is still denied in the replay (trusted: ${trusted})`, () => {
 		const cwd = tempProjectDir();
 		writeProjectConfig(cwd, { levels: { "rm-root": "ask" } });
-		const { inspection } = explain(
-			parse,
-			"rm -rf /",
-			tempAgentDir(),
+		const { inspection } = explain(parse, "rm -rf /", tempAgentDir(), {
 			cwd,
 			trusted,
-		);
+		});
 		assert.deepEqual(inspection.withUI, { kind: "deny", rule: "rm-root" });
 	});
 }

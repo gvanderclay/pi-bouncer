@@ -417,7 +417,9 @@ function diffText(diff: ListDiff): string {
 
 /** The route's current judge list; a project's `auto` is ignored anyway. */
 function currentList(route: string): readonly string[] {
-	return loadConfig(route, tmpdir(), false).auto?.models ?? [];
+	return (
+		loadConfig(route, { cwd: tmpdir(), trusted: false }).auto?.models ?? []
+	);
 }
 
 // Pi's registry for `route`, loaded only for a live run so the tests never

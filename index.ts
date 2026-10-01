@@ -277,7 +277,10 @@ function startSession(
 	logging.restart();
 	resetPause(rt.session);
 	// The flags need the config: `--auto` checks the judge list.
-	const config = loadConfig(rt.agentDir, ctx.cwd, ctx.isProjectTrusted());
+	const config = loadConfig(rt.agentDir, {
+		cwd: ctx.cwd,
+		trusted: ctx.isProjectTrusted(),
+	});
 	rt.session.config = config;
 	applyStartFlags(rt.pi, holder, rt.switchMode, config, ctx);
 	showMode(holder, rt.session, ctx);

@@ -24,6 +24,7 @@ import {
 	configRecord,
 	type GateConfig,
 	loadConfig,
+	type Project,
 } from "./config.ts";
 import {
 	type AutoWould,
@@ -41,18 +42,16 @@ export type Explanation = {
 
 /**
  * Replays `command` under the bouncer config of the route in `agentDir` for a
- * session in `cwd` whose project Pi trusts or not (`projectTrusted`), as the
- * live bouncer would; no parser means `parser-unavailable`.
+ * session in `project`, which Pi trusts or not, as the live bouncer would; no parser means `parser-unavailable`.
  */
 export function explain(
 	parse: ParseFn | undefined,
 	command: string,
 	agentDir: string,
-	cwd: string,
-	projectTrusted: boolean,
+	project: Project,
 ): Explanation {
-	const config = loadConfig(agentDir, cwd, projectTrusted);
-	const where = { cwd, home: homedir() };
+	const config = loadConfig(agentDir, project);
+	const where = { cwd: project.cwd, home: homedir() };
 	const alwaysAsk = config.auto?.alwaysAsk ?? [];
 	const inspection = inspect(parse, command, config.policy, where, alwaysAsk);
 	return { inspection, config };
@@ -168,13 +167,10 @@ async function main(): Promise<void> {
 			return;
 		}
 	}
-	const { inspection, config } = explain(
-		await loadParser(),
-		command,
-		route,
+	const { inspection, config } = explain(await loadParser(), command, route, {
 		cwd,
-		trust.trusted,
-	);
+		trusted: trust.trusted,
+	});
 	const record = { ...inspection, config: configRecord(config), trust };
 	const output = values.json
 		? JSON.stringify(record, null, 2)

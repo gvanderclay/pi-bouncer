@@ -382,29 +382,32 @@ function effectivePolicy(levels: Levels): Policy {
 	);
 }
 
+/** The session's project: its directory, and whether Pi trusts it. */
+export type Project = { readonly cwd: string; readonly trusted: boolean };
+
 /**
- * Loads the bouncer config of the route in `agentDir` for a session in `cwd`
- * whose project Pi trusts or not (`projectTrusted`): the project file's
+ * Loads the bouncer config of the route in `agentDir` for a session in
+ * `project`, which Pi trusts or not: the project file's
  * levels override the route file's entry by entry, except that no project
  * entry loosens the always-deny set and an untrusted project's entries only
  * make a rule stricter. The result is the effective policy. A missing file is
  * the built-in policy.
  */
-export function loadConfig(
-	agentDir: string,
-	cwd: string,
-	projectTrusted: boolean,
-): GateConfig {
+export function loadConfig(agentDir: string, project: Project): GateConfig {
 	const routeFile = parseFile(routeConfigFile(agentDir), "route");
-	const project = projectLevels(
-		parseFile(projectConfigFile(cwd), "project"),
+	const projectConfig = projectLevels(
+		parseFile(projectConfigFile(project.cwd), "project"),
 		routeFile.levels,
-		projectTrusted,
+		project.trusted,
 	);
-	const files = [routeFile.file, project.file, ...oldProjectFile(cwd)];
+	const files = [
+		routeFile.file,
+		projectConfig.file,
+		...oldProjectFile(project.cwd),
+	];
 	return {
-		policy: effectivePolicy({ ...routeFile.levels, ...project.levels }),
-		projectTrusted,
+		policy: effectivePolicy({ ...routeFile.levels, ...projectConfig.levels }),
+		projectTrusted: project.trusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
 		startMode: routeFile.startMode ?? "off",
 		...(routeFile.auto && { auto: routeFile.auto }),
