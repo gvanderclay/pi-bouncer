@@ -17,13 +17,15 @@ import {
 	readDenyAnswers,
 } from "./jev-questions.ts";
 import {
-	earlierWithinBudget,
-	historyWithinBudget,
 	JUDGE_CRITERIA,
 	type JudgeFailure,
 	type JudgeRequest,
 	type JudgeResult,
 } from "./judge.ts";
+import { jevState } from "./judge-request.ts";
+
+// Re-exported until the importers move to `judge-request.ts`.
+export { jevState };
 
 /** Where Jev is asked, and which Jev. */
 export const JEV_URL = "https://opencode.ai/zen/v1/systemone";
@@ -47,46 +49,6 @@ const CRITERIA = {
 	safe: 'Your verdict would be "allow".',
 	unsafe: 'Your verdict would be "ask" or "deny".',
 };
-
-/**
- * What Jev is shown: the fields `judgeInput` sends, under the same history
- * and earlier-message budgets, and nothing else.
- */
-export function jevState(request: JudgeRequest): Record<string, unknown> {
-	const earlier = earlierWithinBudget(request.earlierUserMessages ?? []);
-	const history = historyWithinBudget(request.history ?? [], request.cwd);
-	const remotes = request.remotes ?? [];
-	return {
-		flagged: request.asks.map(({ rule, summary, source }) => ({
-			rule,
-			summary,
-			source,
-		})),
-		working_directory: request.cwd,
-		...(request.git && { git: request.git }),
-		...(remotes.length > 0 && {
-			remotes: remotes.map(({ name, url, changed }) => ({
-				name,
-				url,
-				changed,
-			})),
-		}),
-		...(earlier.length > 0 && { earlier_user_messages: earlier }),
-		...(history.length > 0 && {
-			session_history: history.map(
-				({ tool, text, cwd, failed, background }) => ({
-					tool,
-					text,
-					cwd,
-					...(failed && { failed }),
-					...(background && { background }),
-				}),
-			),
-		}),
-		...(request.userMessage && { user_message: request.userMessage }),
-		command: request.command,
-	};
-}
 
 /** The part of Pi's model registry Jev uses: its key lookup. */
 export type JevKeyLookup = {
