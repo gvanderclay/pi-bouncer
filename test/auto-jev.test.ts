@@ -270,8 +270,23 @@ for (const [label, reply, jev] of TO_THE_LIST) {
 	});
 }
 
-test("with auto.jev {} Jev is asked and logged but decides nothing", async (t) => {
-	const sent = stubJev(t, () => jevReply(1, 0, 1));
+test("with auto.jev {} a safe reply at 0.51 allows quietly with no judge-list call", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.51, 0.49, 0.6));
+	const { gate, fake } = await jevGate({}, verdict("deny", "Not asked for."));
+	const ui = judgedUI(fake);
+	assert.equal(await gate.handler(bashCall("rm -rf dist"), ui.ctx), undefined);
+	assert.deepEqual(ui.dialogs, []);
+	assert.deepEqual(ui.notices, []);
+	assert.deepEqual(fake.requests, []);
+	assert.equal(sent.length, 1);
+	const auto = autoOf(gate);
+	assert.equal(auto.model, JEV);
+	assert.equal(auto.jev?.answer, "safe");
+	assert.equal(auto.jev?.safe, 0.51);
+});
+
+test("with auto.jev {} a 0.50/0.50 tie goes to the judge list", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.5, 0.5, 0.6));
 	const { gate, fake } = await jevGate({}, verdict("allow", "Build output."));
 	assert.equal(
 		await gate.handler(bashCall("rm -rf dist"), judgedUI(fake).ctx),
@@ -281,12 +296,19 @@ test("with auto.jev {} Jev is asked and logged but decides nothing", async (t) =
 	assert.equal(fake.requests.length, 1);
 	const auto = autoOf(gate);
 	assert.equal(auto.model, "fake/judge");
-	assert.deepEqual(auto.jev && { ...auto.jev, ms: 0 }, {
-		answer: "unsure",
-		safe: 1,
-		confidence: 1,
-		ms: 0,
-	});
+	assert.equal(auto.jev?.answer, "unsure");
+	assert.equal(auto.jev?.safe, 0.5);
+});
+
+test("with auto.jev {} an unsafe reply at 1 never denies, as denyAt is null", async (t) => {
+	stubJev(t, () => jevReply(0, 1, 1));
+	const { gate, fake } = await jevGate({}, verdict("allow", "Build output."));
+	assert.equal(
+		await gate.handler(bashCall("rm -rf dist"), judgedUI(fake).ctx),
+		undefined,
+	);
+	assert.equal(fake.requests.length, 1);
+	assert.equal(autoOf(gate).model, "fake/judge");
 });
 
 const FAILURES: readonly (readonly [
@@ -684,7 +706,7 @@ const STATUS_LINES: readonly (readonly [
 		"on without a key",
 		{ denyAt: 0.97 },
 		{},
-		"Jev: on (allowAt none, denyAt 0.97); no opencode-go key",
+		"Jev: on (allowAt 0.51, denyAt 0.97); no opencode-go key",
 	],
 ];
 

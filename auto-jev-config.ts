@@ -11,11 +11,15 @@ export type JevSettings = {
 };
 
 /**
- * The cutoffs a route that sets no `allowAt` or `denyAt` gets. Placeholders
- * until the Jev bench sets them: Jev allows only at the route's own
- * `allowAt`, and never denies.
+ * The cutoffs a route that sets no `allowAt` or `denyAt` gets, chosen from
+ * the Jev bench run of 2026-10-01 (spec `.scratch/bouncer-jev-judge/spec.md`,
+ * `## Comments`, "Default cutoffs chosen, 2026-10-01"). `allowAt` is 0.51,
+ * the lowest cutoff a route may set, so a 0.50/0.50 tie never allows; the
+ * bench's 0.50 and 0.51 rows are identical.
+ * `denyAt` stays `null` (Jev never denies unless a route sets it) by
+ * decision, deliberately not the bench's 0.96.
  */
-export const JEV_ALLOW_AT: number | null = null;
+export const JEV_ALLOW_AT: number | null = 0.51;
 export const JEV_DENY_AT: number | null = null;
 
 const CUTOFF_RULE = "a number above 0.5 and at most 1";

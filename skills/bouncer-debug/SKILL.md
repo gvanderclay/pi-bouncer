@@ -109,8 +109,9 @@ model registry. Its lifetime is YOLO mode's.
   opencode-go key). Jev sees what the judge sees and answers with safe and
   unsafe probabilities. `auto.jev.allowAt` and `auto.jev.denyAt` are optional
   numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
-  `allowAt` means Jev never allows, an absent `denyAt` is `null`, and an
-  invalid `auto.jev` is a config problem that leaves Jev off. A safe
+  `allowAt` is 0.51, an absent `denyAt` is `null` (Jev denies only when
+  the route sets it), and an invalid `auto.jev` is a config problem that
+  leaves Jev off. A safe
   probability at or above `allowAt` allows the line with no judge-list call,
   and `auto.model` is `opencode-go/jev-1.13`. An unsafe probability at or
   above `denyAt`, unless `denyAt` is `null`, denies it the same way, in the

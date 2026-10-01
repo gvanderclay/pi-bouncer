@@ -168,10 +168,11 @@ log's rotation size, generations kept and age pruning), `auto` (the judge list
 `jev`) and `startMode` (`off` or `auto`, see Modes).
 `auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
 and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
-`null`. Until the Jev bench sets real defaults, an absent `allowAt` means Jev
-never allows and an absent `denyAt` is `null`, so `"jev": {}` asks Jev and
-logs its answer but lets it decide nothing. With `denyAt` `null` Jev never
-denies, and an unsafe answer goes to the judge list. An invalid `auto.jev`
+`null`. An absent `allowAt` defaults to 0.51, set from the Jev bench run of
+2026-10-01, and an absent `denyAt` defaults to `null`, so
+`"jev": {}` lets Jev allow at a safe probability of 0.51 or more and never
+deny. Jev denies only when the route sets `denyAt`; with `denyAt` `null` an
+unsafe answer goes to the judge list. An invalid `auto.jev`
 is a config problem and leaves Jev off; a project file's `auto` is ignored.
 An invalid part falls back to its built-in value, and one warning lists every
 problem. Without this file the built-in levels apply.
