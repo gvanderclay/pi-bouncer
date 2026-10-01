@@ -33,8 +33,13 @@ BOUNCER_LOG="${PI_BOUNCER_LOG_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/bounc
 
 A rule's level can differ from the built-in one. At every session start the
 bouncer reads the route's `<agent dir>/bouncer.json` and the project's
-`<cwd>/.pi/bouncer.json` (the session's working directory only; the
-project overrides the route entry by entry). `levels` maps a built-in rule to
+`<cwd>/.pi/extensions/bouncer/config.json` (the session's working
+directory only; the project overrides the route entry by entry). A project
+file never loosens the always-deny set, and when Pi did not trust the
+project at session start it only makes rules stricter; each ignored entry is
+a problem in the record's `files`, and the record's `config.projectTrusted`
+says which trust state applied. A `<cwd>/.pi/bouncer.json` is never read;
+it shows up as a problem asking to move it. `levels` maps a built-in rule to
 `ask` or `deny`; `unparseable`, `inline-too-deep`, `parser-unavailable`
 and the `grep` steer rule always deny, and setting one is a config
 problem. An invalid part falls back to its built-in value. Edits apply
@@ -256,6 +261,7 @@ holds it.
    jq -r .command record.json | node <this skill's directory>/../../explain.ts -
    node <this skill's directory>/../../explain.ts --json '<command>'
    node <this skill's directory>/../../explain.ts --agent-dir <agent dir> --cwd <session cwd> '<command>'
+   node <this skill's directory>/../../explain.ts --untrusted '<command>'
    ```
 
    It prints every match with its rule, level and source, then what the bouncer
@@ -264,11 +270,19 @@ holds it.
    "with auto" (`judge`, `ask (always-ask)`, `allow` or deny with the rule
    that stops it before any judge; it never calls a model or reads git), then
    a `config:` line naming the bouncer config files it read and their
-   problems. It applies the same config as the live bouncer: the route from
+   problems, then a `trust:` line with the project trust state it used and
+   where that came from. It applies the same config as the live bouncer: the route from
    `$PI_CODING_AGENT_DIR` (or `~/.pi/agent`) and the project from the current
    directory. To replay a session that ran elsewhere, pass `--agent-dir` and
-   `--cwd` (the record's `cwd`). `--json` prints the matches in the log's
-   `matches` shape and a `config` field shaped like the session record's, so
+   `--cwd` (the record's `cwd`). The project's trust state decides which
+   project levels apply: `--trusted` or `--untrusted` sets it, and to match a
+   past session pass the one its record's `config.projectTrusted` says.
+   Without either it uses Pi's saved decision in the route's `trust.json`
+   (a project with no saved decision counts as
+   untrusted, though the session may have been trusted for that session
+   only), and it exits with an error asking for a flag if it cannot load
+   Pi's package. `--json` prints the matches in the log's `matches` shape, a
+   `config` field shaped like the session record's and a `trust` field, so
    you can compare a replay against a record. It never opens a dialog and
    never runs the command. It ignores session allows, which live only in the
    running bouncer's memory, and it reads the config as it is now, not as the

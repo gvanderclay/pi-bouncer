@@ -72,14 +72,15 @@ function route(config?: unknown): {
 
 test("a missing route file is the built-in policy, with no problems", () => {
 	const { agentDir, path, cwd } = route();
-	assert.deepEqual(loadConfig(agentDir, cwd), {
+	assert.deepEqual(loadConfig(agentDir, cwd, true), {
 		policy: builtInPolicy,
+		projectTrusted: true,
 		log: DEFAULT_LOG,
 		startMode: "off",
 		files: [
 			{ path, loaded: false, problems: [] },
 			{
-				path: join(cwd, ".pi", "bouncer.json"),
+				path: join(cwd, ".pi", "extensions", "bouncer", "config.json"),
 				loaded: false,
 				problems: [],
 			},
@@ -90,7 +91,7 @@ test("a missing route file is the built-in policy, with no problems", () => {
 
 test("an empty object is the built-in policy, loaded", () => {
 	const { agentDir, path, cwd } = route({});
-	const config = loadConfig(agentDir, cwd);
+	const config = loadConfig(agentDir, cwd, true);
 	assert.deepEqual(config.policy, builtInPolicy);
 	assert.deepEqual(config.files[0], { path, loaded: true, problems: [] });
 });
@@ -100,7 +101,7 @@ test("a valid file sets levels and log limits", () => {
 		levels: { "git-push-force": "deny", privilege: "ask" },
 		log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 90 },
 	});
-	const config = loadConfig(agentDir, cwd);
+	const config = loadConfig(agentDir, cwd, true);
 	assert.deepEqual(
 		rows(config.policy),
 		builtInWith({ "git-push-force": "deny", privilege: "ask" }),
@@ -171,7 +172,7 @@ const problems: readonly (readonly [
 for (const [label, config, problem, levels] of problems) {
 	test(`${label} is a problem; the valid parts apply`, () => {
 		const { agentDir, path, cwd } = route(config);
-		const loaded = loadConfig(agentDir, cwd);
+		const loaded = loadConfig(agentDir, cwd, true);
 		assert.deepEqual(rows(loaded.policy), builtInWith(levels));
 		assert.deepEqual(loaded.log, DEFAULT_LOG);
 		const [file] = loaded.files;
@@ -184,14 +185,14 @@ for (const [label, config, problem, levels] of problems) {
 test("broken JSON and a non-object top level do not count as loaded", () => {
 	for (const config of ["{", "[]"]) {
 		const { agentDir, cwd } = route(config);
-		assert.equal(loadConfig(agentDir, cwd).files[0]?.loaded, false);
+		assert.equal(loadConfig(agentDir, cwd, true).files[0]?.loaded, false);
 	}
 });
 
 test("an unreadable file (a directory) is a problem", () => {
 	const { agentDir, path, cwd } = route();
 	mkdirSync(path, { recursive: true });
-	const config = loadConfig(agentDir, cwd);
+	const config = loadConfig(agentDir, cwd, true);
 	assert.deepEqual(config.policy, builtInPolicy);
 	assert.equal(config.files[0]?.loaded, false);
 	assert.match(config.files[0]?.problems[0] ?? "", /could not be read.*EISDIR/);
@@ -251,7 +252,7 @@ const logProblems: readonly (readonly [
 for (const [label, log, problem, limits] of logProblems) {
 	test(`${label} is a problem; the valid limits apply`, () => {
 		const { agentDir, cwd } = route({ log, levels: { privilege: "ask" } });
-		const config = loadConfig(agentDir, cwd);
+		const config = loadConfig(agentDir, cwd, true);
 		assert.deepEqual(config.log, limits);
 		assert.deepEqual(rows(config.policy), builtInWith({ privilege: "ask" }));
 		assert.equal(config.problems.length, 1, String(config.problems));
@@ -268,7 +269,7 @@ test("every problem in one file is reported", () => {
 		levels: { nope: "ask", privilege: "maybe" },
 		log: { generations: -2 },
 	});
-	assert.equal(loadConfig(agentDir, cwd).problems.length, 4);
+	assert.equal(loadConfig(agentDir, cwd, true).problems.length, 4);
 });
 
 /** A temp route and project, each holding its config when one is given. */
@@ -277,7 +278,7 @@ function routeAndProject(
 	projectConfig: unknown,
 ): { agentDir: string; cwd: string; projectPath: string } {
 	const { agentDir, cwd } = route(routeConfig);
-	const projectPath = join(cwd, ".pi", "bouncer.json");
+	const projectPath = join(cwd, ".pi", "extensions", "bouncer", "config.json");
 	if (projectConfig !== undefined) writeProjectConfig(cwd, projectConfig);
 	return { agentDir, cwd, projectPath };
 }
@@ -288,7 +289,7 @@ test("the project file overrides the route's levels entry by entry", () => {
 		{ levels: { "git-push-force": "ask", "git-clean": "deny" } },
 	);
 	assert.deepEqual(
-		rows(loadConfig(agentDir, cwd).policy),
+		rows(loadConfig(agentDir, cwd, true).policy),
 		builtInWith({
 			"git-push-force": "ask",
 			privilege: "ask",
@@ -299,7 +300,7 @@ test("the project file overrides the route's levels entry by entry", () => {
 
 test("files list the route file, then the project file", () => {
 	const { agentDir, cwd, projectPath } = routeAndProject(undefined, {});
-	assert.deepEqual(loadConfig(agentDir, cwd).files, [
+	assert.deepEqual(loadConfig(agentDir, cwd, true).files, [
 		{
 			path: join(agentDir, "bouncer.json"),
 			loaded: false,
@@ -315,10 +316,10 @@ test("a project file in a parent of the cwd is not read", () => {
 	});
 	const below = join(cwd, "sub");
 	mkdirSync(below, { recursive: true });
-	const config = loadConfig(agentDir, below);
+	const config = loadConfig(agentDir, below, true);
 	assert.deepEqual(config.policy, builtInPolicy);
 	assert.deepEqual(config.files[1], {
-		path: join(below, ".pi", "bouncer.json"),
+		path: join(below, ".pi", "extensions", "bouncer", "config.json"),
 		loaded: false,
 		problems: [],
 	});
@@ -329,7 +330,7 @@ test("a project log section is ignored with a problem; the route's limits apply"
 		{ log: { generations: 2 } },
 		{ log: { generations: 0, maxAgeDays: 1 } },
 	);
-	const config = loadConfig(agentDir, cwd);
+	const config = loadConfig(agentDir, cwd, true);
 	assert.deepEqual(config.log, { rotateAboveMiB: 5, generations: 2 });
 	assert.equal(config.problems.length, 1);
 	assert.ok(
@@ -344,7 +345,7 @@ test("a broken project file falls back to the route's levels", () => {
 		{ levels: { privilege: "ask" } },
 		"{",
 	);
-	const config = loadConfig(agentDir, cwd);
+	const config = loadConfig(agentDir, cwd, true);
 	assert.deepEqual(rows(config.policy), builtInWith({ privilege: "ask" }));
 	assert.equal(config.files[1]?.loaded, false);
 	assert.ok(config.problems[0]?.startsWith(`${projectPath}: not valid JSON`));
@@ -356,7 +357,7 @@ test("an invalid project entry keeps the route's level for that rule", () => {
 		{ levels: { privilege: "never" } },
 	);
 	assert.deepEqual(
-		rows(loadConfig(agentDir, cwd).policy),
+		rows(loadConfig(agentDir, cwd, true).policy),
 		builtInWith({ privilege: "ask" }),
 	);
 });

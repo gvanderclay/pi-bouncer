@@ -399,11 +399,12 @@ test("with no config files, the session record lists built-in config", async () 
 				problems: [],
 			},
 			{
-				path: join(cwd, ".pi", "bouncer.json"),
+				path: join(cwd, ".pi", "extensions", "bouncer", "config.json"),
 				loaded: false,
 				problems: [],
 			},
 		],
+		projectTrusted: true,
 		levels: BUILT_IN_LEVELS,
 		log: { rotateAboveMiB: 5, generations: 5 },
 	});
@@ -428,11 +429,12 @@ test("with a route and a project file, the session record merges them", async ()
 				problems: ['unknown key "extra"'],
 			},
 			{
-				path: join(cwd, ".pi", "bouncer.json"),
+				path: join(cwd, ".pi", "extensions", "bouncer", "config.json"),
 				loaded: true,
 				problems: [],
 			},
 		],
+		projectTrusted: true,
 		levels: { ...BUILT_IN_LEVELS, privilege: "ask", publish: "deny" },
 		log: { rotateAboveMiB: 5, generations: 2, maxAgeDays: 30 },
 	});

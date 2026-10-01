@@ -131,8 +131,15 @@ dialog and no warning, however many asks it holds.
 ## Configuration
 
 At every session start the bouncer reads `<agent dir>/bouncer.json` for
-the route, and `.pi/bouncer.json` in the session's working directory
-overrides it entry by entry. Both are plain JSON. `levels` sets any built-in
+the route, and `.pi/extensions/bouncer/config.json` in the session's
+working directory overrides it entry by entry. Both are plain JSON. The
+project file sits under `.pi/extensions`, so Pi asks you to trust a project
+that ships one, and the bouncer reads that trust once at session start
+(`/trust` applies after a restart or `/reload`). An untrusted project's file
+may only make a rule stricter, and no project file, trusted or not, may
+loosen the always-deny set; only the route's file can. Each ignored entry is
+named in the session-start warning. The old `.pi/bouncer.json` is no longer
+read: the warning tells you to move it. `levels` sets any built-in
 rule to `ask` or `deny`, except the unreadable-command denies and the `grep`
 steer rule, whose level is fixed; the route's file also carries `log` (the
 log's rotation size, generations kept and age pruning), `auto` (the judge list

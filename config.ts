@@ -1,9 +1,17 @@
-// The bouncer config: finds, reads, validates and merges the route's and the
-// project's `bouncer.json`. Free of Pi; only index.ts, explain.ts and
-// mode-switch.ts (for `judgeOrder`) import it. It never throws: each invalid part is a problem and falls back
-// to its built-in value, and the valid parts still apply.
+// The bouncer config: finds, reads, validates and merges the route's
+// `bouncer.json` and the project's `.pi/extensions/bouncer/config.json`, under
+// the project rules in project-config.ts. Free of Pi; only index.ts,
+// explain.ts and mode-switch.ts (for `judgeOrder`) import it. It never throws:
+// each invalid part is a problem and falls back to its built-in value, and the
+// valid parts still apply.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+	type Levels,
+	oldProjectFile,
+	projectConfigFile,
+	projectLevels,
+} from "./project-config.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
 import {
 	type Policy,
@@ -48,6 +56,8 @@ export type StartMode = "off" | "auto";
 export type GateConfig = {
 	/** The effective policy: the built-in policy with the config applied. */
 	readonly policy: Policy;
+	/** Whether Pi trusted the project at session start. */
+	readonly projectTrusted: boolean;
 	readonly log: LogLimits;
 	/** The route's start mode; `off` when it sets none. */
 	readonly startMode: StartMode;
@@ -62,9 +72,6 @@ export const BUILT_IN_LOG_LIMITS: LogLimits = {
 	rotateAboveMiB: 5,
 	generations: 5,
 };
-
-/** Level changes by rule name; a rule absent here keeps its level. */
-type Levels = Readonly<Partial<Record<RuleName, VerdictLevel>>>;
 
 const POLICY_ENTRIES: ReadonlyMap<string, PolicyEntry> = new Map(
 	builtInPolicy.map((entry) => [policyEntryName(entry), entry]),
@@ -385,11 +392,6 @@ export function routeConfigFile(agentDir: string): string {
 	return join(agentDir, "bouncer.json");
 }
 
-/** A project's config file: `<cwd>/.pi/bouncer.json`, never higher up. */
-export function projectConfigFile(cwd: string): string {
-	return join(cwd, ".pi", "bouncer.json");
-}
-
 /**
  * The built-in policy with `levels` applied; unreadable denies and steer
  * rules stay deny.
@@ -403,16 +405,35 @@ function effectivePolicy(levels: Levels): Policy {
 }
 
 /**
- * Loads the bouncer config of the route in `agentDir` for a session in `cwd`:
- * the project file's levels override the route file's entry by entry, and
- * the result is the effective policy. A missing file is the built-in policy.
+ * Loads the bouncer config of the route in `agentDir` for a session in `cwd`
+ * whose project Pi trusts or not (`projectTrusted`): the project file's
+ * levels override the route file's entry by entry, except that no project
+ * entry loosens the always-deny set and an untrusted project's entries only
+ * make a rule stricter. The result is the effective policy. A missing file is
+ * the built-in policy.
  */
-export function loadConfig(agentDir: string, cwd: string): GateConfig {
+export function loadConfig(
+	agentDir: string,
+	cwd: string,
+	projectTrusted: boolean,
+): GateConfig {
 	const routeFile = parseFile(routeConfigFile(agentDir), "route");
 	const projectFile = parseFile(projectConfigFile(cwd), "project");
-	const files = [routeFile.file, projectFile.file];
+	const projectProblems = [...projectFile.file.problems];
+	const levels = projectLevels(
+		projectFile.levels,
+		routeFile.levels,
+		projectTrusted,
+		projectProblems,
+	);
+	const files = [
+		routeFile.file,
+		{ ...projectFile.file, problems: projectProblems },
+		...oldProjectFile(cwd),
+	];
 	return {
-		policy: effectivePolicy({ ...routeFile.levels, ...projectFile.levels }),
+		policy: effectivePolicy({ ...routeFile.levels, ...levels }),
+		projectTrusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
 		startMode: routeFile.startMode ?? "off",
 		...(routeFile.auto && { auto: routeFile.auto }),
@@ -426,6 +447,7 @@ export function loadConfig(agentDir: string, cwd: string): GateConfig {
 /** What a session ran under: the shape of the session record's `config`. */
 export type ConfigRecord = {
 	readonly files: readonly ConfigFile[];
+	readonly projectTrusted: boolean;
 	/** Every rule's effective level, unreadable-command denies first. */
 	readonly levels: Readonly<Record<RuleName, VerdictLevel>>;
 	readonly log: LogLimits;
@@ -444,8 +466,8 @@ export function configRecord(config: GateConfig): ConfigRecord {
 	for (const entry of config.policy) {
 		levels[policyEntryName(entry)] = entry.level;
 	}
-	const { files, log, auto } = config;
-	if (!auto) return { files, levels, log };
+	const { files, log, auto, projectTrusted } = config;
+	if (!auto) return { files, projectTrusted, levels, log };
 	const { models, alwaysAsk, environment, firstByProvider } = auto;
 	const counted = {
 		models,
@@ -453,5 +475,5 @@ export function configRecord(config: GateConfig): ConfigRecord {
 		environment: environment.length,
 		...(Object.keys(firstByProvider).length > 0 && { firstByProvider }),
 	};
-	return { files, levels, log, auto: counted };
+	return { files, projectTrusted, levels, log, auto: counted };
 }

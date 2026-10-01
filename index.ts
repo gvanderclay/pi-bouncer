@@ -66,8 +66,12 @@
  *
  * Bouncer config: at every `session_start`, `config.ts` reads the route's
  * `<agent dir>/bouncer.json` and the project's
- * `<cwd>/.pi/bouncer.json` (plain JSON; the project overrides the
- * route entry by entry). `levels` sets any built-in rule to ask or deny (the
+ * `<cwd>/.pi/extensions/bouncer/config.json` (plain JSON; the project
+ * overrides the route entry by entry, under the trust Pi reported at that
+ * `session_start`: no project file loosens the always-deny set, and an
+ * untrusted project's file only makes a rule stricter; `/trust` applies at
+ * the next `session_start`). The old `<cwd>/.pi/bouncer.json` is never read;
+ * finding one is a problem. `levels` sets any built-in rule to ask or deny (the
  * unreadable-command denies and the steer rule stay deny); the route's `log`
  * sets the log's rotation size, generations kept and age pruning, and the route's `auto`
  * sets auto mode's `models`, `alwaysAsk`, `environment` and
@@ -273,7 +277,7 @@ function startSession(
 	logging.restart();
 	resetPause(rt.session);
 	// The flags need the config: `--auto` checks the judge list.
-	const config = loadConfig(rt.agentDir, ctx.cwd);
+	const config = loadConfig(rt.agentDir, ctx.cwd, ctx.isProjectTrusted());
 	rt.session.config = config;
 	applyStartFlags(rt.pi, holder, rt.switchMode, config, ctx);
 	showMode(holder, rt.session, ctx);

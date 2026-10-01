@@ -1,6 +1,7 @@
 // Replays commands through explain.ts's exported function with the real parser.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,7 +19,8 @@ const RM_X = { rule: "recursive-rm", level: "ask", source: "rm -rf x" };
 
 /** The replay's inspection under a route and project with no config. */
 function inspected(parser: ParseFn | undefined, command: string): Inspection {
-	return explain(parser, command, tempAgentDir(), tempProjectDir()).inspection;
+	return explain(parser, command, tempAgentDir(), tempProjectDir(), true)
+		.inspection;
 }
 
 test("rm -rf x is one ask: asked with a UI, denied without", () => {
@@ -125,7 +127,13 @@ test("with privilege set to ask, sudo ls is asked with a UI and denied without",
 	writeConfig(join(agentDir, "bouncer.json"), {
 		levels: { privilege: "ask" },
 	});
-	const { inspection } = explain(parse, "sudo ls", agentDir, tempProjectDir());
+	const { inspection } = explain(
+		parse,
+		"sudo ls",
+		agentDir,
+		tempProjectDir(),
+		true,
+	);
 	assert.deepEqual(inspection, {
 		matches: [{ rule: "privilege", level: "ask", source: "sudo ls" }],
 		withUI: { kind: "ask" },
@@ -147,12 +155,13 @@ test("the route and project config drive the replay, and come back with it", () 
 		"git push --force && sudo ls",
 		agentDir,
 		cwd,
+		true,
 	);
 	assert.deepEqual(
 		config.files.map(({ path, loaded }) => [path, loaded]),
 		[
 			[join(agentDir, "bouncer.json"), true],
-			[join(cwd, ".pi", "bouncer.json"), true],
+			[join(cwd, ".pi", "extensions", "bouncer", "config.json"), true],
 		],
 	);
 	assert.deepEqual(inspection, {
@@ -174,7 +183,7 @@ function withYolo(
 ): Inspection["withYolo"] {
 	const agentDir = tempAgentDir();
 	writeConfig(join(agentDir, "bouncer.json"), { levels });
-	return explain(parse, command, agentDir, tempProjectDir()).inspection
+	return explain(parse, command, agentDir, tempProjectDir(), true).inspection
 		.withYolo;
 }
 
@@ -270,7 +279,13 @@ const autoRows: readonly (readonly [
 for (const [label, command, config, expected] of autoRows) {
 	test(`with auto: ${label} is ${expected.kind}`, () => {
 		const agentDir = routeWith(config);
-		const { inspection } = explain(parse, command, agentDir, tempProjectDir());
+		const { inspection } = explain(
+			parse,
+			command,
+			agentDir,
+			tempProjectDir(),
+			true,
+		);
 		assert.deepEqual(inspection.withAuto, expected);
 	});
 }
@@ -332,3 +347,117 @@ for (const [command, config, line, json] of cliRows) {
 		assert.deepEqual(JSON.parse(run(command, config, true)).withAuto, json);
 	});
 }
+
+/** A route that sets git-push-force to deny, and a project that sets it to ask. */
+function loosenedPush(): { agentDir: string; cwd: string } {
+	const agentDir = routeWith({ levels: { "git-push-force": "deny" } });
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { "git-push-force": "ask" } });
+	return { agentDir, cwd };
+}
+
+test("an untrusted project cannot loosen git-push-force in the replay; a trusted one can", () => {
+	const { agentDir, cwd } = loosenedPush();
+	const untrusted = explain(parse, "git push --force", agentDir, cwd, false);
+	assert.deepEqual(untrusted.inspection.withUI, {
+		kind: "deny",
+		rule: "git-push-force",
+	});
+	assert.ok(
+		untrusted.config.problems.some((problem) =>
+			problem.includes('"git-push-force" would loosen the rule'),
+		),
+		JSON.stringify(untrusted.config.problems),
+	);
+	const trusted = explain(parse, "git push --force", agentDir, cwd, true);
+	assert.deepEqual(trusted.inspection.withUI, { kind: "ask" });
+});
+
+for (const trusted of [true, false]) {
+	test(`a project setting rm-root to ask is still denied in the replay (trusted: ${trusted})`, () => {
+		const cwd = tempProjectDir();
+		writeProjectConfig(cwd, { levels: { "rm-root": "ask" } });
+		const { inspection } = explain(
+			parse,
+			"rm -rf /",
+			tempAgentDir(),
+			cwd,
+			trusted,
+		);
+		assert.deepEqual(inspection.withUI, { kind: "deny", rule: "rm-root" });
+	});
+}
+
+/** `node explain.ts` with `args`, its status and output. */
+function runArgs(args: readonly string[]): {
+	status: number | null;
+	stdout: string;
+	stderr: string;
+} {
+	const { status, stdout, stderr } = spawnSync(
+		process.execPath,
+		[EXPLAIN, ...args],
+		{ encoding: "utf8" },
+	);
+	return { status, stdout, stderr };
+}
+
+test("explain.ts --untrusted and --trusted set the trust state and say so", () => {
+	const { agentDir, cwd } = loosenedPush();
+	const where = ["--agent-dir", agentDir, "--cwd", cwd];
+	const untrusted = runArgs([...where, "--untrusted", "git push --force"]);
+	assert.equal(untrusted.status, 0, untrusted.stderr);
+	assert.match(untrusted.stdout, /^with a UI: deny \(git-push-force\)$/m);
+	assert.match(untrusted.stdout, /^trust: untrusted \(--untrusted\)$/m);
+	assert.match(
+		untrusted.stdout,
+		/"git-push-force" would loosen the rule, and the project is not trusted/,
+	);
+	const trusted = runArgs([
+		...where,
+		"--trusted",
+		"--json",
+		"git push --force",
+	]);
+	assert.equal(trusted.status, 0, trusted.stderr);
+	const json = JSON.parse(trusted.stdout);
+	assert.deepEqual(json.withUI, { kind: "ask" });
+	assert.deepEqual(json.trust, { trusted: true, source: "--trusted" });
+	assert.equal(json.config.projectTrusted, true);
+});
+
+test("explain.ts without a trust flag uses Pi's saved decision for the cwd", () => {
+	const { agentDir, cwd } = loosenedPush();
+	writeConfig(join(agentDir, "trust.json"), { [realpathSync(cwd)]: false });
+	const where = ["--agent-dir", agentDir, "--cwd", cwd];
+	const result = runArgs([...where, "git push --force"]);
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stdout, /^with a UI: deny \(git-push-force\)$/m);
+	assert.match(
+		result.stdout,
+		/^trust: untrusted \(Pi's saved decision in .*trust\.json\)$/m,
+	);
+});
+
+test("explain.ts without a trust flag or a saved decision treats a project with a config as untrusted", () => {
+	const { agentDir, cwd } = loosenedPush();
+	const result = runArgs([
+		"--agent-dir",
+		agentDir,
+		"--cwd",
+		cwd,
+		"--json",
+		"git push --force",
+	]);
+	assert.equal(result.status, 0, result.stderr);
+	assert.deepEqual(JSON.parse(result.stdout).trust, {
+		trusted: false,
+		source: "no saved Pi decision",
+	});
+});
+
+test("explain.ts with both trust flags is a usage error", () => {
+	const result = runArgs(["--trusted", "--untrusted", "ls"]);
+	assert.equal(result.status, 2);
+	assert.match(result.stderr, /--trusted/);
+});

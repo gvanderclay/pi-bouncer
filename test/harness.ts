@@ -238,8 +238,16 @@ export function tempProjectDir(): string {
 	return tempDir("project");
 }
 
-/** Writes a project's bouncer config, `<cwd>/.pi/bouncer.json`. */
+/**
+ * Writes a project's bouncer config,
+ * `<cwd>/.pi/extensions/bouncer/config.json`.
+ */
 export function writeProjectConfig(cwd: string, config: unknown): void {
+	writeConfig(join(cwd, ".pi", "extensions", "bouncer", "config.json"), config);
+}
+
+/** Writes a project config at the old path, `<cwd>/.pi/bouncer.json`. */
+export function writeOldProjectConfig(cwd: string, config: unknown): void {
 	writeConfig(join(cwd, ".pi", "bouncer.json"), config);
 }
 
@@ -380,15 +388,24 @@ export function sessionManager(
 	return { getSessionId: () => id, getSessionFile: () => file };
 }
 
-export function fakeContext(cwd = "/work"): ExtensionContext {
+/**
+ * A context without a UI. `trusted` backs `isProjectTrusted()`; like Pi for a
+ * folder that needs no trust decision, it defaults to trusted.
+ */
+export function fakeContext(cwd = "/work", trusted = true): ExtensionContext {
 	return {
 		hasUI: false,
 		cwd,
+		isProjectTrusted: (): boolean => trusted,
 		sessionManager: sessionManager(),
 	} as unknown as ExtensionContext;
 }
 
-export function uiContext(): {
+/** A UI context that records notices; `trusted` as in `fakeContext`. */
+export function uiContext(
+	cwd = "/work",
+	trusted = true,
+): {
 	ctx: ExtensionContext;
 	notices: Notice[];
 	statuses: Statuses;
@@ -407,7 +424,8 @@ export function uiContext(): {
 	const ctx = {
 		hasUI: true,
 		ui,
-		cwd: "/work",
+		cwd,
+		isProjectTrusted: (): boolean => trusted,
 		sessionManager: sessionManager(),
 	};
 	return { ctx: ctx as unknown as ExtensionContext, notices, statuses };
@@ -480,6 +498,7 @@ export function scriptedUI(
 		ui,
 		cwd,
 		signal,
+		isProjectTrusted: (): boolean => true,
 		sessionManager: sessionManager(),
 		// Like Pi's, the real abort waits for idle; this one never settles, so a
 		// handler that awaited it would hang the test.
