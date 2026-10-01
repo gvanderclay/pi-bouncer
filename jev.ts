@@ -19,10 +19,9 @@ import {
 import {
 	JUDGE_CRITERIA,
 	type JudgeFailure,
-	type JudgeRequest,
 	type JudgeResult,
 } from "./judge.ts";
-import { jevState } from "./judge-request.ts";
+import { type JudgeRequest, jevState } from "./judge-request.ts";
 
 // Re-exported until the importers move to `judge-request.ts`.
 export { jevState };

@@ -23,12 +23,8 @@ import {
 	userTexts,
 } from "./history.ts";
 import { jevStatus } from "./jev.ts";
-import {
-	earlierWithinBudget,
-	historyWithinBudget,
-	NOT_FOUND,
-	resolveEntry,
-} from "./judge.ts";
+import { NOT_FOUND, resolveEntry } from "./judge.ts";
+import { judgeRequest } from "./judge-request.ts";
 import { appendRecord, logFile } from "./log.ts";
 import type { GateMode, ModeHolder } from "./mode.ts";
 import {
@@ -503,8 +499,9 @@ export function judgeFor(
 	onSent: (sent: JudgeSent) => void = () => {},
 ): Judge {
 	return async (asks: readonly Ask[]): Promise<Ruling> => {
-		// A result that lands while the judge runs does not change its request.
-		const history = historyWithinBudget(session.history.entries, ctx.cwd);
+		// A result that lands while the judge runs does not change its request:
+		// recording never changes an entry, so a shallow copy is a snapshot.
+		const history = [...session.history.entries];
 		showJudging(ctx);
 		try {
 			const { cwd } = ctx;
@@ -516,22 +513,25 @@ export function judgeFor(
 			const texts = userTexts(ctx.sessionManager.getBranch?.() ?? []);
 			// An empty last message gives no user_message: no fallback.
 			const userMessage = texts.at(-1);
-			const earlier = earlierWithinBudget(
-				recentEarlier(texts.slice(0, -1).filter((text) => text !== "")),
+			const earlier = recentEarlier(
+				texts.slice(0, -1).filter((text) => text !== ""),
 			);
 			const environment = session.config?.auto?.environment ?? [];
-			const request = {
+			const request = judgeRequest({
 				command,
 				asks,
 				cwd,
 				git,
 				remotes: remoteFacts(snapshot, now),
 				environment,
-				...(earlier.length > 0 && { earlierUserMessages: earlier }),
-				...(history.length > 0 && { history }),
+				earlierUserMessages: earlier,
+				history,
 				...(userMessage && { userMessage }),
-			};
-			onSent({ history: history.length, earlierMessages: earlier.length });
+			});
+			onSent({
+				history: request.history?.length ?? 0,
+				earlierMessages: request.earlierUserMessages?.length ?? 0,
+			});
 			const run = {
 				registry: registryOf(ctx),
 				sessionId: ctx.sessionManager.getSessionId(),

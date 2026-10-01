@@ -5,12 +5,8 @@
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
 import { askJev, classify, type JevAnswer } from "../jev.ts";
-import {
-	JUDGE_CRITERIA,
-	JUDGE_PROMPT,
-	type JudgeRegistry,
-	judgeInput,
-} from "../judge.ts";
+import { JUDGE_CRITERIA, JUDGE_PROMPT, type JudgeRegistry } from "../judge.ts";
+import { judgeInput } from "../judge-request.ts";
 import {
 	BENCH_PROMPT,
 	type BenchCase,

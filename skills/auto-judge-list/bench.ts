@@ -23,10 +23,10 @@ import type { HistoryEntry } from "../../history.ts";
 import {
 	JUDGE_PROMPT,
 	type JudgeRegistry,
-	type JudgeRequest,
 	type JudgeVerdict,
 	runJudge,
 } from "../../judge.ts";
+import { type JudgeRequest, judgeRequest } from "../../judge-request.ts";
 import { rankAuto, read } from "../../rank.ts";
 import { builtInPolicy } from "../../rules/built-in-policy.ts";
 import { historyCases } from "./history-cases.ts";
@@ -224,7 +224,7 @@ export function requestFor(c: BenchCase): JudgeRequest {
 		c.branch === "-"
 			? { kind: "not-a-repo" as const }
 			: { kind: "repo" as const, branch: c.branch, dirty: false };
-	return {
+	return judgeRequest({
 		command: c.command,
 		asks: ranking.asks,
 		cwd: c.cwd,
@@ -234,7 +234,7 @@ export function requestFor(c: BenchCase): JudgeRequest {
 		}),
 		...(c.history && { history: c.history }),
 		...(c.userMessage !== undefined && { userMessage: c.userMessage }),
-	};
+	});
 }
 
 /** One model's answer to one case: a verdict, or why it gave none. */

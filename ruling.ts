@@ -21,12 +21,12 @@ import {
 import {
 	type JudgeFailure,
 	type JudgeRegistry,
-	type JudgeRequest,
 	type JudgeResult,
 	type JudgeRun,
 	LINE_MS,
 	runJudge,
 } from "./judge.ts";
+import type { JudgeRequest } from "./judge-request.ts";
 
 /** What the ruling gave: the judge list's result, and Jev's when asked. */
 export type Ruling = JudgeResult & { readonly jev?: JevRecord };
