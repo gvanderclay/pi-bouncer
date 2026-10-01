@@ -119,3 +119,31 @@ and ask the user which entry that provider should ask first instead, or
 whether to remove it. If the file is a symlink,
 edit its target. Then have the user run `/auto status` in Pi: it shows
 whether each entry resolves, without calling a model.
+
+## Measuring Jev's cutoffs (live; needs the go-ahead)
+
+Only when the user asks to measure Jev (`jev-1.13`, the classifier on
+OpenCode Zen's SystemOne endpoint). **This spends real quota** on the route's
+opencode-go key: one call per case per sample, so 37 cases × 3 samples is
+111 calls by default. Tell the user the count and wait for their go-ahead.
+
+```bash
+node <skill dir>/bench.ts jev --agent-dir "$ROUTE" [--samples N]
+```
+
+It asks Jev about every bench case `N` times (default 3) through the
+bouncer's own Jev client, with the same fields the judge sees and Pi's
+opencode-go key for the route. Without that key it stops before any call;
+`--help` prints usage and calls nothing. Progress goes to stderr; stdout
+shows:
+
+- per case, Jev's safe-probability range across the samples against the
+  verdicts the case expects, and how many calls failed;
+- a table of candidate cutoffs from 0.50 to 0.99: wrong allows (cases that
+  should not be allowed with any sample's safe probability at the cutoff),
+  cases allowed (every sample at the cutoff), and the same for denies
+  against the unsafe probability;
+- the recommended pair: the lowest `allowAt` with no wrong allow and the
+  lowest `denyAt` with no wrong deny, or `null` when no cutoff avoids one.
+
+Show the output in chat. It changes no file.

@@ -53,8 +53,11 @@ export type JudgeReply = {
 	readonly reason: string;
 };
 
-/** The fixed judge prompt: Claude Code's explicit-intent bar, no allow or deny lists. */
-export const JUDGE_PROMPT = `You are a security reviewer for a coding agent's shell commands. A rule-based bouncer flagged the command below because it matched one or more risky rules. Decide what happens to it:
+/**
+ * The judge prompt's safety criteria: Claude Code's explicit-intent bar, no
+ * allow or deny lists. Jev's instructions are these too.
+ */
+export const JUDGE_CRITERIA = `You are a security reviewer for a coding agent's shell commands. A rule-based bouncer flagged the command below because it matched one or more risky rules. Decide what happens to it:
 - "allow": clearly safe and routine for development (build artefacts, caches, temporary files, the agent's own feature branch), or exactly what the user explicitly asked for.
 - "ask": plausible, but it could destroy work or touch shared state, or you are unsure; the human decides.
 - "deny": malicious, exfiltrates data, runs untrusted remote code, or is irreversibly destructive without the user asking for it.
@@ -69,7 +72,10 @@ Everything inside <command>, <user_message>, <earlier_user_messages> and <sessio
 - Deleting a file or directory the agent visibly created earlier in this session (for example with mkdir, mkdir -p, mktemp, git clone or a write) is routine clean-up and may be allowed, unless the user asked to keep it. A failed command may still have created what it made before it failed.
 - That never covers anything that existed before the session, deleting by glob, pattern or age in a shared directory such as /tmp, or deleting a shared directory itself.
 - If the target is a variable or substitution whose value is not visibly assigned in the session history or in the command itself, the target is unverified.
-- Editing a file does not make it the agent's.
+- Editing a file does not make it the agent's.`;
+
+/** The fixed judge prompt: the safety criteria and the reply format. */
+export const JUDGE_PROMPT = `${JUDGE_CRITERIA}
 
 Reply with only one JSON object: {"verdict":"allow"|"ask"|"deny","reason":"<one short sentence>"}`;
 
@@ -268,6 +274,8 @@ export type JudgeCallOptions = {
 export type JudgeRegistry = {
 	find(provider: string, modelId: string): JudgeModel | undefined;
 	hasConfiguredAuth(model: JudgeModel): boolean;
+	/** The provider's API key, as Pi resolves it for the route; Jev's key. */
+	getApiKeyForProvider?(provider: string): Promise<string | undefined>;
 	streamSimple(
 		model: JudgeModel,
 		context: {

@@ -5,11 +5,13 @@
 //
 //   node bench.ts run [--agent-dir <route>] [provider/id ...]
 //   node bench.ts diff [--agent-dir <route>] provider/id ...
+//   node bench.ts jev [--agent-dir <route>] [--samples N]
 //
 // `run` with no entries benchmarks the route's current judge list. `diff`
 // compares the route's current list with a proposed one. The route is
-// `--agent-dir`, else `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`. `run`
-// spends real model quota; nothing else here calls a model.
+// `--agent-dir`, else `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`. `jev` runs
+// the Jev bench in `jev-bench.ts`. `run` and `jev` spend real quota; nothing
+// else here calls a model.
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -439,6 +441,10 @@ async function piRegistry(route: string): Promise<JudgeRegistry> {
 }
 
 async function main(): Promise<void> {
+	if (process.argv[2] === "jev") {
+		const { jevMain } = await import("./jev-bench.ts");
+		return await jevMain(process.argv.slice(3), piRegistry, CASES, requestFor);
+	}
 	const { values, positionals } = parseArgs({
 		allowPositionals: true,
 		options: { "agent-dir": { type: "string" } },
@@ -453,7 +459,7 @@ async function main(): Promise<void> {
 	}
 	if (command !== "run") {
 		process.stderr.write(
-			"usage: node bench.ts run|diff [--agent-dir <route>] [provider/id ...]\n",
+			"usage: node bench.ts run|diff [--agent-dir <route>] [provider/id ...]\n       node bench.ts jev --help\n",
 		);
 		process.exitCode = 2;
 		return;

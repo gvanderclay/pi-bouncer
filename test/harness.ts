@@ -693,6 +693,8 @@ function settle(reply: ModelReply, signal?: AbortSignal): Promise<FakeMessage> {
  */
 export function fakeRegistry(
 	models: Readonly<Record<string, ModelScript>> = {},
+	/** The key `getApiKeyForProvider` gives for each provider; none unless set. */
+	keys: Readonly<Record<string, string>> = {},
 ): FakeRegistry {
 	const requests: ModelRequest[] = [];
 	const finds: string[] = [];
@@ -708,6 +710,9 @@ export function fakeRegistry(
 		},
 		hasConfiguredAuth(model: FakeModel): boolean {
 			return models[`${model.provider}/${model.id}`]?.auth ?? true;
+		},
+		getApiKeyForProvider(provider: string): Promise<string | undefined> {
+			return Promise.resolve(keys[provider]);
 		},
 		streamSimple(
 			model: FakeModel,
