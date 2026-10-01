@@ -19,11 +19,14 @@ export type JudgeAsk = {
 	readonly source: string;
 };
 
+/** Marks a request only `judgeRequest` made. It exists in types alone. */
+declare const built: unique symbol;
+
 /**
- * Everything the judge input is built from. Never tool output, file
+ * The fields a judge request is built from. Never tool output, file
  * contents, the agent's own messages or AGENTS.md.
  */
-export type JudgeRequest = {
+export type JudgeFields = {
 	readonly command: string;
 	readonly asks: readonly JudgeAsk[];
 	readonly cwd: string;
@@ -48,16 +51,23 @@ export type JudgeRequest = {
 };
 
 /**
+ * What the judge and Jev are shown: the fields with the earlier messages and
+ * the session history within their budgets. The renderers render it as it
+ * is, so the type keeps a request made by hand out of them.
+ */
+export type JudgeRequest = JudgeFields & { readonly [built]: true };
+
+/**
  * The one builder of a judge request. The earlier messages and the session
  * history come out within their budgets, and an empty earlier list, an empty
  * history and an empty user message are left out. It applies no other cap:
  * the caller's own caps (`recentEarlier`, `recordEntry`) come first.
  * Building a request from a built request's own fields gives the same one.
  */
-export function judgeRequest(fields: JudgeRequest): JudgeRequest {
+export function judgeRequest(fields: JudgeFields): JudgeRequest {
 	const earlier = earlierWithinBudget(fields.earlierUserMessages ?? []);
 	const history = historyWithinBudget(fields.history ?? [], fields.cwd);
-	return {
+	const request: JudgeFields = {
 		command: fields.command,
 		asks: fields.asks,
 		cwd: fields.cwd,
@@ -68,6 +78,8 @@ export function judgeRequest(fields: JudgeRequest): JudgeRequest {
 		...(history.length > 0 && { history }),
 		...(fields.userMessage && { userMessage: fields.userMessage }),
 	};
+	// The one place a request is made: the mark is not a runtime property.
+	return request as JudgeRequest;
 }
 
 function gitLines(git: GitState | undefined): string[] {
@@ -108,7 +120,7 @@ function messageBody(text: string): string {
 
 /**
  * The newest `messages` whose numbered lines (`[n] text`) fit
- * `EARLIER_CHARS`, oldest first: what the judge is sent.
+ * `EARLIER_CHARS`, oldest first.
  */
 export function earlierWithinBudget(messages: readonly string[]): string[] {
 	// `[n] ` and a newline per line, sized for the widest number.
@@ -118,9 +130,7 @@ export function earlierWithinBudget(messages: readonly string[]): string[] {
 }
 
 function earlierLines(messages: readonly string[] = []): string[] {
-	return earlierWithinBudget(messages).map(
-		(text, i) => `[${i + 1}] ${messageBody(text)}`,
-	);
+	return messages.map((text, i) => `[${i + 1}] ${messageBody(text)}`);
 }
 
 /**
@@ -158,9 +168,7 @@ function historyLines(
 	entries: readonly HistoryEntry[] = [],
 	cwd: string,
 ): string[] {
-	return historyWithinBudget(entries, cwd).map(
-		(entry, i) => `${i + 1}. ${entryBody(entry, cwd)}`,
-	);
+	return entries.map((entry, i) => `${i + 1}. ${entryBody(entry, cwd)}`);
 }
 
 /** The judge input for one bash line. */
@@ -188,12 +196,12 @@ export function judgeInput(request: JudgeRequest): string {
 }
 
 /**
- * What Jev is shown: the fields `judgeInput` sends, under the same history
- * and earlier-message budgets, and nothing else.
+ * What Jev is shown: the fields `judgeInput` sends, the same lists, and
+ * nothing else.
  */
 export function jevState(request: JudgeRequest): Record<string, unknown> {
-	const earlier = earlierWithinBudget(request.earlierUserMessages ?? []);
-	const history = historyWithinBudget(request.history ?? [], request.cwd);
+	const earlier = request.earlierUserMessages ?? [];
+	const history = request.history ?? [];
 	const remotes = request.remotes ?? [];
 	return {
 		flagged: request.asks.map(({ rule, summary, source }) => ({

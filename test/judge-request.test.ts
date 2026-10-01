@@ -5,24 +5,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { HistoryEntry } from "../history.ts";
 import {
-	type JudgeRequest,
+	type JudgeFields,
 	jevState,
 	judgeInput,
 	judgeRequest,
 } from "../judge-request.ts";
-import {
-	type BenchCase,
-	CASES,
-	requestFor,
-} from "../skills/auto-judge-list/bench.ts";
-import { HELDOUT_CASES } from "../skills/auto-judge-list/heldout-cases.ts";
+import { type BenchCase, requestFor } from "../skills/auto-judge-list/bench.ts";
 
 const APP = "/home/dev/workspace/app";
 const ASKS = [
 	{ rule: "recursive-rm", summary: "recursive rm", source: "rm -rf /tmp/x" },
 ];
 
-function base(rest: Partial<JudgeRequest> = {}): JudgeRequest {
+function base(rest: Partial<JudgeFields> = {}): JudgeFields {
 	return { command: "rm -rf /tmp/x", asks: ASKS, cwd: APP, ...rest };
 }
 
@@ -136,12 +131,21 @@ test("the judge input shows the boundary's eight history lines, numbered from 1"
 	assert.equal(lines[close - 1], `8. bash: ${"9".repeat(879)}`);
 });
 
-// Temporary: removed once a request built by hand no longer typechecks.
-test("for every bench case, held-out case and the busy case, the built request renders as the unbuilt one", () => {
-	for (const c of [...CASES, ...HELDOUT_CASES, BUSY]) {
-		const unbuilt = requestFor(c);
-		const built = judgeRequest(unbuilt);
-		assert.equal(judgeInput(built), judgeInput(unbuilt), c.id);
-		assert.deepEqual(jevState(built), jevState(unbuilt), c.id);
-	}
+test("Jev's state holds the busy case's two kept messages and entries, with failed and background only when set", () => {
+	const state = jevState(judgeRequest(requestFor(BUSY)));
+	const { earlier_user_messages: earlier, session_history: history } = state;
+	assert.deepEqual(earlier, ["b".repeat(1500), "c".repeat(1500)]);
+	assert.deepEqual(history, [
+		{ tool: "write", text: "y".repeat(3500), cwd: "/tmp", failed: true },
+		{ tool: "bash", text: "z".repeat(3500), cwd: APP, background: true },
+	]);
+	assert.deepEqual(Object.keys(state), [
+		"flagged",
+		"working_directory",
+		"git",
+		"earlier_user_messages",
+		"session_history",
+		"user_message",
+		"command",
+	]);
 });
