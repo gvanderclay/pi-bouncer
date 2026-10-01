@@ -114,7 +114,7 @@ model registry. Its lifetime is YOLO mode's.
   1 − max(P(effect = harmful), P(user_intent = asked_to_keep), risky_target))`.
   `auto.jev.allowAt` and `auto.jev.denyAt` are optional
   numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
-  `allowAt` is 0.51, an absent `denyAt` is `null` (Jev denies only when
+  `allowAt` is 0.75, an absent `denyAt` is `null` (Jev denies only when
   the route sets it), and an invalid `auto.jev` is a config problem that
   leaves Jev off. A safe
   probability at or above `allowAt` allows the line with no judge-list call,

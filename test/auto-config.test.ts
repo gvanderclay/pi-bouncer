@@ -246,14 +246,14 @@ test("a valid auto.jev has no problems and is in the record", async () => {
 	});
 });
 
-test("auto.jev {} takes the default cutoffs: allowAt 0.51 and denyAt null", async () => {
+test("auto.jev {} takes the default cutoffs: allowAt 0.75 and denyAt null", async () => {
 	const config = await sessionConfig({ auto: { models: ["a/b"], jev: {} } });
 	assert.deepEqual(routeProblems(config), []);
 	assert.deepEqual(config.auto, {
 		models: ["a/b"],
 		alwaysAsk: [],
 		environment: 0,
-		jev: { allowAt: 0.51, denyAt: null },
+		jev: { allowAt: 0.75, denyAt: null },
 	});
 });
 

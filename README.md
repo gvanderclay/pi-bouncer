@@ -176,9 +176,9 @@ log's rotation size, generations kept and age pruning), `auto` (the judge list
 `jev`) and `startMode` (`off` or `auto`, see Modes).
 `auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
 and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
-`null`. An absent `allowAt` defaults to 0.51, set from the Jev bench run of
-2026-10-01, and an absent `denyAt` defaults to `null`, so
-`"jev": {}` lets Jev allow at a safe probability of 0.51 or more and never
+`null`. An absent `allowAt` defaults to 0.75, set from the Jev bench and
+held-out run of 2026-10-01, and an absent `denyAt` defaults to `null`, so
+`"jev": {}` lets Jev allow at a safe probability of 0.75 or more and never
 deny. `allowAt` applies to the safe probability and `denyAt` to the deny
 score. Jev denies only when the route sets `denyAt`; with `denyAt` `null` a
 high deny score goes to the judge list. An invalid `auto.jev`
