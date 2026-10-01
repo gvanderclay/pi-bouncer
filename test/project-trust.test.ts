@@ -193,3 +193,66 @@ test("the session record shows whether the project was trusted", async () => {
 	await untrusted.startSession("startup", fakeContext(tempProjectDir(), false));
 	assert.equal(projectTrusted(untrusted.records()), false);
 });
+
+test("a project config's route-only keys are each ignored with their own message, in key order", async () => {
+	const gate = await loadGateSession();
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { log: {}, auto: {}, startMode: "off" });
+	const { ctx, notices } = uiContext(cwd, true);
+	await gate.startSession("startup", ctx);
+	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	assert.equal(notices.length, 1, JSON.stringify(notices));
+	assert.equal(notices[0]?.level, "warning");
+	assert.equal(
+		notices[0]?.message,
+		[
+			"Bouncer config problems; these parts are ignored:",
+			`- ${path}: "log" is ignored in a project file: only the route sets log limits`,
+			`- ${path}: "auto" is ignored in a project file: only the route sets auto mode`,
+			`- ${path}: "startMode" is ignored in a project file: only the route sets the start mode`,
+		].join("\n"),
+	);
+});
+
+test("a project config loosening an always-deny rule gets the exact refusal message", async () => {
+	const gate = await loadGateSession();
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { "rm-root": "ask" } });
+	const { ctx, notices } = uiContext(cwd, true);
+	await gate.startSession("startup", ctx);
+	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	assert.equal(notices.length, 1, JSON.stringify(notices));
+	assert.equal(notices[0]?.level, "warning");
+	assert.equal(
+		notices[0]?.message,
+		[
+			"Bouncer config problems; these parts are ignored:",
+			`- ${path}: levels: "rm-root" is in the always-deny set; a project config cannot loosen it`,
+		].join("\n"),
+	);
+});
+
+test("a project config's parse problems come before its level refusals", async () => {
+	const gate = await loadGateSession();
+	gate.writeRouteConfig({ levels: { "git-push-force": "deny" } });
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, {
+		levels: { "rm-root": "ask", "git-push-force": "ask", nope: "ask" },
+		bogus: 1,
+	});
+	const { ctx, notices } = uiContext(cwd, false);
+	await gate.startSession("startup", ctx);
+	const path = join(cwd, ".pi", "extensions", "bouncer", "config.json");
+	assert.equal(notices.length, 1, JSON.stringify(notices));
+	assert.equal(notices[0]?.level, "warning");
+	assert.equal(
+		notices[0]?.message,
+		[
+			"Bouncer config problems; these parts are ignored:",
+			`- ${path}: levels: unknown rule "nope"`,
+			`- ${path}: unknown key "bogus"`,
+			`- ${path}: levels: "rm-root" is in the always-deny set; a project config cannot loosen it`,
+			`- ${path}: levels: "git-push-force" would loosen the rule, and the project is not trusted`,
+		].join("\n"),
+	);
+});
