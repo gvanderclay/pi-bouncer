@@ -238,12 +238,17 @@ export function tempProjectDir(): string {
 	return tempDir("project");
 }
 
+/** A project's bouncer config path, `<cwd>/.pi/extensions/bouncer/config.json`; written out here so the tests pin it apart from project-config.ts. */
+export function projectConfigPath(cwd: string): string {
+	return join(cwd, ".pi", "extensions", "bouncer", "config.json");
+}
+
 /**
  * Writes a project's bouncer config,
  * `<cwd>/.pi/extensions/bouncer/config.json`.
  */
 export function writeProjectConfig(cwd: string, config: unknown): void {
-	writeConfig(join(cwd, ".pi", "extensions", "bouncer", "config.json"), config);
+	writeConfig(projectConfigPath(cwd), config);
 }
 
 /** Writes a project config at the old path, `<cwd>/.pi/bouncer.json`. */
