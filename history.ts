@@ -3,7 +3,7 @@
 // bouncer's own record of the agent's executed bash commands and of the
 // paths its `write` and `edit` calls touched. Free of Pi, so the judge, the
 // bench and the tests can import it. How a block is rendered, and each
-// block's character budget, live in `judge.ts`.
+// block's character budget, live in `judge-request.ts`.
 import { posix } from "node:path";
 
 /** At most this many history entries are kept; the oldest go first. */
@@ -125,7 +125,7 @@ export function userTexts(branch: readonly BranchEntry[]): string[] {
  * The newest `EARLIER_MAX` of `texts` (the user's messages before the
  * latest, oldest first), each cut to `MESSAGE_CHARS`. The judge input keeps
  * the newest of them within `EARLIER_CHARS` (`earlierWithinBudget` in
- * `judge.ts`).
+ * `judge-request.ts`).
  */
 export function recentEarlier(texts: readonly string[]): string[] {
 	return texts.slice(-EARLIER_MAX).map((t) => cut(t, MESSAGE_CHARS));

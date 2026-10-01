@@ -7,10 +7,10 @@ import type { GitState, RemoteFact } from "./facts.ts";
 import { type HistoryEntry, newestWithin } from "./history.ts";
 
 /** The earlier-messages block stays within this many characters. */
-export const EARLIER_CHARS = 4_000;
+const EARLIER_CHARS = 4_000;
 
 /** The session-history block stays within this many characters. */
-export const HISTORY_CHARS = 8_000;
+const HISTORY_CHARS = 8_000;
 
 /** One uncovered ask, as the judge sees it. */
 export type JudgeAsk = {
@@ -122,7 +122,7 @@ function messageBody(text: string): string {
  * The newest `messages` whose numbered lines (`[n] text`) fit
  * `EARLIER_CHARS`, oldest first.
  */
-export function earlierWithinBudget(messages: readonly string[]): string[] {
+function earlierWithinBudget(messages: readonly string[]): string[] {
 	// `[n] ` and a newline per line, sized for the widest number.
 	const overhead = `[${messages.length}] `.length + 1;
 	const cost = (text: string): number => messageBody(text).length + overhead;
@@ -153,7 +153,7 @@ function entryBody(entry: HistoryEntry, cwd: string): string {
  * The newest `entries` whose numbered lines, as a call in `cwd` renders
  * them, fit `HISTORY_CHARS`, oldest first: what the judge is sent.
  */
-export function historyWithinBudget(
+function historyWithinBudget(
 	entries: readonly HistoryEntry[],
 	cwd: string,
 ): HistoryEntry[] {

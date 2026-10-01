@@ -1,29 +1,11 @@
-// The judge list, and only the judge list: the fixed prompt, the judge input,
-// the strict reply parser, entry resolution, and the runner that asks the
-// list. Jev and the auto-mode ruling live in `jev.ts` and `ruling.ts`. Free
+// The judge list, and only the judge list: the fixed prompt, the strict reply
+// parser, entry resolution, and the runner that asks the list. The request it
+// is handed, and the input text made from it, live in `judge-request.ts`; Jev
+// and the auto-mode ruling live in `jev.ts` and `ruling.ts`. Free
 // of Pi apart from the shape of the model registry it is handed; the bench
 // script imports the prompt and the parser from here and never copies them.
 import { errorText } from "./error-text.ts";
-import {
-	EARLIER_CHARS,
-	earlierWithinBudget,
-	HISTORY_CHARS,
-	historyWithinBudget,
-	type JudgeAsk,
-	type JudgeRequest,
-	judgeInput,
-} from "./judge-request.ts";
-
-// Re-exported until the importers move to `judge-request.ts`.
-export {
-	EARLIER_CHARS,
-	earlierWithinBudget,
-	HISTORY_CHARS,
-	historyWithinBudget,
-	type JudgeAsk,
-	type JudgeRequest,
-	judgeInput,
-};
+import { type JudgeRequest, judgeInput } from "./judge-request.ts";
 
 /** What the judge rules. `ask` hands the call to the user. */
 export type JudgeVerdict = "allow" | "deny" | "ask";

@@ -4,7 +4,8 @@
 // (`src/policy/transport.ts`, `src/policy/types.ts`), without its retries:
 // a failed call goes to the judge list. The client never throws, and its
 // errors never hold the key. `ruling.ts` decides when Jev is asked and what
-// its answer does to the line.
+// its answer does to the line. What Jev is shown comes from `jevState` in
+// `judge-request.ts`, built from the same request as the judge input.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
@@ -23,9 +24,6 @@ import {
 } from "./judge.ts";
 import { type JudgeRequest, jevState } from "./judge-request.ts";
 
-// Re-exported until the importers move to `judge-request.ts`.
-export { jevState };
-
 /** Where Jev is asked, and which Jev. */
 export const JEV_URL = "https://opencode.ai/zen/v1/systemone";
 export const JEV_MODEL = "jev-1.13";
@@ -40,6 +38,7 @@ export const JEV_MS = 5_000;
 /** The question Jev allows on, and its two choices. */
 const QUESTION = "safety";
 
+// The state's fields are the ones `jevState` (`judge-request.ts`) builds.
 const INSTRUCTIONS = `${JUDGE_CRITERIA}
 
 The state holds the flagged call as JSON. Its fields command, user_message, earlier_user_messages and session_history are the blocks named above, and the same rules apply to them. Answer "safe" when your verdict would be "allow", and "unsafe" when it would be "ask" or "deny".`;

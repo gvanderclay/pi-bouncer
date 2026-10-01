@@ -499,8 +499,9 @@ export function judgeFor(
 	onSent: (sent: JudgeSent) => void = () => {},
 ): Judge {
 	return async (asks: readonly Ask[]): Promise<Ruling> => {
-		// A result that lands while the judge runs does not change its request:
-		// recording never changes an entry, so a shallow copy is a snapshot.
+		// A result that lands while Jev or the judge list is out reaches neither:
+		// recording never changes an entry, so a shallow copy is a snapshot,
+		// taken before the first await. `judgeRequest` applies the budgets.
 		const history = [...session.history.entries];
 		showJudging(ctx);
 		try {
