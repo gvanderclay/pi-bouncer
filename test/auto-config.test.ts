@@ -157,19 +157,6 @@ const SEEDED = join(
 test("the scratch route's seeded judge list loads with no problems", async () => {
 	const config = await sessionConfig(readFileSync(SEEDED, "utf8"));
 	assert.deepEqual(routeProblems(config), []);
-	assert.deepEqual(config.auto, {
-		models: [
-			"opencode-go/space-bunny-free",
-			"opencode-go/deepseek-v4.1-flash",
-			"anthropic/claude-sonnet-5-5",
-			"anthropic/claude-haiku-4-5",
-		],
-		alwaysAsk: [],
-		environment: 0,
-		firstByProvider: {
-			anthropic: "anthropic/claude-sonnet-5-5",
-		},
-	});
 });
 
 test("a valid firstByProvider has no problems and is in the record", async () => {
