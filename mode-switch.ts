@@ -22,17 +22,21 @@ import {
 	type ToolHistory,
 	userTexts,
 } from "./history.ts";
-import { type JevKeyLookup, jevStatus } from "./jev.ts";
+import { jevStatus } from "./jev.ts";
 import {
 	earlierWithinBudget,
 	historyWithinBudget,
-	type JudgeRegistry,
 	NOT_FOUND,
 	resolveEntry,
 } from "./judge.ts";
 import { appendRecord, logFile } from "./log.ts";
 import type { GateMode, ModeHolder } from "./mode.ts";
-import { type Ruling, ruleLine, rulingFailures } from "./ruling.ts";
+import {
+	type Ruling,
+	type RulingRegistry,
+	ruleLine,
+	rulingFailures,
+} from "./ruling.ts";
 
 /** The fields every log record carries: format, time, session and cwd. */
 export function recordHead(
@@ -121,9 +125,9 @@ function showJudging(ctx: ExtensionContext): void {
 
 // Pi's registry, seen through the parts the judge list and Jev use. A
 // context without one resolves nothing.
-function registryOf(ctx: ExtensionContext): JudgeRegistry & JevKeyLookup {
+function registryOf(ctx: ExtensionContext): RulingRegistry {
 	const registry = (ctx as { modelRegistry?: unknown }).modelRegistry;
-	if (registry) return registry as JudgeRegistry & JevKeyLookup;
+	if (registry) return registry as RulingRegistry;
 	return {
 		find: () => undefined,
 		hasConfiguredAuth: () => false,

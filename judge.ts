@@ -1,7 +1,8 @@
-// The judge: the fixed prompt, the judge input, the strict reply parser, and
-// the runner that asks the judge list. Free of Pi apart from the shape of the
-// model registry it is handed; the bench script imports the prompt and the
-// parser from here and never copies them.
+// The judge list, and only the judge list: the fixed prompt, the judge input,
+// the strict reply parser, entry resolution, and the runner that asks the
+// list. Jev and the auto-mode ruling live in `jev.ts` and `ruling.ts`. Free
+// of Pi apart from the shape of the model registry it is handed; the bench
+// script imports the prompt and the parser from here and never copies them.
 import { errorText } from "./error-text.ts";
 import type { GitState, RemoteFact } from "./facts.ts";
 import { type HistoryEntry, newestWithin } from "./history.ts";
@@ -55,7 +56,7 @@ export type JudgeReply = {
 
 /**
  * The judge prompt's safety criteria: Claude Code's explicit-intent bar, no
- * allow or deny lists.
+ * allow or deny lists. Jev's instructions are these too.
  */
 export const JUDGE_CRITERIA = `You are a security reviewer for a coding agent's shell commands. A rule-based bouncer flagged the command below because it matched one or more risky rules. Decide what happens to it:
 - "allow": clearly safe and routine for development (build artefacts, caches, temporary files, the agent's own feature branch), or exactly what the user explicitly asked for.

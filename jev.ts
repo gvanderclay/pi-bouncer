@@ -20,7 +20,9 @@ import {
 	earlierWithinBudget,
 	historyWithinBudget,
 	JUDGE_CRITERIA,
+	type JudgeFailure,
 	type JudgeRequest,
+	type JudgeResult,
 } from "./judge.ts";
 
 /** Where Jev is asked, and which Jev. */
@@ -243,10 +245,34 @@ export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 export const JEV_NAME = `${JEV_PROVIDER}/${JEV_MODEL}`;
 
 /** A Jev allow's reason; like a judge's, it is never shown to the model. */
-export const JEV_ALLOW_REASON = "Jev rated it safe.";
+const JEV_ALLOW_REASON = "Jev rated it safe.";
 
 /** A Jev deny's reason; like every deny, it never names a judge. */
-export const UNSAFE_REASON = "It was rated as likely unsafe.";
+const UNSAFE_REASON = "It was rated as likely unsafe.";
+
+/** A line's verdict from Jev; it tried no judge-list entry. */
+export type JevVerdict = Omit<
+	Extract<JudgeResult, { kind: "verdict" }>,
+	"tried"
+>;
+
+/** A sure answer as the line's verdict, under Jev's name; unsure gives none. */
+export function jevVerdict(answer: JevAnswer): JevVerdict | undefined {
+	if (answer.answer === "unsure") return undefined;
+	const decided =
+		answer.answer === "safe"
+			? ({ verdict: "allow", reason: JEV_ALLOW_REASON } as const)
+			: ({ verdict: "deny", reason: UNSAFE_REASON } as const);
+	return { kind: "verdict", ...decided, model: JEV_NAME, ms: answer.ms };
+}
+
+/** A failed Jev call as the notices show it, under Jev's name. */
+export function jevFailure(
+	record: JevRecord | undefined,
+): JudgeFailure | undefined {
+	if (!record || !("error" in record)) return undefined;
+	return { model: JEV_NAME, error: record.error };
+}
 
 /** What the log keeps of Jev's answer to a line, or why there is none. */
 export type JevRecord =

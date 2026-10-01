@@ -9,15 +9,14 @@ import { errorText } from "./error-text.ts";
 import {
 	askJev,
 	classify,
-	JEV_ALLOW_REASON,
-	JEV_NAME,
 	type JevCall,
 	type JevKeyLookup,
 	type JevRecord,
+	jevFailure,
 	jevKey,
 	jevRecord,
+	jevVerdict,
 	NO_KEY,
-	UNSAFE_REASON,
 } from "./jev.ts";
 import {
 	type JudgeFailure,
@@ -32,9 +31,12 @@ import {
 /** What the ruling gave: the judge list's result, and Jev's when asked. */
 export type Ruling = JudgeResult & { readonly jev?: JevRecord };
 
+/** Pi's model registry as the ruling uses it: the judge list's part and Jev's key lookup. */
+export type RulingRegistry = JudgeRegistry & JevKeyLookup;
+
 /** Where and on whose behalf a line is ruled; the line's budget is its own. */
 export type RulingRun = Omit<JudgeRun, "lineMs" | "registry"> & {
-	readonly registry: JudgeRegistry & JevKeyLookup;
+	readonly registry: RulingRegistry;
 };
 
 /** Jev's call for `request`, its key lookup included; it never throws. */
@@ -71,14 +73,8 @@ export async function ruleLine(
 	const start = Date.now();
 	const answer = classify(await callJev(request, run, start), auto.jev);
 	const jev = jevRecord(answer);
-	if (answer.answer !== "unsure") {
-		const decided =
-			answer.answer === "safe"
-				? ({ verdict: "allow", reason: JEV_ALLOW_REASON } as const)
-				: ({ verdict: "deny", reason: UNSAFE_REASON } as const);
-		const result = { kind: "verdict", ...decided, model: JEV_NAME } as const;
-		return { ...result, ms: answer.ms, tried: [], jev };
-	}
+	const decided = jevVerdict(answer);
+	if (decided) return { ...decided, tried: [], jev };
 	const lineMs = LINE_MS - (Date.now() - start);
 	return { ...(await runJudge(models, request, { ...run, lineMs })), jev };
 }
@@ -88,9 +84,6 @@ export async function ruleLine(
  * name, then the judge list's.
  */
 export function rulingFailures(ruling: Ruling): JudgeFailure[] {
-	const jev =
-		ruling.jev && "error" in ruling.jev
-			? [{ model: JEV_NAME, error: ruling.jev.error }]
-			: [];
-	return [...jev, ...ruling.tried];
+	const jev = jevFailure(ruling.jev);
+	return jev ? [jev, ...ruling.tried] : [...ruling.tried];
 }

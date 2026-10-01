@@ -5,14 +5,8 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { agentDir as defaultAgentDir } from "../../agent-dir.ts";
 import { errorText } from "../../error-text.ts";
-import {
-	askJev,
-	type JevKeyLookup,
-	jevKey,
-	NO_KEY,
-	readReply,
-} from "../../jev.ts";
-import type { JudgeRegistry } from "../../judge.ts";
+import { askJev, jevKey, NO_KEY, readReply } from "../../jev.ts";
+import type { RulingRegistry } from "../../ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
 /**
@@ -36,7 +30,7 @@ export type JevSample = {
  */
 export async function runJevBench(
 	cases: readonly BenchCase[],
-	registry: JudgeRegistry & JevKeyLookup,
+	registry: RulingRegistry,
 	build: typeof requestFor,
 	samples = 3,
 	onSample: (sample: JevSample) => void = () => {},
@@ -383,7 +377,7 @@ function parse(args: readonly string[]): {
  */
 export async function jevMain(
 	args: readonly string[],
-	loadRegistry: (route: string) => Promise<JudgeRegistry & JevKeyLookup>,
+	loadRegistry: (route: string) => Promise<RulingRegistry>,
 	cases: readonly BenchCase[],
 	build: typeof requestFor,
 	heldOut: readonly BenchCase[] = [],
