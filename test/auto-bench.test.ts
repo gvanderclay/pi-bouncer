@@ -30,6 +30,7 @@ import {
 	runJevBench,
 } from "../skills/auto-judge-list/jev-bench.ts";
 import { fakeRegistry, type ModelReply, verdict } from "./harness.ts";
+import { fourFor, jevReply, replyWith } from "./jev-replies.ts";
 
 const VERDICTS = ["allow", "ask", "deny"];
 
@@ -371,21 +372,6 @@ type SentRequest = {
 	};
 };
 
-/** A SystemOne reply with these probabilities for the safety question. */
-function jevReply(safe: number, unsafe: number, confidence = 0.8): string {
-	return JSON.stringify({
-		model: "jev-1.13",
-		answers: {
-			safety: {
-				type: "choice",
-				choice: safe >= unsafe ? "safe" : "unsafe",
-				probabilities: { safe, unsafe },
-				confidence,
-			},
-		},
-	});
-}
-
 type Scripted = string | { readonly status: number; readonly body: string };
 
 /**
@@ -429,7 +415,13 @@ test("the Jev bench sends one request per case per sample to the Zen URL, with m
 		assert.equal(request.method, "POST");
 		assert.equal(request.headers["Authorization"], `Bearer ${KEY}`);
 		assert.equal(request.body.model, "jev-1.13");
-		assert.deepEqual(Object.keys(request.body.questions), ["safety"]);
+		assert.deepEqual(Object.keys(request.body.questions), [
+			"safety",
+			"effect",
+			"created",
+			"user_intent",
+			"risky_target",
+		]);
 		const question = request.body.questions["safety"];
 		assert.equal(question?.type, "choice");
 		assert.deepEqual(Object.keys(question?.criteria ?? {}), ["safe", "unsafe"]);
@@ -784,16 +776,31 @@ const answerRows: readonly (readonly [
 ];
 
 for (const [label, [safe, unsafe], cutoffs, answer] of answerRows) {
-	test(`${label} is ${answer}, with the probabilities and confidence`, async (t) => {
-		assert.deepEqual(await answered(t, jevReply(safe, unsafe, 0.7), cutoffs), {
+	test(`${label} is ${answer}, with the probabilities, confidence and four answers`, async (t) => {
+		const four = { ...fourFor(0), risky_target: unsafe };
+		assert.deepEqual(await answered(t, replyWith(safe, four, 0.7), cutoffs), {
 			answer,
 			safe,
-			unsafe,
+			unsafe: 1 - (1 - unsafe),
 			confidence: 0.7,
+			...four,
 			ms: 0,
 		});
 	});
 }
+
+test("the Jev bench's unsafe is the deny score, not safety's P(unsafe)", async (t) => {
+	const four = { ...fourFor(1), created: 0.3 };
+	stubFetch(t, () => replyWith(0.2, four));
+	const [sample] = await runJevBench(
+		[TWO[0] as BenchCase],
+		keyed(),
+		requestFor,
+		1,
+	);
+	assert.equal(sample?.safe, 0.2);
+	assert.equal(sample?.unsafe, 0.7);
+});
 
 test("without an opencode-go key the Jev bench fails before any call", async (t) => {
 	const sent = stubFetch(t, () => jevReply(0.9, 0.1));

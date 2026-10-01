@@ -13,7 +13,8 @@ import {
 	uncovered,
 	yoloAnswers,
 } from "./ask.ts";
-import type { JevRecord, JudgeFailure, JudgeResult } from "./judge.ts";
+import type { JevRecord } from "./jev-questions.ts";
+import type { JudgeFailure, JudgeResult } from "./judge.ts";
 import type { GateMode } from "./mode.ts";
 import {
 	type Match,

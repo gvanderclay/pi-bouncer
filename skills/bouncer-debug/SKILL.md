@@ -106,20 +106,26 @@ model registry. Its lifetime is YOLO mode's.
   new mode decides the call.
 - **Jev**: when the route's `auto` has `jev`, the judge list is asked only
   after Jev, OpenCode Zen's `jev-1.13` classifier (called with the route's
-  opencode-go key). Jev sees what the judge sees and answers with safe and
-  unsafe probabilities. `auto.jev.allowAt` and `auto.jev.denyAt` are optional
+  opencode-go key). Jev sees what the judge sees and answers five questions
+  in one call: `safety` gives the safe probability, used only to allow, and
+  four short questions (`effect`, `created`, `user_intent`,
+  `risky_target`) give the deny score, used only to deny:
+  `1 − min(max(P(effect = routine), created, P(user_intent = asked_for_this)),
+  1 − max(P(effect = harmful), P(user_intent = asked_to_keep), risky_target))`.
+  `auto.jev.allowAt` and `auto.jev.denyAt` are optional
   numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
   `allowAt` is 0.51, an absent `denyAt` is `null` (Jev denies only when
   the route sets it), and an invalid `auto.jev` is a config problem that
   leaves Jev off. A safe
   probability at or above `allowAt` allows the line with no judge-list call,
-  and `auto.model` is `opencode-go/jev-1.13`. An unsafe probability at or
+  and `auto.model` is `opencode-go/jev-1.13`. A deny score at or
   above `denyAt`, unless `denyAt` is `null`, denies it the same way, in the
   ordinary hard-deny form with the fixed reason "It was rated as likely
   unsafe." (no judge named); it counts toward the pause like a judge deny,
-  and a Jev allow ends a run of denies. Anything else, including an unsafe
-  answer below `denyAt` and a failure (no key, HTTP error,
-  unreadable reply, no reply within 5 s, aborted turn), goes to the judge
+  and a Jev allow ends a run of denies. Anything else, including a deny
+  score below `denyAt`, both cutoffs reached, P(effect = other) of 0.5 or
+  more, and a failure (no key, HTTP error, unreadable reply or one missing
+  any of the five answers, no reply within 5 s, aborted turn), goes to the judge
   list with what is left of the line's 20 s. A Jev failure is reported once
   per session under `opencode-go/jev-1.13`. Everything denied or never
   judged above never reaches Jev either.
@@ -202,7 +208,10 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       list order. Empty when Jev decided; a Jev failure is in `jev`, not here.
     - `jev`, only when the route has `auto.jev` and Jev was asked: `answer`
       (`safe`, `unsafe`, or `unsure` when the judge list was asked next), `safe` (the
-      safe probability), `confidence` and `ms`; or, when the call failed,
+      safe probability), `unsafe` (the deny score), `confidence` (the
+      `safety` answer's), the four answers behind the deny score (`effect`
+      and `user_intent` as a probability per class, `created` and
+      `risky_target` as the probability of true) and `ms`; or, when the call failed,
       `error` and `ms`. `verdict` and `model` still describe the decision
       that took effect.
     - `sent`: `{history, earlierMessages}`, how many session-history
@@ -278,10 +287,11 @@ holds it.
    that needs fixing (`/auto status`).
    **Did Jev decide?** `auto.model` `opencode-go/jev-1.13` means Jev decided
    the call: with `auto.verdict` `allow`, `auto.jev.safe` reached the route's
-   `allowAt`; with `deny` (`auto.jev.answer` `unsafe`), the unsafe
-   probability, which the log does not keep, reached its `denyAt` (both in
-   the session record's `config.auto.jev`). Otherwise `auto.jev.answer` `unsure` with its
-   `safe` and `confidence` shows why Jev deferred, and `auto.jev.error` that
+   `allowAt`; with `deny` (`auto.jev.answer` `unsafe`), `auto.jev.unsafe`,
+   the deny score, reached its `denyAt` (both in the session record's
+   `config.auto.jev`), and the four answers beside it show which veto or
+   missing reason to allow drove it. Otherwise `auto.jev.answer` `unsure` with its
+   `safe`, `unsafe` and `effect.other` shows why Jev deferred, and `auto.jev.error` that
    the call failed (for example `no opencode-go key`).
 4. **No record for the command?** Check the session's `session` records.
    None at all means the bouncer wasn't loaded in that session. `parser: false`

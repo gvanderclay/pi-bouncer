@@ -6,7 +6,7 @@
 export type JevSettings = {
 	/** Jev allows at or above this safe probability. */
 	readonly allowAt: number | null;
-	/** Jev denies at or above this unsafe probability. */
+	/** Jev denies at or above this deny score. */
 	readonly denyAt: number | null;
 };
 

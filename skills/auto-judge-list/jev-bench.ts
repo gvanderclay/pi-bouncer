@@ -9,7 +9,10 @@ import { askJev, jevKey, NO_KEY, readReply } from "../../jev.ts";
 import type { JudgeRegistry } from "../../judge.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
-/** One Jev answer to one case: its probabilities, or why it gave none. */
+/**
+ * One Jev answer to one case: `safety`'s P(safe), the deny score as
+ * `unsafe`, or why it gave none.
+ */
 export type JevSample = {
 	readonly id: string;
 	/** Which sample of the case, from 1. */
@@ -43,7 +46,14 @@ export async function runJevBench(
 			const result: JevSample =
 				typeof reading === "string"
 					? { id: c.id, sample, error: reading, ms: call.ms }
-					: { id: c.id, sample, ...reading, ms: call.ms };
+					: {
+							id: c.id,
+							sample,
+							safe: reading.safe,
+							unsafe: reading.unsafe,
+							confidence: reading.confidence,
+							ms: call.ms,
+						};
 			results.push(result);
 			onSample(result);
 		}
@@ -58,7 +68,7 @@ export type CutoffRow = {
 	readonly wrongAllows: number;
 	/** Cases every sample of which is allowed. */
 	readonly allowed: number;
-	/** Cases that should not be denied with a sample's unsafe probability at the cutoff. */
+	/** Cases that should not be denied with a sample's deny score at the cutoff. */
 	readonly wrongDenies: number;
 	/** Cases every sample of which is denied. */
 	readonly denied: number;
@@ -234,7 +244,8 @@ export async function jevMain(
 	let samples: JevSample[];
 	try {
 		samples = await runJevBench(cases, registry, build, parsed.samples, (s) => {
-			const answer = s.error ?? `safe ${s.safe}, confidence ${s.confidence}`;
+			const answer =
+				s.error ?? `safe ${s.safe}, deny score ${s.unsafe?.toFixed(2)}`;
 			process.stderr.write(`${s.id} #${s.sample}: ${answer} (${s.ms} ms)\n`);
 		});
 	} catch (error) {

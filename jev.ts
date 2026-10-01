@@ -1,14 +1,24 @@
-// Jev: OpenCode Zen's SystemOne classifier, asked one typed question about a
-// bash line. Based on the SystemOne client in pi-jev-device
+// Jev: OpenCode Zen's SystemOne classifier, asked five typed questions about
+// a bash line in one call: `safety`, which allows, and the four in
+// `jev-questions.ts`, whose deny score denies. Based on the SystemOne client in pi-jev-device
 // (`src/policy/transport.ts`, `src/policy/types.ts`), without its retries:
 // the judge list is the retry. The client never throws, and its errors never
 // hold the key.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
+	DENY_QUESTIONS,
+	type DenyAnswers,
+	denyScore,
+	field,
+	type JevRecord,
+	OTHER_AT,
+	probability,
+	readDenyAnswers,
+} from "./jev-questions.ts";
+import {
 	earlierWithinBudget,
 	historyWithinBudget,
-	type JevRecord,
 	JUDGE_CRITERIA,
 	type JudgeFailure,
 	type JudgeRegistry,
@@ -31,7 +41,7 @@ export const NO_KEY = "no opencode-go key";
 /** Jev's own budget for one call. */
 export const JEV_MS = 5_000;
 
-/** The one question Jev answers, and its two choices. */
+/** The question Jev allows on, and its two choices. */
 const QUESTION = "safety";
 
 const INSTRUCTIONS = `${JUDGE_CRITERIA}
@@ -128,6 +138,7 @@ async function post(
 					instructions: INSTRUCTIONS,
 					criteria: CRITERIA,
 				},
+				...DENY_QUESTIONS,
 			},
 		}),
 		signal,
@@ -169,26 +180,20 @@ export async function askJev(
 	}
 }
 
-/** Jev's probabilities for one reply. */
-export type JevReading = {
+/**
+ * Jev's reading of one reply: `safety`'s P(safe) and confidence, the deny
+ * score as `unsafe`, and the four answers it comes from.
+ */
+export type JevReading = DenyAnswers & {
 	readonly safe: number;
 	readonly unsafe: number;
 	readonly confidence: number;
 };
 
-function probability(value: unknown): value is number {
-	return typeof value === "number" && value >= 0 && value <= 1;
-}
-
-function field(value: unknown, name: string): unknown {
-	return typeof value === "object" && value !== null
-		? (value as Record<string, unknown>)[name]
-		: undefined;
-}
-
-/** The probabilities in a parsed reply, or why it is malformed. */
+/** The reading of a parsed reply, or why it is malformed. */
 export function readReply(reply: unknown): JevReading | string {
-	const answer = field(field(reply, "answers"), QUESTION);
+	const answers = field(reply, "answers");
+	const answer = field(answers, QUESTION);
 	if (answer === undefined) return `reply has no ${QUESTION} answer`;
 	const safe = field(field(answer, "probabilities"), "safe");
 	const unsafe = field(field(answer, "probabilities"), "unsafe");
@@ -196,10 +201,15 @@ export function readReply(reply: unknown): JevReading | string {
 	if (!(probability(safe) && probability(unsafe) && probability(confidence))) {
 		return `reply's ${QUESTION} answer has no probabilities between 0 and 1`;
 	}
-	return { safe, unsafe, confidence };
+	const deny = readDenyAnswers(answers);
+	if (typeof deny === "string") return deny;
+	return { safe, unsafe: denyScore(deny), confidence, ...deny };
 }
 
-/** When Jev may decide: allow at `allowAt`, deny at `denyAt`, unless null. */
+/**
+ * When Jev may decide: allow when `safety`'s P(safe) reaches `allowAt`, deny
+ * when the deny score reaches `denyAt`; null never decides.
+ */
 export type JevCutoffs = {
 	readonly allowAt: number | null;
 	readonly denyAt: number | null;
@@ -213,18 +223,20 @@ export type JevAnswer =
 	  })
 	| { readonly answer: "unsure"; readonly error: string; readonly ms: number };
 
-/** The answer a call gives under `cutoffs`. */
+/**
+ * The answer a call gives under `cutoffs`. Both cutoffs reached is a
+ * contradiction, and P(effect = other) at 0.5 is an exit: both are unsure.
+ */
 export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 	const reading = "error" in call ? call.error : readReply(call.reply);
 	if (typeof reading === "string") {
 		return { answer: "unsure", error: reading, ms: call.ms };
 	}
-	let answer: "safe" | "unsafe" | "unsure" = "unsure";
-	if (cutoffs.allowAt !== null && reading.safe >= cutoffs.allowAt) {
-		answer = "safe";
-	} else if (cutoffs.denyAt !== null && reading.unsafe >= cutoffs.denyAt) {
-		answer = "unsafe";
-	}
+	const { allowAt, denyAt } = cutoffs;
+	const safe = allowAt !== null && reading.safe >= allowAt;
+	const unsafe = denyAt !== null && reading.unsafe >= denyAt;
+	let answer: "safe" | "unsafe" | "unsure" = safe ? "safe" : "unsafe";
+	if (safe === unsafe || reading.effect.other >= OTHER_AT) answer = "unsure";
 	return { answer, ...reading, ms: call.ms };
 }
 
@@ -237,8 +249,19 @@ export const JEV_ALLOW_REASON = "Jev rated it safe.";
 /** What the log keeps of an answer: the reading, or the error. */
 function jevRecord(answer: JevAnswer): JevRecord {
 	if ("error" in answer) return { error: answer.error, ms: answer.ms };
-	const { safe, confidence, ms } = answer;
-	return { answer: answer.answer, safe, confidence, ms };
+	const { safe, unsafe, confidence, ms } = answer;
+	const { effect, created, user_intent, risky_target } = answer;
+	return {
+		answer: answer.answer,
+		safe,
+		unsafe,
+		confidence,
+		effect,
+		created,
+		user_intent,
+		risky_target,
+		ms,
+	};
 }
 
 /**

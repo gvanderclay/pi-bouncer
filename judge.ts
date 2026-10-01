@@ -5,6 +5,7 @@
 import { errorText } from "./error-text.ts";
 import type { GitState, RemoteFact } from "./facts.ts";
 import { type HistoryEntry, newestWithin } from "./history.ts";
+import type { JevRecord } from "./jev-questions.ts";
 
 /** The earlier-messages block stays within this many characters. */
 export const EARLIER_CHARS = 4_000;
@@ -308,16 +309,6 @@ export function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 
 /** One model the runner gave up on, and why. */
 export type JudgeFailure = { readonly model: string; readonly error: string };
-
-/** What Jev said about a line, or why it said nothing; see `jev.ts`. */
-export type JevRecord =
-	| {
-			readonly answer: "safe" | "unsafe" | "unsure";
-			readonly safe: number;
-			readonly confidence: number;
-			readonly ms: number;
-	  }
-	| { readonly error: string; readonly ms: number };
 
 /** What running the judge list gave; `jev` when Jev was asked first. */
 export type JudgeResult = (

@@ -4,6 +4,7 @@
 // test reaches the network or spends quota.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
+import { DENY_QUESTIONS } from "../jev-questions.ts";
 import {
 	autoVerdict,
 	flush,
@@ -25,32 +26,28 @@ import {
 	verdict,
 	writeProjectConfig,
 } from "./harness.ts";
+import {
+	answersFor,
+	type Four,
+	fourFor,
+	jevReply,
+	replyWith,
+} from "./jev-replies.ts";
 
 const KEY = "sk-go-test";
 const KEYS: Readonly<Record<string, string>> = { "opencode-go": KEY };
 const ZEN = "https://opencode.ai/zen/v1/systemone";
 const JEV = "opencode-go/jev-1.13";
 
-/** A SystemOne reply with these probabilities for the safety question. */
-function jevReply(safe: number, unsafe: number, confidence = 0.8): string {
-	return JSON.stringify({
-		model: "jev-1.13",
-		answers: {
-			safety: {
-				type: "choice",
-				choice: safe >= unsafe ? "safe" : "unsafe",
-				probabilities: { safe, unsafe },
-				confidence,
-			},
-		},
-	});
-}
-
 /** One request Jev's stubbed endpoint saw. */
 type Sent = {
 	readonly url: string;
 	readonly headers: Record<string, string>;
-	readonly body: { readonly model: string; readonly state: object };
+	readonly body: {
+		readonly model: string;
+		readonly state: object;
+		readonly questions: Record<string, unknown>;
+	};
 	readonly signal: AbortSignal | undefined;
 };
 
@@ -100,6 +97,7 @@ function stubJev(t: TestContext, reply: () => Scripted): Sent[] {
 type JevTrace = {
 	readonly answer?: unknown;
 	readonly safe?: unknown;
+	readonly unsafe?: unknown;
 	readonly confidence?: unknown;
 	readonly error?: unknown;
 	readonly ms?: unknown;
@@ -149,6 +147,30 @@ test("a safe answer at allowAt runs the line with no dialog and no judge-list ca
 	assert.equal(auto.jev?.safe, 0.95);
 	assert.equal(auto.jev?.confidence, 0.9);
 	assert.equal(typeof auto.jev?.ms, "number");
+	const { ms: _ms, unsafe, ...rest } = auto.jev as Record<string, unknown>;
+	assert.ok(Math.abs(Number(unsafe) - 0.05) < 1e-9);
+	assert.deepEqual(rest, {
+		answer: "safe",
+		safe: 0.95,
+		confidence: 0.9,
+		...fourFor(0.05),
+	});
+});
+
+test("Jev is asked safety and the four deny questions in one request, with the questions word for word", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.95, 0.05, 0.9));
+	const { gate, fake } = await jevGate({ allowAt: 0.9 });
+	await gate.handler(bashCall("rm -rf dist"), judgedUI(fake).ctx);
+	const questions = sent[0]?.body.questions;
+	assert.deepEqual(Object.keys(questions ?? {}), [
+		"safety",
+		"effect",
+		"created",
+		"user_intent",
+		"risky_target",
+	]);
+	const { safety: _safety, ...four } = questions ?? {};
+	assert.deepEqual(four, DENY_QUESTIONS);
 });
 
 test("an unsafe answer at denyAt blocks in the hard-deny form with no judge-list call", async (t) => {
@@ -310,6 +332,161 @@ test("with auto.jev {} an unsafe reply at 1 never denies, as denyAt is null", as
 	assert.equal(fake.requests.length, 1);
 	assert.equal(autoOf(gate).model, "fake/judge");
 });
+
+// The two numbers under allowAt 0.51 and denyAt 0.6: `safety` allows, the
+// deny score denies, and a contradiction or an `other` exit is unsure.
+const SPLIT = { allowAt: 0.51, denyAt: 0.6 };
+const HARMFUL_EXIT: Four = {
+	...fourFor(1),
+	effect: { routine: 0, destroys_or_shared: 0.5, harmful: 0, other: 0.5 },
+};
+
+test("high safety and a low deny score allow quietly", async (t) => {
+	stubJev(t, () => jevReply(0.9, 0.1));
+	const { gate, fake } = await jevGate(SPLIT);
+	const ui = judgedUI(fake);
+	assert.equal(await gate.handler(bashCall("rm -rf dist"), ui.ctx), undefined);
+	assert.deepEqual(ui.dialogs, []);
+	assert.deepEqual(ui.notices, []);
+	assert.deepEqual(fake.requests, []);
+	assert.equal(autoOf(gate).jev?.answer, "safe");
+});
+
+test("low safety and a deny score at denyAt deny in the hard-deny form", async (t) => {
+	stubJev(t, () => replyWith(0.1, { ...fourFor(0), risky_target: 0.6 }));
+	const { gate, fake } = await jevGate(SPLIT);
+	const result = await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+	assert.equal(result?.block, true);
+	assert.match(result?.reason ?? "", /It was rated as likely unsafe\./);
+	assert.ok(result?.reason?.endsWith(HARD_DENY_TAIL));
+	assert.deepEqual(fake.requests, []);
+	const auto = autoOf(gate);
+	assert.equal(auto.model, JEV);
+	assert.equal(auto.jev?.answer, "unsafe");
+	assert.equal(auto.jev?.unsafe, 0.6);
+});
+
+const SPLIT_UNSURE: readonly (readonly [label: string, reply: string])[] = [
+	["both cutoffs reached", jevReply(0.9, 0.7)],
+	[
+		"a deny score at denyAt with P(effect = other) at 0.5",
+		replyWith(0.1, HARMFUL_EXIT),
+	],
+	[
+		"a safe answer at allowAt with P(effect = other) at 0.5",
+		replyWith(0.9, {
+			...fourFor(0),
+			effect: { routine: 0.5, destroys_or_shared: 0, harmful: 0, other: 0.5 },
+		}),
+	],
+	["neither cutoff reached", jevReply(0.4, 0.4)],
+];
+
+for (const [label, reply] of SPLIT_UNSURE) {
+	test(`${label} goes to the judge list`, async (t) => {
+		stubJev(t, () => reply);
+		const { gate, fake } = await jevGate(SPLIT, verdict("deny", "No."));
+		await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+		assert.equal(fake.requests.length, 1);
+		const auto = autoOf(gate);
+		assert.equal(auto.model, "fake/judge");
+		assert.equal(auto.jev?.answer, "unsure");
+	});
+}
+
+// Scripted four answers and the deny score the spec's formula gives:
+// 1 − min(max(routine, created, asked_for_this), 1 − max(harmful, asked_to_keep, risky_target)).
+const SCORES: readonly (readonly [
+	label: string,
+	four: Four,
+	unsafe: number,
+])[] = [
+	["routine work", fourFor(0), 0],
+	["destructive with no reason to allow", fourFor(1), 1],
+	[
+		"destructive but created in the session",
+		{ ...fourFor(0.8), created: 0.9 },
+		0.1,
+	],
+	[
+		"routine but asked to keep",
+		{
+			...fourFor(0),
+			user_intent: {
+				asked_for_this: 0,
+				asked_to_keep: 0.7,
+				no_explicit_request: 0.3,
+			},
+		},
+		0.7,
+	],
+	[
+		"harmful outweighs a request",
+		{
+			...fourFor(0),
+			effect: { routine: 0.2, destroys_or_shared: 0, harmful: 0.8, other: 0 },
+			user_intent: {
+				asked_for_this: 1,
+				asked_to_keep: 0,
+				no_explicit_request: 0,
+			},
+		},
+		0.8,
+	],
+	[
+		"a risky target outweighs creation",
+		{ ...fourFor(1), created: 1, risky_target: 0.6 },
+		0.6,
+	],
+	[
+		"a high P(effect = other) does not raise it",
+		{
+			...fourFor(0),
+			effect: { routine: 0.3, destroys_or_shared: 0, harmful: 0, other: 0.7 },
+			user_intent: {
+				asked_for_this: 0.9,
+				asked_to_keep: 0,
+				no_explicit_request: 0.1,
+			},
+		},
+		0.1,
+	],
+];
+
+for (const [label, four, unsafe] of SCORES) {
+	test(`the deny score for ${label} is ${unsafe}, and the log keeps the four answers`, async (t) => {
+		stubJev(t, () => replyWith(0.3, four));
+		const { gate, fake } = await jevGate(SPLIT, verdict("deny", "No."));
+		await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+		const jev = autoOf(gate).jev as Record<string, unknown>;
+		assert.ok(
+			Math.abs(Number(jev["unsafe"]) - unsafe) < 1e-9,
+			`unsafe ${jev["unsafe"]}, expected ${unsafe}`,
+		);
+		const { effect, created, user_intent, risky_target } = jev;
+		assert.deepEqual({ effect, created, user_intent, risky_target }, four);
+	});
+}
+
+for (const missing of [
+	"safety",
+	"effect",
+	"created",
+	"user_intent",
+	"risky_target",
+]) {
+	test(`a reply without the ${missing} answer goes to the judge list with an error`, async (t) => {
+		const answers = answersFor(0.99, fourFor(0), 0.9);
+		delete answers[missing];
+		stubJev(t, () => JSON.stringify({ model: "jev-1.13", answers }));
+		const { gate, fake } = await jevGate(SPLIT, verdict("allow", "ok"));
+		await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+		assert.equal(fake.requests.length, 1);
+		const auto = autoOf(gate);
+		assert.equal(auto.model, "fake/judge");
+		assert.equal(auto.jev?.error, `reply has no ${missing} answer`);
+	});
+}
 
 const FAILURES: readonly (readonly [
 	label: string,

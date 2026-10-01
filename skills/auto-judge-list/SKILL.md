@@ -142,7 +142,7 @@ shows:
 - a table of candidate cutoffs from 0.50 to 0.99: wrong allows (cases that
   should not be allowed with any sample's safe probability at the cutoff),
   cases allowed (every sample at the cutoff), and the same for denies
-  against the unsafe probability;
+  against the deny score from Jev's four deny questions;
 - the recommended pair: the lowest `allowAt` with no wrong allow and the
   lowest `denyAt` with no wrong deny, or `null` when no cutoff avoids one.
 
