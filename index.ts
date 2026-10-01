@@ -1,6 +1,6 @@
 /**
  * Bouncer: catches a short, fixed list of dangerous bash actions for
- * the scratch route and lets every other tool call run untouched. Each rule's
+ * the daily route and lets every other tool call run untouched. Each rule's
  * built-in level lives in `rules/built-in-policy.ts`:
  * recoverable-if-intended actions ask the user (Allow once, Allow for this
  * session, Deny, Deny with reason, Deny and stop, 🤖 Auto mode, ⚠️ Allow all

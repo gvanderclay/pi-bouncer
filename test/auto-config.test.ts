@@ -1,5 +1,5 @@
 // The bouncer config's route-only `auto` keys, seen through the session record:
-// the validated settings, the problems, and the seeded scratch route file.
+// the validated settings, the problems, and the seeded daily route file.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -143,18 +143,18 @@ test("a project auto never replaces the route's", async () => {
 	});
 });
 
-// The scratch route's seeded file, the only judge list in the repo.
+// The daily route's seeded file, the only judge list in the repo.
 const SEEDED = join(
 	import.meta.dirname,
 	"..",
 	"..",
 	"..",
-	".pi-scratch",
+	".pi",
 	"agent",
 	"bouncer.json",
 );
 
-test("the scratch route's seeded judge list loads with no problems", async () => {
+test("the daily route's seeded judge list loads with no problems", async () => {
 	const config = await sessionConfig(readFileSync(SEEDED, "utf8"));
 	assert.deepEqual(routeProblems(config), []);
 });

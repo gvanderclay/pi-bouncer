@@ -196,7 +196,7 @@ problem. Without this file the built-in levels apply.
 ```
 
 The `log` values shown are the defaults: rotate above 5 MiB, keep 5 gzipped
-generations, prune anything older than 90 days. The scratch route's file holds
+generations, prune anything older than 90 days. The daily route's file holds
 its judge list and asks Sonnet first on `anthropic` (`firstByProvider`).
 
 ## Log
