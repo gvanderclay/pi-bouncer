@@ -62,7 +62,7 @@ YOLO mode off, and the other way round.
 | Mode | Flags | What it does |
 | --- | --- | --- |
 | normal (off) | none | every ask opens the dialog |
-| auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to Jev first when the route sets `auto.jev`, then to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason, and a hand-off or no answer opens the dialog. Three judge denies in a row, or 20 in a session, pause it until you allow a call. It refuses to turn on when no list entry resolves |
+| auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to Jev first when the route sets `auto.jev`, then to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason (or a fixed one when Jev denies), and a hand-off or no answer opens the dialog. Three denies in a row, or 20 in a session, Jev's included, pause it until you allow a call. It refuses to turn on when no list entry resolves |
 | YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set, unreadable commands and the `grep` steer rule still deny |
 
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
@@ -111,10 +111,14 @@ pause.
 With `auto.jev` in the route's `bouncer.json`, auto mode asks Jev first:
 OpenCode Zen's `jev-1.13` classifier, reached at a fixed SystemOne URL with
 the opencode-go key Pi holds for the route. Jev sees exactly what the judge
-sees, under the same budgets, and answers with a safe probability. At or
-above `allowAt` the line runs quietly with no judge-list call, recorded with
-the model `opencode-go/jev-1.13`; anything else (below `allowAt`, an unsafe
-answer, no key, an HTTP error, an unreadable reply or no reply within 5 s)
+sees, under the same budgets, and answers with safe and unsafe
+probabilities. A safe probability at or above `allowAt` runs the line quietly
+with no judge-list call. An unsafe probability at or above `denyAt`, when
+`denyAt` is not `null`, blocks it with no judge-list call, in the ordinary
+hard-deny form with a fixed reason that names no judge; it counts toward the
+pause like a judge deny, and a Jev allow ends a run of denies. Either is
+recorded with the model `opencode-go/jev-1.13`. Anything else (below both
+cutoffs, no key, an HTTP error, an unreadable reply or no reply within 5 s)
 goes to the judge list as usual. Jev's 5 s come out of the line's 20 s, and
 aborting the turn aborts it. A failure is reported once per session, like a
 judge-list model's, and `/auto status` shows whether Jev is on, its cutoffs
@@ -166,8 +170,8 @@ log's rotation size, generations kept and age pruning), `auto` (the judge list
 and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
 `null`. Until the Jev bench sets real defaults, an absent `allowAt` means Jev
 never allows and an absent `denyAt` is `null`, so `"jev": {}` asks Jev and
-logs its answer but lets it decide nothing. Jev does not deny yet: an unsafe
-answer goes to the judge list whatever `denyAt` says. An invalid `auto.jev`
+logs its answer but lets it decide nothing. With `denyAt` `null` Jev never
+denies, and an unsafe answer goes to the judge list. An invalid `auto.jev`
 is a config problem and leaves Jev off; a project file's `auto` is ignored.
 An invalid part falls back to its built-in value, and one warning lists every
 problem. Without this file the built-in levels apply.

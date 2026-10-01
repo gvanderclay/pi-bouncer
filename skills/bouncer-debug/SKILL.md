@@ -98,7 +98,7 @@ model registry. Its lifetime is YOLO mode's.
   reason `refusal`) is not a failure: it is a deny with the reason "It was
   refused as likely harmful.", the refusing model in `auto.model`, and the
   list stops there. It counts toward the pause like any judge deny.
-- Three judge denies in a row, or 20 in a session, **pause** auto mode: its
+- Three denies in a row, or 20 in a session, from a judge or Jev, **pause** auto mode: its
   calls go to the dialog (with a "🤖 Auto mode (resume)" choice) until the
   user allows one. Session starts reset the counts. Pausing and resuming
   write no record of their own; the call records' `paused` verdicts show it.
@@ -106,14 +106,18 @@ model registry. Its lifetime is YOLO mode's.
   new mode decides the call.
 - **Jev**: when the route's `auto` has `jev`, the judge list is asked only
   after Jev, OpenCode Zen's `jev-1.13` classifier (called with the route's
-  opencode-go key). Jev sees what the judge sees and answers with a safe
-  probability. `auto.jev.allowAt` and `auto.jev.denyAt` are optional
+  opencode-go key). Jev sees what the judge sees and answers with safe and
+  unsafe probabilities. `auto.jev.allowAt` and `auto.jev.denyAt` are optional
   numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
   `allowAt` means Jev never allows, an absent `denyAt` is `null`, and an
   invalid `auto.jev` is a config problem that leaves Jev off. A safe
   probability at or above `allowAt` allows the line with no judge-list call,
-  and `auto.model` is `opencode-go/jev-1.13`. Anything else, including an
-  unsafe answer (Jev does not deny yet) and a failure (no key, HTTP error,
+  and `auto.model` is `opencode-go/jev-1.13`. An unsafe probability at or
+  above `denyAt`, unless `denyAt` is `null`, denies it the same way, in the
+  ordinary hard-deny form with the fixed reason "It was rated as likely
+  unsafe." (no judge named); it counts toward the pause like a judge deny,
+  and a Jev allow ends a run of denies. Anything else, including an unsafe
+  answer below `denyAt` and a failure (no key, HTTP error,
   unreadable reply, no reply within 5 s, aborted turn), goes to the judge
   list with what is left of the line's 20 s. A Jev failure is reported once
   per session under `opencode-go/jev-1.13`. Everything denied or never
@@ -191,12 +195,12 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       `always-ask` (an `alwaysAsk` prefix hit). The last two mean no judge
       was called.
     - `reason`, `model` (the `provider/id` that answered, or
-      `opencode-go/jev-1.13` when Jev allowed) and `ms`, when a judge
+      `opencode-go/jev-1.13` when Jev decided) and `ms`, when a judge
       answered.
     - `tried`: every `{model, error}` given up on before the answer, in
       list order. Empty when Jev decided; a Jev failure is in `jev`, not here.
     - `jev`, only when the route has `auto.jev` and Jev was asked: `answer`
-      (`safe`, or `unsure` when the judge list was asked next), `safe` (the
+      (`safe`, `unsafe`, or `unsure` when the judge list was asked next), `safe` (the
       safe probability), `confidence` and `ms`; or, when the call failed,
       `error` and `ms`. `verdict` and `model` still describe the decision
       that took effect.
@@ -271,9 +275,11 @@ holds it.
    `discarded: true` means that verdict was not acted on. Calls with
    `auto.verdict` `none`, and the models in `tried`, point at a judge list
    that needs fixing (`/auto status`).
-   **Did Jev decide?** `auto.model` `opencode-go/jev-1.13` means Jev allowed
-   the call: `auto.jev.safe` reached the route's `allowAt` (the session
-   record's `config.auto.jev`). Otherwise `auto.jev.answer` `unsure` with its
+   **Did Jev decide?** `auto.model` `opencode-go/jev-1.13` means Jev decided
+   the call: with `auto.verdict` `allow`, `auto.jev.safe` reached the route's
+   `allowAt`; with `deny` (`auto.jev.answer` `unsafe`), the unsafe
+   probability, which the log does not keep, reached its `denyAt` (both in
+   the session record's `config.auto.jev`). Otherwise `auto.jev.answer` `unsure` with its
    `safe` and `confidence` shows why Jev deferred, and `auto.jev.error` that
    the call failed (for example `no opencode-go key`).
 4. **No record for the command?** Check the session's `session` records.

@@ -17,6 +17,7 @@ import {
 	type JudgeRun,
 	LINE_MS,
 	runJudge,
+	UNSAFE_REASON,
 } from "./judge.ts";
 
 /** Where Jev is asked, and which Jev. */
@@ -241,9 +242,9 @@ function jevRecord(answer: JevAnswer): JevRecord {
 }
 
 /**
- * Jev, then the judge list: a safe answer at `allowAt` allows the line, and
- * anything else, a failure included, goes to the judge list with what is
- * left of the line's budget. Until Jev may deny, an unsafe answer is unsure.
+ * Jev, then the judge list: a safe answer at `allowAt` allows the line, an
+ * unsafe one at `denyAt` denies it, and anything else, a failure included,
+ * goes to the judge list with what is left of the line's budget.
  */
 export async function jevThenJudge(
 	models: readonly string[],
@@ -261,12 +262,15 @@ export async function jevThenJudge(
 	} catch (error) {
 		call = { error: errorText(error), ms: Date.now() - start };
 	}
-	const answer = classify(call, { allowAt: settings.allowAt, denyAt: null });
+	const answer = classify(call, settings);
 	const jev = jevRecord(answer);
-	if (answer.answer === "safe") {
-		const reason = JEV_ALLOW_REASON;
-		const allow = { kind: "verdict", verdict: "allow", reason } as const;
-		return { ...allow, model: JEV_ENTRY, ms: call.ms, tried: [], jev };
+	if (answer.answer !== "unsure") {
+		const decided =
+			answer.answer === "safe"
+				? ({ verdict: "allow", reason: JEV_ALLOW_REASON } as const)
+				: ({ verdict: "deny", reason: UNSAFE_REASON } as const);
+		const result = { kind: "verdict", ...decided, model: JEV_ENTRY } as const;
+		return { ...result, ms: call.ms, tried: [], jev };
 	}
 	const lineMs = LINE_MS - (Date.now() - start);
 	return { ...(await runJudge(models, request, { ...run, lineMs })), jev };

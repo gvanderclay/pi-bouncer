@@ -58,7 +58,7 @@
  * Rule-level denies, the always-deny set, the unreadable-command denies and
  * the steer rule are denied before any judge is asked, and the route's
  * `auto.alwaysAsk` prefixes (`always-ask.ts`) open the dialog unless the
- * steer rule blocks the line. Three judge denies in a
+ * steer rule blocks the line. Three denies (a judge's or Jev's) in a
  * row, or 20 in a session, pause it: calls go to the dialog until one is
  * allowed. A mode switch while the judge is out drops its verdict and the
  * new mode decides. The footer shows `🤖 AUTO`, `🤖 AUTO (paused)` or

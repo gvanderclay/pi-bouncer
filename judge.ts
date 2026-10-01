@@ -368,6 +368,9 @@ export function resolveEntry(
 /** The deny reason for a refusal; like every deny, it never names a judge. */
 export const REFUSAL_REASON = "It was refused as likely harmful.";
 
+/** The deny reason when Jev decides; like every deny, it never names a judge. */
+export const UNSAFE_REASON = "It was rated as likely unsafe.";
+
 /**
  * A usage-policy refusal: pi-ai's Anthropic adapter ends it as an `error`
  * with the provider's raw stop reason `refusal`. The message is never

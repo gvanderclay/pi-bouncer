@@ -7,6 +7,7 @@ import { type TestContext, test } from "node:test";
 import {
 	autoVerdict,
 	flush,
+	HARD_DENY_TAIL,
 	judgedGate,
 	judgedUI,
 	listedGate,
@@ -150,16 +151,109 @@ test("a safe answer at allowAt runs the line with no dialog and no judge-list ca
 	assert.equal(typeof auto.jev?.ms, "number");
 });
 
-const BELOW_OR_UNSAFE: readonly (readonly [label: string, reply: string])[] = [
-	["a safe answer below allowAt", jevReply(0.8, 0.2)],
-	["an unsafe answer", jevReply(0.03, 0.97, 0.95)],
+test("an unsafe answer at denyAt blocks in the hard-deny form with no judge-list call", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.05, 0.95, 0.9));
+	const { gate, fake } = await jevGate({ denyAt: 0.9 });
+	const ui = judgedUI(fake);
+	const command = "rm -rf dist";
+	const result = await gate.handler(bashCall(command), ui.ctx);
+	assert.equal(sent.length, 1);
+	assert.deepEqual(fake.requests, []);
+	assert.equal(result?.block, true);
+	assert.equal(
+		result?.reason,
+		`Blocked by the user's bouncer (rule: recursive-rm): It was rated as likely unsafe. Command: \`${command}\`. ${HARD_DENY_TAIL}`,
+	);
+	assert.deepEqual(ui.dialogs, []);
+	assert.deepEqual(ui.notices, [
+		{ message: `Bouncer denied recursive-rm: ${command}`, level: "warning" },
+	]);
+	const named = /jev|judge|classifier|model|reviewer|auto/i;
+	assert.doesNotMatch(result?.reason ?? "", named);
+	assert.doesNotMatch(ui.notices[0]?.message ?? "", named);
+	const record = gate.records().at(-1);
+	assert.equal(record?.outcome, "blocked");
+	const auto = autoOf(gate);
+	assert.equal(auto.verdict, "deny");
+	assert.equal(auto.model, JEV);
+	assert.deepEqual(auto.tried, []);
+	assert.equal(auto.jev?.answer, "unsafe");
+	assert.equal(auto.jev?.safe, 0.05);
+});
+
+/** Jev's replies in order, the last repeating. */
+function inTurn(replies: readonly string[]): () => string {
+	let next = 0;
+	return () => replies[Math.min(next++, replies.length - 1)] ?? "";
+}
+
+const SAFE = jevReply(0.95, 0.05, 0.9);
+const UNSAFE = jevReply(0.05, 0.95, 0.9);
+
+test("three Jev denies in a row pause auto mode", async (t) => {
+	const sent = stubJev(t, inTurn([UNSAFE]));
+	const { gate, fake } = await jevGate({ denyAt: 0.9 });
+	for (const dir of ["a", "b"]) {
+		await gate.handler(bashCall(`rm -rf ${dir}`), noUI(fake));
+	}
+	const ui = judgedUI(fake);
+	await gate.handler(bashCall("rm -rf c"), ui.ctx);
+	assert.equal(ui.statuses["bouncer"], "<warning>🤖 AUTO (paused)</warning>");
+	const paused = judgedUI(fake, ["Deny"]);
+	await gate.handler(bashCall("rm -rf d"), paused.ctx);
+	assert.equal(paused.dialogs.length, 1);
+	assert.equal(sent.length, 3);
+	assert.deepEqual(fake.requests, []);
+	assert.equal(autoVerdict(gate.records().at(-1)), "paused");
+});
+
+test("a Jev allow between Jev denies resets the run", async (t) => {
+	const replies = [UNSAFE, UNSAFE, SAFE, UNSAFE, UNSAFE, SAFE];
+	const sent = stubJev(t, inTurn(replies));
+	const { gate, fake } = await jevGate({ allowAt: 0.9, denyAt: 0.9 });
+	for (const dir of ["a", "b", "c", "d", "e"]) {
+		await gate.handler(bashCall(`rm -rf ${dir}`), noUI(fake));
+	}
+	const ui = judgedUI(fake);
+	assert.equal(await gate.handler(bashCall("rm -rf f"), ui.ctx), undefined);
+	assert.deepEqual(ui.dialogs, []);
+	assert.equal(sent.length, 6);
+	assert.deepEqual(fake.requests, []);
+	assert.equal(autoOf(gate).model, JEV);
+});
+
+const TO_THE_LIST: readonly (readonly [
+	label: string,
+	reply: string,
+	jev: object,
+])[] = [
+	[
+		"a safe answer below allowAt",
+		jevReply(0.8, 0.2),
+		{ allowAt: 0.9, denyAt: 0.9 },
+	],
+	[
+		"an unsafe answer below denyAt",
+		jevReply(0.03, 0.97, 0.95),
+		{ allowAt: 0.9, denyAt: 0.98 },
+	],
+	[
+		"an unsafe answer with denyAt null",
+		jevReply(0.05, 0.95, 0.9),
+		{ allowAt: 0.9, denyAt: null },
+	],
+	[
+		"an unsafe answer with denyAt absent",
+		jevReply(0.05, 0.95, 0.9),
+		{ allowAt: 0.9 },
+	],
 ];
 
-for (const [label, reply] of BELOW_OR_UNSAFE) {
+for (const [label, reply, jev] of TO_THE_LIST) {
 	test(`${label} goes to the judge list, whose verdict takes effect`, async (t) => {
 		const sent = stubJev(t, () => reply);
 		const { gate, fake } = await jevGate(
-			{ allowAt: 0.9, denyAt: 0.9 },
+			jev,
 			verdict("deny", "Not asked for."),
 		);
 		const ui = judgedUI(fake);

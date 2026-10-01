@@ -304,7 +304,7 @@ export type SessionState = {
 	readonly lastFailure: Map<string, string>;
 	/** The remotes at `session_start`, read once. */
 	remotes?: Promise<Remotes>;
-	/** Auto mode's brakes: whether it is paused, and the judge denies. */
+	/** Auto mode's brakes: whether it is paused, and the denies. */
 	readonly pause: { paused: boolean; inRow: number; total: number };
 };
 
@@ -317,8 +317,8 @@ export function resetPause(session: SessionState): void {
 }
 
 /**
- * Counts a decision toward auto mode's brakes: a judge deny adds to both
- * counts and may pause it, a judge allow ends the run of denies, and an
+ * Counts a decision toward auto mode's brakes: a judge's or Jev's deny adds
+ * to both counts and may pause it, an allow ends the run of denies, and an
  * allowing dialog answer while paused resumes it.
  */
 export function trackPause(
