@@ -1,5 +1,7 @@
-// Options that make a search tool run an arbitrary command.
+// Commands and options that run a command the bouncer cannot read in full:
+// search tools' exec options, template runners, unknown wrapper shapes.
 import type { Invocation } from "../scan/walk.ts";
+import { peel } from "../scan/wrappers.ts";
 import {
 	hasLongOption,
 	hasShortFlag,
@@ -63,4 +65,21 @@ export const rgPre: Rule = {
 			(arg, at, args) =>
 				isLongOption(arg, "pre") && !isRgPatternOption(args[at - 1]),
 		),
+};
+
+// Each runs a command template once per input, with the input substituted
+// into it, so what runs is not in the command line.
+const TEMPLATE_RUNNERS: ReadonlySet<string> = new Set([
+	"parallel",
+	"rush",
+	"rust-parallel",
+]);
+
+export const opaqueExec: Rule = {
+	name: "opaque-exec",
+	summary:
+		"parallel, rush and rust-parallel run commands built from templates, and an unknown wrapper option can hide the command, so what runs cannot be judged",
+	matches: (invocation: Invocation): boolean =>
+		TEMPLATE_RUNNERS.has(invocation.name) ||
+		peel(invocation)?.kind === "opaque",
 };

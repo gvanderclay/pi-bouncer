@@ -22,11 +22,19 @@ type Wrapper = {
 	readonly dashOption?: boolean;
 	/** The option whose value is a string split into the command (env -S). */
 	readonly split?: { readonly short: string; readonly long: string };
+	/** The option whose value is a shell script the wrapper runs (flock -c). */
+	readonly script?: { readonly short: string; readonly long: string };
+	/**
+	 * The command operands are joined with spaces and run by `sh -c`, unless
+	 * this option says otherwise (watch -x).
+	 */
+	readonly shellRest?: { readonly exec: { short: string; long: string } };
 };
 
 /**
- * What a wrapper runs: a command, or (env -S) a string to split into one,
- * followed by the wrapper's remaining operands.
+ * What a wrapper runs: a command; (env -S) a string to split into one,
+ * followed by the wrapper's remaining operands; a string it hands to
+ * `sh -c` (watch, flock -c); or something its arguments do not show.
  */
 export type Peeled =
 	| { readonly kind: "command"; readonly invocation: Invocation }
@@ -36,6 +44,16 @@ export type Peeled =
 			readonly parent: Invocation;
 			readonly script: string;
 			readonly rest: readonly string[];
+	  }
+	| {
+			/** A string the wrapper runs with `sh -c`. */
+			readonly kind: "shell";
+			readonly parent: Invocation;
+			readonly script: string;
+	  }
+	| {
+			/** An option shape this table does not know where the command goes. */
+			readonly kind: "opaque";
 	  };
 
 const WRAPPERS: readonly Wrapper[] = [
@@ -51,6 +69,25 @@ const WRAPPERS: readonly Wrapper[] = [
 	{ names: ["builtin"] },
 	{ names: ["exec"], shortValues: "a" },
 	{ names: ["nohup"] },
+	// util-linux: -c/--ctty, -f/--fork, -w/--wait take no value.
+	{ names: ["setsid"] },
+	// util-linux flock(1): file|directory|fd, then command and arguments, or
+	// `-c command` (before or after the file) run by the shell.
+	{
+		names: ["flock"],
+		shortValues: "wEc",
+		longValues: ["timeout", "wait", "conflict-exit-code", "command"],
+		operands: 1,
+		script: { short: "c", long: "command" },
+	},
+	// procps-ng watch(1): the command goes to `sh -c` unless -x/--exec.
+	{
+		names: ["watch"],
+		shortValues: "nqs",
+		shortAttached: "d",
+		longValues: ["interval", "equexit", "shotsdir"],
+		shellRest: { exec: { short: "x", long: "exec" } },
+	},
 	{ names: ["time"], shortValues: "of", longValues: ["output", "format"] },
 	{ names: ["nice"], shortValues: "n", longValues: ["adjustment"] },
 	{
@@ -86,7 +123,13 @@ const BY_NAME: ReadonlyMap<string, Wrapper> = new Map(
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
-type Cursor = { index: number; split?: string };
+type Cursor = {
+	index: number;
+	split?: string;
+	script?: string;
+	/** watch -x: the command runs directly, not through `sh -c`. */
+	exec?: boolean;
+};
 
 /** Reads the value of a value-taking short option at `at` in its cluster. */
 function readShortValue(
@@ -102,6 +145,9 @@ function readShortValue(
 	if (cluster.charAt(at) === wrapper.split?.short && value !== undefined) {
 		cursor.split = value;
 	}
+	if (cluster.charAt(at) === wrapper.script?.short && value !== undefined) {
+		cursor.script = value;
+	}
 }
 
 /** Reads one short cluster. Returns false when an option means no command runs. */
@@ -115,6 +161,7 @@ function readCluster(
 	for (let at = 1; at < cluster.length; at += 1) {
 		const letter = cluster.charAt(at);
 		if (wrapper.noRun?.includes(letter)) return false;
+		if (letter === wrapper.shellRest?.exec.short) cursor.exec = true;
 		if (wrapper.shortAttached?.includes(letter)) return true;
 		if (wrapper.shortValues?.includes(letter)) {
 			readShortValue(wrapper, args, cursor, at);
@@ -137,6 +184,11 @@ function readLong(
 	if (attached === undefined && wrapper.longValues?.some(matches)) {
 		value = args[cursor.index];
 		cursor.index += 1;
+	}
+	const exec = wrapper.shellRest?.exec.long;
+	if (exec?.startsWith(given) && given.length >= 2) cursor.exec = true;
+	if (wrapper.script && matches(wrapper.script.long) && value !== undefined) {
+		cursor.script = value;
 	}
 	if (wrapper.split && matches(wrapper.split.long) && value !== undefined) {
 		cursor.split = value;
@@ -181,8 +233,8 @@ function skipOptions(
 			return true;
 		}
 		if (!readOption(wrapper, args, cursor)) return false;
-		// env -S ends option processing: the rest follows the split words.
-		if (cursor.split !== undefined) return true;
+		// env -S and flock -c end option processing: the rest follows the string.
+		if (cursor.split !== undefined || cursor.script !== undefined) return true;
 	}
 	return true;
 }
@@ -198,6 +250,9 @@ export function peel(invocation: Invocation): Peeled | undefined {
 	const { args } = invocation;
 	const cursor: Cursor = { index: 0 };
 	if (!skipOptions(wrapper, args, cursor)) return undefined;
+	if (cursor.script !== undefined) {
+		return { kind: "shell", parent: invocation, script: cursor.script };
+	}
 	if (cursor.split !== undefined) {
 		const rest = args.slice(cursor.index);
 		const script = cursor.split;
@@ -207,11 +262,44 @@ export function peel(invocation: Invocation): Peeled | undefined {
 	while (wrapper.assignments && ASSIGNMENT.test(args[cursor.index] ?? "")) {
 		cursor.index += 1;
 	}
-	const rest = args.slice(cursor.index);
+	return peelCommand(wrapper, invocation, args.slice(cursor.index), cursor);
+}
+
+/** The command operands after the wrapper's options and plain operands. */
+function peelCommand(
+	wrapper: Wrapper,
+	invocation: Invocation,
+	rest: readonly string[],
+	cursor: Cursor,
+): Peeled | undefined {
 	const [name, ...commandArgs] = rest;
 	if (name === undefined) return undefined;
+	if (wrapper.shellRest && cursor.exec !== true) {
+		// watch joins its operands with spaces and runs them with `sh -c`.
+		return { kind: "shell", parent: invocation, script: rest.join(" ") };
+	}
+	if (wrapper.script && name.startsWith("-")) {
+		return trailingScript(wrapper.script, invocation, rest);
+	}
 	return {
 		kind: "command",
 		invocation: { ...invocation, name: commandName(name), args: commandArgs },
 	};
+}
+
+/**
+ * flock FILE -c COMMAND: util-linux reads the option only right after the
+ * file. Any other option there is a shape this table does not know.
+ */
+function trailingScript(
+	option: { readonly short: string; readonly long: string },
+	invocation: Invocation,
+	[given, script]: readonly string[],
+): Peeled | undefined {
+	if (given !== `-${option.short}` && given !== `--${option.long}`) {
+		return { kind: "opaque" };
+	}
+	// Without its value flock refuses and runs nothing.
+	if (script === undefined) return undefined;
+	return { kind: "shell", parent: invocation, script };
 }

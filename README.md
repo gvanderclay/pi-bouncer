@@ -4,10 +4,13 @@ Guards the model's `bash` tool with a short, fixed list of rules. The npm
 package is `pi-bouncer`.
 
 Every command is parsed with `unbash` and checked wherever the danger hides —
-chains, pipelines, `$(…)`, wrappers such as `env`/`timeout`/`xargs`,
-`bash -c`/`eval`, paths and quoting. Recoverable-if-intended actions open a
-dialog that names the rule and quotes the command: recursive `rm`,
-`find -delete`/`-exec`, `fd -x`, `rg --pre`, work-losing git (`clean -f`,
+chains, pipelines, `$(…)`, wrappers such as `env`/`timeout`/`xargs`/
+`setsid`/`flock`/`watch` (the shell strings `watch` and `flock -c` run are
+parsed too), `bash -c`/`eval`, paths and quoting. Recoverable-if-intended
+actions open a dialog that names the rule and quotes the command: recursive
+`rm`, `find -delete`/`-exec`, `fd -x`, `rg --pre`, the template runners
+`parallel`/`rush`/`rust-parallel`, a wrapper whose options hide where its
+command starts, work-losing git (`clean -f`,
 `reset --hard`, `checkout --`, `restore`, `stash drop`), forced or deleting
 pushes, downloads piped into a shell, package publishing, and `gh repo`
 deletion. Catastrophic or unreadable actions are denied with no dialog and a

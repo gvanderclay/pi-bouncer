@@ -13,7 +13,7 @@ import {
 } from "./git.ts";
 import { gitPushDelete, gitPushForce } from "./git-push.ts";
 import { grep, grepInstead } from "./grep.ts";
-import { fdExec, findExec, rgPre } from "./hidden-exec.ts";
+import { fdExec, findExec, opaqueExec, rgPre } from "./hidden-exec.ts";
 import { privilege } from "./privilege.ts";
 import { ghDelete, publish } from "./publish.ts";
 import { remoteScript } from "./remote-script.ts";
@@ -30,6 +30,7 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: findExec, level: "ask" },
 	{ kind: "rule", rule: fdExec, level: "ask" },
 	{ kind: "rule", rule: rgPre, level: "ask" },
+	{ kind: "rule", rule: opaqueExec, level: "ask" },
 	{ kind: "rule", rule: diskFormat, level: "deny" },
 	{ kind: "rule", rule: ddDevice, level: "deny" },
 	{ kind: "rule", rule: power, level: "deny" },

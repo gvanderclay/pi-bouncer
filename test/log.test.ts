@@ -371,6 +371,7 @@ const BUILT_IN_LEVELS = {
 	"find-exec": "ask",
 	"fd-exec": "ask",
 	"rg-pre": "ask",
+	"opaque-exec": "ask",
 	"disk-format": "deny",
 	"dd-device": "deny",
 	power: "deny",

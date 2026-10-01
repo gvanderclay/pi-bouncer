@@ -88,6 +88,34 @@ const denied = [
 	'ls && timeout 5 /bin/rm "-rf" x',
 	"timeout --made-up 5 rm -rf x",
 	"env --made-up rm -rf x",
+	"setsid rm -rf x",
+	"setsid -f rm -rf x",
+	"setsid -w -c rm -rf x",
+	"setsid --fork --wait rm -rf x",
+	"/usr/bin/setsid rm -rf ~/workspace/x",
+	"flock /tmp/l rm -rf x",
+	"flock -n /tmp/l rm -rf x",
+	"flock -w 5 /tmp/l rm -rf x",
+	"flock -w5 -E 9 /tmp/l rm -rf x",
+	"flock --timeout=5 --nonblock /tmp/l rm -rf x",
+	"flock --timeout 5 /tmp/l rm -rf x",
+	"flock -c 'rm -rf x' /tmp/l",
+	"flock /tmp/l -c 'rm -rf x'",
+	"flock /tmp/l --command 'rm -rf x'",
+	"flock --command='rm -rf x' /tmp/l",
+	"flock -n -c 'ls && rm -rf x' /tmp/l",
+	"watch rm -rf x",
+	"watch -n 5 'rm -rf x'",
+	"watch -n5 rm -rf x",
+	"watch -n 1 -d rm -rf x",
+	"watch -dt rm -rf x",
+	"watch --interval 2 rm -rf x",
+	"watch --interval=2 'rm -rf x'",
+	"watch -x rm -rf x",
+	"watch --exec rm -rf x",
+	"watch -n 1 -- rm -rf x",
+	"watch 'ls; rm -rf x'",
+	"setsid flock /tmp/l watch -n 1 rm -rf x",
 	// env -S strings are re-parsed (this was once an accepted miss).
 	"env -S 'rm -rf x'",
 ];
@@ -106,6 +134,23 @@ const allowed = [
 	"exec 3>&1",
 	"exec",
 	"timeout 5 ls",
+	"setsid ls",
+	"setsid -f ls",
+	"setsid",
+	"flock /tmp/l ls",
+	"flock -c 'ls' /tmp/l",
+	"flock -n 9",
+	"watch -n 1 ls",
+	"watch 'ls -l'",
+	"watch",
+	"watch -x ls",
+	// The value of a wrapper option is not a command.
+	"watch -n rm ls",
+	"flock -w rm /tmp/l ls",
+	// An option that needs a value came last: the tool refuses to run.
+	"watch -n",
+	"flock -w",
+	"flock /tmp/l -c",
 	"env rm file.txt",
 	"xargs rm",
 	// -r belongs to xargs (no-run-if-empty), so the rm it runs is not recursive.
@@ -122,14 +167,33 @@ const allowed = [
 	"timeout -s rm 5 ls",
 ];
 
+const unjudgeable = [
+	"parallel rm ::: a",
+	"parallel -j4 rm -rf {} ::: a b",
+	"rush 'rm -rf {}' -i list",
+	"rush rm -rf ~/x",
+	"rust-parallel rm -rf",
+	"/opt/homebrew/bin/parallel echo ::: a",
+	"ls | parallel rm",
+	"env parallel rm ::: a",
+	"timeout 5 rush echo {}",
+	// util-linux flock reads only -c or --command after the file.
+	"flock /tmp/l --made-up ls",
+	"flock /tmp/l -n rm -rf x",
+];
+
 const acceptedMisses: readonly (readonly [string, string])[] = [
-	["watch 'rm -rf x'", "watch runs a shell string"],
 	["ssh host 'rm -rf x'", "remote commands"],
 ];
 
 for (const command of denied) {
 	test(`deny recursive-rm: ${command}`, () =>
 		expectDeny(command, "recursive-rm"));
+}
+
+for (const command of unjudgeable) {
+	test(`deny opaque-exec: ${command}`, () =>
+		expectDeny(command, "opaque-exec"));
 }
 
 for (const command of allowed) {

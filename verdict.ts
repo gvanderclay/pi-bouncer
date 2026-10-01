@@ -12,6 +12,7 @@ export type RuleName =
 	| "find-exec"
 	| "fd-exec"
 	| "rg-pre"
+	| "opaque-exec"
 	| "disk-format"
 	| "dd-device"
 	| "power"

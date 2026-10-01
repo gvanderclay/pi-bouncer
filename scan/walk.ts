@@ -225,11 +225,20 @@ function visitInline(invocation: Invocation, frame: Frame): void {
 	if (parsed) visitScript(parsed.script, parsed.frame);
 }
 
-/** The command a wrapper runs, re-parsing an env -S string if needed. */
+/**
+ * The command a wrapper runs, re-parsing an env -S string if needed. A shell
+ * string (watch, flock -c) is walked here like `sh -c`; nothing is returned.
+ */
 function unwrap(
 	peeled: Peeled | undefined,
 	frame: Frame,
 ): Invocation | undefined {
+	if (peeled?.kind === "shell") {
+		const parsed = reparse(peeled.script, peeled.parent.source, frame);
+		if (parsed) visitScript(parsed.script, parsed.frame);
+		return undefined;
+	}
+	if (peeled?.kind === "opaque") return undefined;
 	if (peeled?.kind !== "split") return peeled?.invocation;
 	const parsed = reparse(peeled.script, peeled.parent.source, frame);
 	if (!parsed) return undefined;

@@ -12,6 +12,7 @@ const asks: readonly Row[] = [
 	["find-exec", "find . -exec rm {} \\;", "find . -exec rm {} \\;"],
 	["fd-exec", "fd x -x rm", "fd x -x rm"],
 	["rg-pre", "rg --pre cat x", "rg --pre cat x"],
+	["opaque-exec", "parallel rm ::: a", "parallel rm ::: a"],
 	["git-clean", "git clean -fd", "git clean -fd"],
 	["git-reset-hard", "git reset --hard", "git reset --hard"],
 	["git-checkout-discard", "git checkout -- .", "git checkout -- ."],
