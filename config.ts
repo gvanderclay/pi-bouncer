@@ -7,10 +7,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+	type ConfigFile,
 	type Levels,
 	oldProjectFile,
 	projectConfigFile,
 	projectLevels,
+	routeOnlyProblem,
 } from "./project-config.ts";
 import { builtInEntries, builtInPolicy } from "./rules/built-in-policy.ts";
 import { type Policy, policyEntryName } from "./rules/rule.ts";
@@ -39,12 +41,8 @@ export type AutoSettings = {
 	readonly firstByProvider: Readonly<Record<string, string>>;
 };
 
-/** One config file the bouncer looked for. A missing file is not loaded. */
-export type ConfigFile = {
-	readonly path: string;
-	readonly loaded: boolean;
-	readonly problems: readonly string[];
-};
+/** One config file the bouncer looked for; defined in project-config.ts. */
+export type { ConfigFile } from "./project-config.ts";
 
 /** The bouncer mode a process starts in without a flag; YOLO is flag-only. */
 export type StartMode = "off" | "auto";
@@ -307,18 +305,6 @@ function validStartMode(
 			: '"startMode" must be "off" or "auto"',
 	);
 	return undefined;
-}
-
-/** What a project file may not set, and why each is ignored there. */
-const ROUTE_ONLY: Readonly<Record<string, string>> = {
-	log: '"log" is ignored in a project file: only the route sets log limits',
-	auto: '"auto" is ignored in a project file: only the route sets auto mode',
-	startMode:
-		'"startMode" is ignored in a project file: only the route sets the start mode',
-};
-
-function routeOnlyProblem(key: string): string | undefined {
-	return Object.hasOwn(ROUTE_ONLY, key) ? ROUTE_ONLY[key] : undefined;
 }
 
 /** The parts one parsed object sets validly; `problems` collects the rest. */

@@ -1,12 +1,18 @@
-// The project's bouncer config: where it lives, and which of its levels apply
-// over the route's. No project file loosens the always-deny set, and an
+// The project's bouncer config: where it lives, which keys only the route
+// sets, and which of its levels apply over the route's. No project file loosens the always-deny set, and an
 // untrusted project's file only makes a rule stricter. Free of Pi; only
 // config.ts imports it.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { ConfigFile } from "./config.ts";
 import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
 import type { RuleName, VerdictLevel } from "./verdict.ts";
+
+/** One config file the bouncer looked for. A missing file is not loaded. */
+export type ConfigFile = {
+	readonly path: string;
+	readonly loaded: boolean;
+	readonly problems: readonly string[];
+};
 
 /** Level changes by rule name; a rule absent here keeps its level. */
 export type Levels = Readonly<Partial<Record<RuleName, VerdictLevel>>>;
@@ -72,4 +78,16 @@ export function projectLevels(
 		else kept[rule] = level;
 	}
 	return kept;
+}
+
+/** What a project file may not set, and why each is ignored there. */
+const ROUTE_ONLY: Readonly<Record<string, string>> = {
+	log: '"log" is ignored in a project file: only the route sets log limits',
+	auto: '"auto" is ignored in a project file: only the route sets auto mode',
+	startMode:
+		'"startMode" is ignored in a project file: only the route sets the start mode',
+};
+
+export function routeOnlyProblem(key: string): string | undefined {
+	return Object.hasOwn(ROUTE_ONLY, key) ? ROUTE_ONLY[key] : undefined;
 }
