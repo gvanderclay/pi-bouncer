@@ -1,7 +1,7 @@
 // The project's bouncer config: where it lives, which keys only the route
-// sets, and which of its levels apply over the route's. No project file loosens the always-deny set, and an
-// untrusted project's file only makes a rule stricter. Free of Pi; only
-// config.ts imports it.
+// sets, and which of its levels apply over the route's. No project file
+// loosens the always-deny set, and an untrusted project's file only makes a
+// rule stricter. Free of Pi; only config.ts imports it.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
