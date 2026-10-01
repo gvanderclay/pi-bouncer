@@ -106,6 +106,7 @@ type JevTrace = {
 type AutoRecord = {
 	readonly verdict?: unknown;
 	readonly model?: unknown;
+	readonly ms?: unknown;
 	readonly tried?: unknown;
 	readonly jev?: JevTrace;
 	readonly discarded?: unknown;
@@ -669,6 +670,76 @@ test("after Jev's 5 s the judge list gets the line's remaining 15 s, not a fresh
 		{ model: "fake/judge", error: "the line's 20 s ran out" },
 	]);
 	assert.deepEqual(auto.jev, { error: "no reply within 5 s", ms: 5_000 });
+});
+
+/** Makes `fake`'s key lookup give Jev's key only after `ms`. */
+function slowKey(fake: { registry: unknown }, ms: number): void {
+	const late = (): Promise<string | undefined> =>
+		new Promise((resolve) => setTimeout(() => resolve(KEY), ms));
+	Object.assign(fake.registry as object, { getApiKeyForProvider: late });
+}
+
+test("the line's 20 s run from before Jev's key lookup, not from Jev's request", async (t) => {
+	t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+	const sent = stubJev(t, () => "hang");
+	const first = "fake/first";
+	const { gate, fake } = await listGate(
+		[first, "fake/judge"],
+		{
+			[first]: { reply: "hang" },
+			"fake/judge": { reply: "hang" },
+		},
+		{ jev: { allowAt: 0.9 } },
+		KEYS,
+	);
+	slowKey(fake, 3_000);
+	const pending = gate.handler(bashCall("rm -rf dist"), noUI(fake));
+	await flush();
+	assert.equal(sent.length, 0);
+	t.mock.timers.tick(3_000);
+	await flush();
+	assert.equal(sent.length, 1);
+	// Jev gives up at 8 s; the first entry gives up at 18 s.
+	t.mock.timers.tick(5_000);
+	await flush();
+	assert.equal(fake.requests.length, 1);
+	t.mock.timers.tick(10_000);
+	await flush();
+	assert.equal(fake.requests.length, 2);
+	t.mock.timers.tick(1_999);
+	await flush();
+	assert.equal(fake.requests[1]?.signal?.aborted, false);
+	// The line ends at 20 s, not 23 s.
+	t.mock.timers.tick(1);
+	await flush();
+	assert.equal(fake.requests[1]?.signal?.aborted, true);
+	await pending;
+	assert.deepEqual(autoOf(gate).tried, [
+		{ model: first, error: "no reply within 10 s" },
+		{ model: "fake/judge", error: "the line's 20 s ran out" },
+	]);
+});
+
+test("auto.ms on a Jev decision is Jev's call time, without the key lookup", async (t) => {
+	t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+	const sent = stubJev(
+		t,
+		() => new Promise((resolve) => setTimeout(() => resolve(SAFE), 1_000)),
+	);
+	const { gate, fake } = await jevGate({ allowAt: 0.9 });
+	slowKey(fake, 3_000);
+	const pending = gate.handler(bashCall("rm -rf dist"), noUI(fake));
+	await flush();
+	t.mock.timers.tick(3_000);
+	await flush();
+	assert.equal(sent.length, 1);
+	t.mock.timers.tick(1_000);
+	assert.equal(await pending, undefined);
+	assert.deepEqual(fake.requests, []);
+	const auto = autoOf(gate);
+	assert.equal(auto.model, JEV);
+	assert.equal(auto.ms, 1_000);
+	assert.equal(auto.jev?.ms, 1_000);
 });
 
 test("aborting the turn while Jev is out aborts its request", async (t) => {
