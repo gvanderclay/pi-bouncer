@@ -36,7 +36,9 @@
  * Auto mode: `/auto` (toggle, `on`, `off`, `status`), the dialog's "🤖 Auto
  * mode" and `pi --auto` turn it on, only when an entry of the route's judge
  * list (`auto.models` in the route's bouncer config; no default in code)
- * resolves in Pi's model registry; `--auto` with `--yolo` is an error. It
+ * resolves in Pi's model registry; `--auto` with `--yolo` is an error.
+ * Without either flag the route's `startMode: "auto"` turns it on at the
+ * process's first `session_start`, refusing the same way. It
  * has YOLO mode's lifetime. Every ask no session allow covers goes, one call
  * per line, to the judge (`judge.ts`): the first list entry that answers,
  * each within 10 s and the line within 20 s. The route's
@@ -63,7 +65,8 @@
  * unreadable-command denies and the steer rule stay deny); the route's `log`
  * sets the log's rotation size, generations kept and age pruning, and the route's `auto`
  * sets auto mode's `models`, `alwaysAsk`, `environment` and
- * `firstByProvider` (both are ignored,
+ * `firstByProvider`, and the route's `startMode` (`off` or `auto`) the mode
+ * a process starts in without a flag (all three are ignored,
  * with a warning, in a project file). An invalid part falls
  * back to its built-in value, and one warning lists every problem. Before
  * the first `session_start` the built-in levels apply.

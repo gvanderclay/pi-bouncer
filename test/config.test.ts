@@ -75,6 +75,7 @@ test("a missing route file is the built-in policy, with no problems", () => {
 	assert.deepEqual(loadConfig(agentDir, cwd), {
 		policy: builtInPolicy,
 		log: DEFAULT_LOG,
+		startMode: "off",
 		files: [
 			{ path, loaded: false, problems: [] },
 			{

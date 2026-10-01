@@ -68,6 +68,13 @@ YOLO mode off, and the other way round.
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
 after allowing the current line.
 
+The route's `bouncer.json` can set `"startMode": "auto"` so every process
+starts in auto mode without `--auto`; `"off"`, the default, starts in normal
+mode. It applies at the process's first session start only, refuses as
+`/auto` does when no judge-list entry resolves, and gives way to `--yolo` or
+`--auto`. `"yolo"` is not accepted: YOLO mode only ever starts from
+`pi --yolo` or `/yolo`.
+
 The footer shows the mode: a bold red `🔥 YOLO`, or `🤖 AUTO`,
 `🤖 AUTO (paused)` and, while a judge call is out, `🤖 judging…`. The model is
 never told either mode is on: a YOLO-allowed call just runs, and an auto-mode
@@ -112,8 +119,9 @@ the route, and `.pi/bouncer.json` in the session's working directory
 overrides it entry by entry. Both are plain JSON. `levels` sets any built-in
 rule to `ask` or `deny`, except the unreadable-command denies and the `grep`
 steer rule, whose level is fixed; the route's file also carries `log` (the
-log's rotation size, generations kept and age pruning) and `auto` (the judge list
-`models`, `alwaysAsk` prefixes, `environment` facts and `firstByProvider`).
+log's rotation size, generations kept and age pruning), `auto` (the judge list
+`models`, `alwaysAsk` prefixes, `environment` facts and `firstByProvider`)
+and `startMode` (`off` or `auto`, see Modes).
 An invalid part falls back to its built-in value, and one warning lists every
 problem. Without this file the built-in levels apply.
 

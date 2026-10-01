@@ -260,6 +260,83 @@ test("--auto applies once: /auto off then a reload stays off", async () => {
 	assert.equal(reloaded.mode.mode, "off");
 });
 
+/** A bouncer whose route sets `startMode`, with `flags`; no session yet. */
+async function startModeGate(
+	startMode: unknown,
+	flags: Readonly<Record<string, boolean>> = {},
+	models: readonly string[] = [JUDGE],
+	mode?: LoadedGate["mode"],
+): Promise<LoadedGate> {
+	const gate = await loadGateSession(undefined, undefined, {
+		flags,
+		...(mode && { mode }),
+	});
+	gate.writeRouteConfig({ startMode, auto: { models } });
+	return gate;
+}
+
+test('startMode "auto" starts the first session in auto mode, recorded as config', async () => {
+	const gate = await startModeGate("auto");
+	const { ctx, statuses, notices } = registryUI(allowingRegistry());
+	await gate.startSession("startup", ctx);
+	assert.equal(gate.mode.mode, "auto");
+	assert.deepEqual(statuses, { bouncer: AUTO_STATUS });
+	assert.deepEqual(notices, [AUTO_ON]);
+	assert.deepEqual(modeRecords(gate.records()), [["auto", true, "config"]]);
+});
+
+test('startMode "auto" with no resolvable list stays off with the refusal', async () => {
+	const gate = await startModeGate("auto", {}, ["gone/one"]);
+	const { ctx, notices } = registryUI(allowingRegistry());
+	await gate.startSession("startup", ctx);
+	assert.equal(gate.mode.mode, "off");
+	assert.equal(notices.length, 1);
+	assert.equal(notices[0]?.level, "warning");
+});
+
+test('--yolo overrides startMode "auto"', async () => {
+	const gate = await startModeGate("auto", { yolo: true });
+	await gate.startSession("startup", registryUI(allowingRegistry()).ctx);
+	assert.equal(gate.mode.mode, "yolo");
+	assert.deepEqual(modeRecords(gate.records()), [["yolo", true, "flag"]]);
+});
+
+test('startMode "off" or absent starts in normal mode', async () => {
+	for (const startMode of ["off", undefined]) {
+		const gate = await startModeGate(startMode);
+		await gate.startSession("startup", registryUI(allowingRegistry()).ctx);
+		assert.equal(gate.mode.mode, "off");
+	}
+});
+
+test('startMode "auto" applies once: /auto off then a reload stays off', async () => {
+	const first = await startModeGate("auto");
+	await first.startSession("startup", registryUI(allowingRegistry()).ctx);
+	await first.runCommand("auto", "off");
+	const reloaded = await startModeGate("auto", {}, [JUDGE], first.mode);
+	await reloaded.startSession("reload", registryUI(allowingRegistry()).ctx);
+	assert.equal(reloaded.mode.mode, "off");
+});
+
+for (const [startMode, problem] of [
+	[
+		"yolo",
+		'"startMode": "yolo" is not allowed: YOLO mode starts only with pi --yolo or /yolo',
+	],
+	["normal", '"startMode" must be "off" or "auto"'],
+] as const) {
+	test(`startMode ${JSON.stringify(startMode)} is a problem and starts off`, async () => {
+		const gate = await startModeGate(startMode);
+		await gate.startSession("startup", registryUI(allowingRegistry()).ctx);
+		assert.equal(gate.mode.mode, "off");
+		const record = gate.records().at(-1);
+		const config = record?.config as {
+			files: { problems: string[] }[];
+		};
+		assert.deepEqual(config.files[0]?.problems, [problem]);
+	});
+}
+
 /** The one `/auto status` notice for `gate`, with `fake` as the registry. */
 async function statusNotice(
 	gate: LoadedGate,

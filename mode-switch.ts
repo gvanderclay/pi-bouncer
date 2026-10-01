@@ -164,7 +164,7 @@ function notifyMode(
 }
 
 /** What switched the bouncer mode, as a mode record's `how`. */
-export type How = "command" | "dialog" | "flag";
+export type How = "command" | "dialog" | "flag" | "config";
 
 /** `/yolo` and `/auto` toggle; `on` and `off` set; anything else is `undefined`. */
 function requestedOn(args: string, current: boolean): boolean | undefined {
@@ -231,7 +231,8 @@ const BOTH_FLAGS =
  * `pi --yolo` and `pi --auto` only set the state the process starts in: the
  * first `session_start` applies them, and a runtime reloaded later leaves
  * the state to the commands. Both together are an error, and `--auto`
- * refuses as `/auto` does when no judge-list entry resolves.
+ * refuses as `/auto` does when no judge-list entry resolves. Without either
+ * flag the route's `startMode` applies, refusing the same way.
  */
 export function applyStartFlags(
 	pi: ExtensionAPI,
@@ -249,7 +250,10 @@ export function applyStartFlags(
 		return;
 	}
 	if (yolo) switchMode("yolo", "flag", "yolo", ctx);
-	if (auto) turnAutoOn(config, "flag", switchMode, ctx);
+	else if (auto) turnAutoOn(config, "flag", switchMode, ctx);
+	else if (config.startMode === "auto") {
+		turnAutoOn(config, "config", switchMode, ctx);
+	}
 }
 
 export function registerYolo(

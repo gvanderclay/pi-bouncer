@@ -169,7 +169,9 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
   `flag` (`pi --yolo`, at the process's first session start). Asking for the
   state it is already in writes nothing.
 - `type: "auto"`: the same for auto mode: `on`, and `how` is `command`
-  (`/auto`), `dialog` ("🤖 Auto mode") or `flag` (`pi --auto`). Switching
+  (`/auto`), `dialog` ("🤖 Auto mode"), `flag` (`pi --auto`) or `config`
+  (the route's `"startMode": "auto"`, at the process's first session start
+  when neither `--auto` nor `--yolo` was given). Switching
   from one mode to the other writes the `off` record of the mode left, then
   the `on` record of the mode entered. A refused `/auto` writes nothing.
 

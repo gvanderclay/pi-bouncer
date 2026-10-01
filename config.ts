@@ -42,10 +42,15 @@ export type ConfigFile = {
 	readonly problems: readonly string[];
 };
 
+/** The bouncer mode a process starts in without a flag; YOLO is flag-only. */
+export type StartMode = "off" | "auto";
+
 export type GateConfig = {
 	/** The effective policy: the built-in policy with the config applied. */
 	readonly policy: Policy;
 	readonly log: LogLimits;
+	/** The route's start mode; `off` when it sets none. */
+	readonly startMode: StartMode;
 	/** Absent when the route sets no `auto`: auto mode cannot turn on. */
 	readonly auto?: AutoSettings;
 	readonly files: readonly ConfigFile[];
@@ -289,12 +294,28 @@ type Parsed = {
 	readonly levels: Levels;
 	readonly log?: LogLimits;
 	readonly auto?: AutoSettings;
+	readonly startMode?: StartMode;
 };
+
+function validStartMode(
+	value: unknown,
+	problems: string[],
+): StartMode | undefined {
+	if (value === "off" || value === "auto") return value;
+	problems.push(
+		value === "yolo"
+			? '"startMode": "yolo" is not allowed: YOLO mode starts only with pi --yolo or /yolo'
+			: '"startMode" must be "off" or "auto"',
+	);
+	return undefined;
+}
 
 /** What a project file may not set, and why each is ignored there. */
 const ROUTE_ONLY: Readonly<Record<string, string>> = {
 	log: '"log" is ignored in a project file: only the route sets log limits',
 	auto: '"auto" is ignored in a project file: only the route sets auto mode',
+	startMode:
+		'"startMode" is ignored in a project file: only the route sets the start mode',
 };
 
 function routeOnlyProblem(key: string): string | undefined {
@@ -307,20 +328,42 @@ function parseKeys(
 	scope: "route" | "project",
 	problems: string[],
 ): Omit<Parsed, "file"> {
-	let levels: Levels = {};
-	let log: LogLimits | undefined;
-	let auto: AutoSettings | undefined;
+	const parts: Mutable<Omit<Parsed, "file">> = { levels: {} };
 	for (const [key, value] of Object.entries(json)) {
 		const routeOnly = scope === "project" && routeOnlyProblem(key);
 		if (routeOnly) problems.push(routeOnly);
-		else if (key === "levels") levels = validLevels(value, problems);
-		else if (key === "log") log = validLog(value, problems);
-		else if (key === "auto") auto = validAuto(value, problems);
-		else if (key === "rules") {
-			problems.push('"rules" is not supported yet and is ignored');
-		} else problems.push(`unknown key "${key}"`);
+		else parseKey(key, value, parts, problems);
 	}
-	return { levels, ...(log && { log }), ...(auto && { auto }) };
+	return parts;
+}
+
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+/** Sets `parts` from one key when its value is valid; `problems` gets the rest. */
+function parseKey(
+	key: string,
+	value: unknown,
+	parts: Mutable<Omit<Parsed, "file">>,
+	problems: string[],
+): void {
+	if (key === "levels") parts.levels = validLevels(value, problems);
+	else if (key === "log") assign(parts, "log", validLog(value, problems));
+	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
+	else if (key === "startMode") {
+		assign(parts, "startMode", validStartMode(value, problems));
+	} else if (key === "rules") {
+		problems.push('"rules" is not supported yet and is ignored');
+	} else problems.push(`unknown key "${key}"`);
+}
+
+/** Sets `parts[key]` only when `value` is defined, so an invalid part is absent. */
+function assign<K extends "log" | "auto" | "startMode">(
+	parts: Mutable<Omit<Parsed, "file">>,
+	key: K,
+	value: Parsed[K],
+): void {
+	if (value !== undefined) parts[key] = value;
+	else delete parts[key];
 }
 
 function parseFile(path: string, scope: "route" | "project"): Parsed {
@@ -371,6 +414,7 @@ export function loadConfig(agentDir: string, cwd: string): GateConfig {
 	return {
 		policy: effectivePolicy({ ...routeFile.levels, ...projectFile.levels }),
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
+		startMode: routeFile.startMode ?? "off",
 		...(routeFile.auto && { auto: routeFile.auto }),
 		files,
 		problems: files.flatMap(({ path, problems }) =>
