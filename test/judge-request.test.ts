@@ -84,14 +84,18 @@ test("the builder leaves out an empty earlier list, an empty history and an empt
 });
 
 test("the builder applies no cap but the budgets: a long message and eleven short ones pass whole", () => {
-	const messages = Array.from({ length: 11 }, () => "m".repeat(10));
+	const messages = [
+		"l".repeat(1500),
+		...Array.from({ length: 11 }, () => "m".repeat(10)),
+	];
 	const history: HistoryEntry[] = Array.from({ length: 60 }, () => ({
 		tool: "bash",
 		text: "ls",
 		cwd: APP,
 	}));
 	const built = judgeRequest(base({ earlierUserMessages: messages, history }));
-	assert.equal(built.earlierUserMessages?.length, 11);
+	assert.equal(built.earlierUserMessages?.length, 12);
+	assert.equal(built.earlierUserMessages?.[0], "l".repeat(1500));
 	assert.equal(built.history?.length, 60);
 });
 
