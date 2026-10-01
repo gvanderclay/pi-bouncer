@@ -56,28 +56,40 @@ function refusal(
 	return undefined;
 }
 
+/** A parsed project file: the file, and the levels it set validly. */
+export type ProjectFile = {
+	readonly file: ConfigFile;
+	readonly levels: Levels;
+};
+
 /**
- * The project file's `levels` that apply over the route's `routeLevels` for
- * a project Pi trusts or not: each refused entry is dropped and added to
- * `problems`.
+ * The project file with only its levels that apply over the route's
+ * `routeLevels` for a project Pi trusts or not: each refused entry is
+ * dropped, and why is added to the file's problems.
  */
 export function projectLevels(
-	levels: Levels,
+	project: ProjectFile,
 	routeLevels: Levels,
 	trusted: boolean,
-	problems: string[],
-): Levels {
+): ProjectFile {
 	const kept: Partial<Record<RuleName, VerdictLevel>> = {};
-	for (const [rule, level] of Object.entries(levels) as [
+	const refusals: string[] = [];
+	for (const [rule, level] of Object.entries(project.levels) as [
 		RuleName,
 		VerdictLevel,
 	][]) {
 		const routeLevel = routeLevels[rule] ?? builtInEntries.get(rule)?.level;
 		const why = refusal(rule, level, routeLevel, trusted);
-		if (why) problems.push(why);
+		if (why) refusals.push(why);
 		else kept[rule] = level;
 	}
-	return kept;
+	return {
+		file: {
+			...project.file,
+			problems: [...project.file.problems, ...refusals],
+		},
+		levels: kept,
+	};
 }
 
 /** What a project file may not set, and why each is ignored there. */

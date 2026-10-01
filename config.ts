@@ -396,21 +396,14 @@ export function loadConfig(
 	projectTrusted: boolean,
 ): GateConfig {
 	const routeFile = parseFile(routeConfigFile(agentDir), "route");
-	const projectFile = parseFile(projectConfigFile(cwd), "project");
-	const projectProblems = [...projectFile.file.problems];
-	const levels = projectLevels(
-		projectFile.levels,
+	const project = projectLevels(
+		parseFile(projectConfigFile(cwd), "project"),
 		routeFile.levels,
 		projectTrusted,
-		projectProblems,
 	);
-	const files = [
-		routeFile.file,
-		{ ...projectFile.file, problems: projectProblems },
-		...oldProjectFile(cwd),
-	];
+	const files = [routeFile.file, project.file, ...oldProjectFile(cwd)];
 	return {
-		policy: effectivePolicy({ ...routeFile.levels, ...levels }),
+		policy: effectivePolicy({ ...routeFile.levels, ...project.levels }),
 		projectTrusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
 		startMode: routeFile.startMode ?? "off",
