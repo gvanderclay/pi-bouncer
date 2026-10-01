@@ -6,6 +6,7 @@
 // valid parts still apply.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { errorText } from "./error-text.ts";
 import {
 	type ConfigFile,
 	type Levels,
@@ -71,10 +72,6 @@ type Json = Readonly<Record<string, unknown>>;
 
 function isObject(value: unknown): value is Json {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function errorText(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 /** What one file holds: its parsed object, or why it contributes nothing. */

@@ -7,6 +7,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Ask } from "./ask.ts";
 import { type GateConfig, judgeOrder } from "./config.ts";
+import { errorText } from "./error-text.ts";
 import {
 	type Remotes,
 	readGitState,
@@ -64,7 +65,7 @@ export function createLogging(logDir: string): {
 			} catch (error) {
 				if (warned || !ctx.hasUI) return;
 				warned = true;
-				const message = error instanceof Error ? error.message : String(error);
+				const message = errorText(error);
 				ctx.ui.notify(
 					`Bouncer could not write its log ${logFile(logDir)}: ${message}`,
 					"warning",

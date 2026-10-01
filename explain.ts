@@ -26,6 +26,7 @@ import {
 	loadConfig,
 	type Project,
 } from "./config.ts";
+import { errorText } from "./error-text.ts";
 import {
 	type AutoWould,
 	type Inspection,
@@ -173,9 +174,7 @@ async function main(): Promise<void> {
 	try {
 		trust = await resolveTrust(values, route, cwd);
 	} catch (error) {
-		process.stderr.write(
-			`explain.ts: ${error instanceof Error ? error.message : String(error)}\n`,
-		);
+		process.stderr.write(`explain.ts: ${errorText(error)}\n`);
 		process.exitCode = 2;
 		return;
 	}

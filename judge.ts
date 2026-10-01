@@ -2,6 +2,7 @@
 // the runner that asks the judge list. Free of Pi apart from the shape of the
 // model registry it is handed; the bench script imports the prompt and the
 // parser from here and never copies them.
+import { errorText } from "./error-text.ts";
 import type { GitState, RemoteFact } from "./facts.ts";
 import { type HistoryEntry, newestWithin } from "./history.ts";
 
@@ -379,7 +380,7 @@ async function askModel(
 	try {
 		message = await run.registry.streamSimple(model, context, options).result();
 	} catch (error) {
-		return error instanceof Error ? error.message : String(error);
+		return errorText(error);
 	}
 	if (refused(message)) return { verdict: "deny", reason: REFUSAL_REASON };
 	if (message.stopReason === "error" || message.stopReason === "aborted") {
