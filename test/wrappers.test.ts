@@ -140,6 +140,10 @@ const allowed = [
 	"flock /tmp/l ls",
 	"flock -c 'ls' /tmp/l",
 	"flock -n 9",
+	// util-linux flock stops reading options at the file: what follows,
+	// unless -c or --command, is the command (here a program named -n).
+	"flock /tmp/l --made-up ls",
+	"flock /tmp/l -n ls",
 	"watch -n 1 ls",
 	"watch 'ls -l'",
 	"watch",
@@ -177,9 +181,6 @@ const unjudgeable = [
 	"ls | parallel rm",
 	"env parallel rm ::: a",
 	"timeout 5 rush echo {}",
-	// util-linux flock reads only -c or --command after the file.
-	"flock /tmp/l --made-up ls",
-	"flock /tmp/l -n rm -rf x",
 ];
 
 const acceptedMisses: readonly (readonly [string, string])[] = [

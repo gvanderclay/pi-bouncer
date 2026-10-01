@@ -238,7 +238,6 @@ function unwrap(
 		if (parsed) visitScript(parsed.script, parsed.frame);
 		return undefined;
 	}
-	if (peeled?.kind === "opaque") return undefined;
 	if (peeled?.kind !== "split") return peeled?.invocation;
 	const parsed = reparse(peeled.script, peeled.parent.source, frame);
 	if (!parsed) return undefined;

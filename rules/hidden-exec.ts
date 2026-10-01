@@ -1,7 +1,6 @@
 // Commands and options that run a command the bouncer cannot read in full:
-// search tools' exec options, template runners, unknown wrapper shapes.
+// search tools' exec options and template runners.
 import type { Invocation } from "../scan/walk.ts";
-import { peel } from "../scan/wrappers.ts";
 import {
 	hasLongOption,
 	hasShortFlag,
@@ -78,8 +77,7 @@ const TEMPLATE_RUNNERS: ReadonlySet<string> = new Set([
 export const opaqueExec: Rule = {
 	name: "opaque-exec",
 	summary:
-		"parallel, rush and rust-parallel run commands built from templates, and an unknown wrapper option can hide the command, so what runs cannot be judged",
+		"parallel, rush and rust-parallel run commands built from templates, so what runs cannot be judged",
 	matches: (invocation: Invocation): boolean =>
-		TEMPLATE_RUNNERS.has(invocation.name) ||
-		peel(invocation)?.kind === "opaque",
+		TEMPLATE_RUNNERS.has(invocation.name),
 };

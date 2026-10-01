@@ -50,10 +50,6 @@ export type Peeled =
 			readonly kind: "shell";
 			readonly parent: Invocation;
 			readonly script: string;
-	  }
-	| {
-			/** An option shape this table does not know where the command goes. */
-			readonly kind: "opaque";
 	  };
 
 const WRAPPERS: readonly Wrapper[] = [
@@ -278,8 +274,11 @@ function peelCommand(
 		// watch joins its operands with spaces and runs them with `sh -c`.
 		return { kind: "shell", parent: invocation, script: rest.join(" ") };
 	}
-	if (wrapper.script && name.startsWith("-")) {
-		return trailingScript(wrapper.script, invocation, rest);
+	if (wrapper.script && isScriptOption(wrapper.script, name)) {
+		// Without its value flock refuses and runs nothing.
+		const script = commandArgs[0];
+		if (script === undefined) return undefined;
+		return { kind: "shell", parent: invocation, script };
 	}
 	return {
 		kind: "command",
@@ -288,18 +287,13 @@ function peelCommand(
 }
 
 /**
- * flock FILE -c COMMAND: util-linux reads the option only right after the
- * file. Any other option there is a shape this table does not know.
+ * flock FILE -c COMMAND: util-linux stops reading options at the file, so
+ * only -c or --command right after it is an option; any other word there,
+ * dash or not, is the command.
  */
-function trailingScript(
+function isScriptOption(
 	option: { readonly short: string; readonly long: string },
-	invocation: Invocation,
-	[given, script]: readonly string[],
-): Peeled | undefined {
-	if (given !== `-${option.short}` && given !== `--${option.long}`) {
-		return { kind: "opaque" };
-	}
-	// Without its value flock refuses and runs nothing.
-	if (script === undefined) return undefined;
-	return { kind: "shell", parent: invocation, script };
+	given: string,
+): boolean {
+	return given === `-${option.short}` || given === `--${option.long}`;
 }
