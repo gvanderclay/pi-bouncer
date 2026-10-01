@@ -129,6 +129,20 @@ async function savedTrust(agentDir: string, cwd: string): Promise<Trust> {
 	return { trusted: decision, source };
 }
 
+/**
+ * The trust state `--trusted` or `--untrusted` names, else Pi's saved
+ * decision for `cwd` in the route `agentDir`; an error when that cannot be read.
+ */
+async function resolveTrust(
+	flags: { readonly trusted: boolean; readonly untrusted: boolean },
+	agentDir: string,
+	cwd: string,
+): Promise<Trust> {
+	if (flags.trusted) return { trusted: true, source: "--trusted" };
+	if (flags.untrusted) return { trusted: false, source: "--untrusted" };
+	return await savedTrust(agentDir, cwd);
+}
+
 const USAGE =
 	"usage: node explain.ts [--json] [--agent-dir <path>] [--cwd <path>] [--trusted | --untrusted] <command | ->\n";
 
@@ -156,16 +170,14 @@ async function main(): Promise<void> {
 	const route = resolve(values["agent-dir"] ?? agentDir());
 	const cwd = resolve(values.cwd ?? process.cwd());
 	let trust: Trust;
-	if (values.trusted) trust = { trusted: true, source: "--trusted" };
-	else if (values.untrusted) trust = { trusted: false, source: "--untrusted" };
-	else {
-		try {
-			trust = await savedTrust(route, cwd);
-		} catch (error) {
-			process.stderr.write(`explain.ts: ${(error as Error).message}\n`);
-			process.exitCode = 2;
-			return;
-		}
+	try {
+		trust = await resolveTrust(values, route, cwd);
+	} catch (error) {
+		process.stderr.write(
+			`explain.ts: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
+		process.exitCode = 2;
+		return;
 	}
 	const { inspection, config } = explain(await loadParser(), command, route, {
 		cwd,
