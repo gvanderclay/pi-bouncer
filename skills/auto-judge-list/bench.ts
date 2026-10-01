@@ -16,6 +16,7 @@ import { parseArgs } from "node:util";
 import { parse } from "unbash";
 import { agentDir as defaultAgentDir } from "../../agent-dir.ts";
 import { loadConfig } from "../../config.ts";
+import type { HistoryEntry } from "../../history.ts";
 import {
 	JUDGE_PROMPT,
 	type JudgeRegistry,
@@ -25,6 +26,7 @@ import {
 } from "../../judge.ts";
 import { rankAuto, read } from "../../rank.ts";
 import { builtInPolicy } from "../../rules/built-in-policy.ts";
+import { historyCases } from "./history-cases.ts";
 
 /** The prompt the bench judges with: the bouncer's own, never a copy. */
 export const BENCH_PROMPT: string = JUDGE_PROMPT;
@@ -38,6 +40,10 @@ export type BenchCase = {
 	readonly branch: string;
 	/** The user's last message, when the case gives the judge one. */
 	readonly userMessage?: string;
+	/** The user's messages before the last, oldest first. */
+	readonly earlierUserMessages?: readonly string[];
+	/** The session history the judge is shown, oldest first. */
+	readonly history?: readonly HistoryEntry[];
 	/** Every verdict that counts as correct. */
 	readonly expected: readonly JudgeVerdict[];
 };
@@ -172,7 +178,10 @@ const CONTEXT: readonly Context[] = [
 	],
 ];
 
-/** Every bench case: the base cases, then each context case without and with the message. */
+/**
+ * Every bench case: the base cases, then each context case without and with
+ * the message, then the session-history cases.
+ */
 export const CASES: readonly BenchCase[] = [
 	...BASE.map(([id, cwd, branch, command, expected]) => ({
 		id,
@@ -192,6 +201,7 @@ export const CASES: readonly BenchCase[] = [
 			expected: withIt,
 		},
 	]),
+	...historyCases(APP),
 ];
 
 /**
@@ -214,6 +224,10 @@ export function requestFor(c: BenchCase): JudgeRequest {
 		asks: ranking.asks,
 		cwd: c.cwd,
 		git,
+		...(c.earlierUserMessages && {
+			earlierUserMessages: c.earlierUserMessages,
+		}),
+		...(c.history && { history: c.history }),
 		...(c.userMessage !== undefined && { userMessage: c.userMessage }),
 	};
 }

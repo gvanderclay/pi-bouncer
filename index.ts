@@ -44,8 +44,14 @@
  * each within 10 s and the line within 20 s. The route's
  * `auto.firstByProvider` moves the session model's provider's entry to the
  * front of the list for that call. It sees the command, the asks,
- * the cwd, git branch and remotes (`facts.ts`), the user's last message and
- * the route's `auto.environment` facts, never tool output. Allow runs the
+ * the cwd, git branch and remotes (`facts.ts`), the user's last message, up
+ * to 10 earlier ones (capped), the session history and the route's
+ * `auto.environment` facts, never tool output, file contents or the agent's
+ * own messages. The session history (`history.ts`) is the bouncer's own
+ * record of executed calls, taken at `tool_result` in every bouncer mode:
+ * bash commands with their cwd, `write` and `edit` absolute paths, failed
+ * and background starts marked. Only the judge reads it; it is capped and
+ * cleared at every `session_start`. Allow runs the
  * line quietly; deny (or a provider's usage-policy refusal) blocks it in the
  * hard-deny form with the judge's reason;
  * a hand-off, or no judge answering, opens the dialog (blocks without a UI).
@@ -104,6 +110,7 @@ import type {
 	SessionStartEvent,
 	ToolCallEvent,
 	ToolCallEventResult,
+	ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
@@ -116,6 +123,14 @@ import {
 	type Judge,
 	type ParseFn,
 } from "./gate.ts";
+import {
+	absolutePath,
+	clearHistory,
+	createHistory,
+	type HistoryEntry,
+	type JudgeSent,
+	recordEntry,
+} from "./history.ts";
 import {
 	appendRecord,
 	defaultLogDir,
@@ -185,15 +200,17 @@ function callRecord(
 	command: string,
 	decision: Decision,
 	ctx: ExtensionContext,
+	sent: JudgeSent | undefined,
 ): object | undefined {
 	const { trace } = decision;
 	if (!trace) return undefined;
 	const head = { ...recordHead("call", ctx), command, ui: trace.ui };
 	const { matches, asks } = trace;
-	// Only a decision YOLO or auto mode made carries its fields.
+	// Only a decision YOLO or auto mode made carries its fields; only a call
+	// a judge was asked about carries the counts of what it was sent.
 	const mode = {
 		...(trace.yolo && { yolo: true, withoutYolo: trace.yolo.withoutYolo }),
-		...(trace.auto && { auto: trace.auto }),
+		...(trace.auto && { auto: { ...trace.auto, ...(sent && { sent }) } }),
 		...(trace.withoutAuto && { withoutAuto: trace.withoutAuto }),
 	};
 	if (decision.kind === "allow") {
@@ -262,6 +279,7 @@ function startSession(
 	showMode(holder, rt.session, ctx);
 	rt.session.reported.clear();
 	rt.session.lastFailure.clear();
+	clearHistory(rt.session.history);
 	// Only a route with a judge list can use the snapshot.
 	if (config.auto) rt.session.remotes = readRemotes(ctx.cwd);
 	else delete rt.session.remotes;
@@ -302,17 +320,24 @@ function autoChoiceFor(
  * The call in the bouncer mode now in force. A mode switch while its judge is
  * out has the bouncer decide it again, in the new mode.
  */
-function callIn(rt: Runtime, command: string, ctx: ExtensionContext): Call {
+function callIn(
+	rt: Runtime,
+	command: string,
+	ctx: ExtensionContext,
+	onSent?: (sent: JudgeSent) => void,
+): Call {
 	const { mode } = rt.holder;
 	const judge =
-		mode === "auto" ? judgeFor(command, ctx, rt.holder, rt.session) : undefined;
+		mode === "auto"
+			? judgeFor(command, ctx, rt.holder, rt.session, onSent)
+			: undefined;
 	const alwaysAsk = rt.session.config?.auto?.alwaysAsk ?? [];
 	const { paused } = rt.session.pause;
 	const autoChoice = autoChoiceFor(mode, paused, rt.session, ctx);
 	const redecide = (): Promise<Decision> | undefined =>
 		rt.holder.mode === mode
 			? undefined
-			: rt.gate.decide(command, callIn(rt, command, ctx));
+			: rt.gate.decide(command, callIn(rt, command, ctx, onSent));
 	return {
 		...callFrom(ctx, mode, judge),
 		alwaysAsk,
@@ -329,9 +354,14 @@ async function decideCall(
 ): Promise<ToolCallEventResult | undefined> {
 	if (!isBash(event)) return undefined;
 	const { command } = event.input;
-	const outcome = await rt.gate.decide(command, callIn(rt, command, ctx));
+	let sent: JudgeSent | undefined;
+	const onSent = (counts: JudgeSent): void => {
+		sent = counts;
+	};
+	const call = callIn(rt, command, ctx, onSent);
+	const outcome = await rt.gate.decide(command, call);
 	rt.logging.write(ctx, () => {
-		const record = callRecord(command, outcome, ctx);
+		const record = callRecord(command, outcome, ctx, sent);
 		if (record) appendRecord(rt.logDir, record);
 	});
 	trackPause(outcome, rt.holder, rt.session, ctx);
@@ -351,6 +381,42 @@ async function decideCall(
 	return { block: true, reason: outcome.reason };
 }
 
+/**
+ * Records an executed call in the session history: a bash command, or the
+ * absolute path of a `write` or `edit`, with the cwd, a failed marker and a
+ * started-in-background marker. Only the command and path are read, never
+ * the output, `content`, `edits` or `timeout`; other tools are ignored. Pi
+ * fires `tool_result` only for calls it ran, so blocked, refused and aborted
+ * calls never get here. It never changes a result.
+ */
+function recordResult(
+	rt: Runtime,
+	event: ToolResultEvent,
+	ctx: ExtensionContext,
+): undefined {
+	const { toolName } = event;
+	const { command, path, background } = event.input as {
+		readonly command?: unknown;
+		readonly path?: unknown;
+		readonly background?: unknown;
+	};
+	const { cwd } = ctx;
+	const marks = event.isError ? { failed: true as const } : {};
+	let entry: HistoryEntry | undefined;
+	if (toolName === "bash" && typeof command === "string") {
+		const detached = background === true && { background: true as const };
+		entry = { tool: "bash", text: command, cwd, ...marks, ...detached };
+	} else if (
+		(toolName === "write" || toolName === "edit") &&
+		typeof path === "string"
+	) {
+		const text = absolutePath(path, cwd, homedir());
+		entry = { tool: toolName, text, cwd, ...marks };
+	}
+	if (entry) recordEntry(rt.session.history, entry);
+	return undefined;
+}
+
 export default async function bouncer(
 	pi: ExtensionAPI,
 	loadParser: ParserLoader = loadUnbash,
@@ -363,6 +429,7 @@ export default async function bouncer(
 	const session: SessionState = {
 		reported: new Set(),
 		lastFailure: new Map(),
+		history: createHistory(),
 		pause: { paused: false, inRow: 0, total: 0 },
 	};
 	const rt: Runtime = {
@@ -391,5 +458,9 @@ export default async function bouncer(
 	);
 	pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext) =>
 		decideCall(rt, event, ctx),
+	);
+	// Recorded in every bouncer mode; only auto mode's judge reads it.
+	pi.on("tool_result", (event: ToolResultEvent, ctx: ExtensionContext) =>
+		recordResult(rt, event, ctx),
 	);
 }

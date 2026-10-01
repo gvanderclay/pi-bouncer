@@ -1,4 +1,5 @@
-// Drives the bouncer through its one seam: the `tool_call` handler Pi registers.
+// Drives the bouncer through its one seam: the handlers it registers with Pi,
+// `tool_call` above all.
 import assert from "node:assert/strict";
 import {
 	mkdirSync,
@@ -16,6 +17,7 @@ import {
 	type ExtensionContext,
 	type ToolCallEvent,
 	type ToolCallEventResult,
+	type ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
 import bouncer, { type ParserLoader } from "../index.ts";
 import { createModeHolder, type ModeHolder } from "../mode.ts";
@@ -63,6 +65,15 @@ export type LoadedGate = {
 	/** Fires the `message_end` handler the bouncer registered, if any. */
 	readonly endMessage: (message: unknown) => Promise<MessageEndResult>;
 	/**
+	 * Fires the `tool_result` handler the bouncer registered, as Pi does once
+	 * an executed call finishes, with `ctx` (by default UI-less, in /work).
+	 * Returns what the handler returned.
+	 */
+	readonly finishTool: (
+		event: ToolResultEvent,
+		ctx?: ExtensionContext,
+	) => Promise<unknown>;
+	/**
 	 * Runs the slash command `name` the bouncer registered with `args`, as the
 	 * user typing `/name args` does, with `ctx` (by default UI-less).
 	 */
@@ -99,6 +110,66 @@ type MessageEndHandler = (event: {
 	type: "message_end";
 	message: unknown;
 }) => MessageEndResult | Promise<MessageEndResult>;
+
+type ToolResultHandler = (
+	event: ToolResultEvent,
+	ctx: ExtensionContext,
+) => unknown;
+
+/** How a built tool result ended, and the output text it carries. */
+export type ResultOptions = {
+	readonly isError?: boolean;
+	/** The result's output text, where a test plants markers. */
+	readonly text?: string;
+	readonly id?: string;
+};
+
+/** The `tool_result` event Pi fires once `toolName` ran with `input`. */
+export function toolResult(
+	toolName: string,
+	input: Record<string, unknown>,
+	{ isError = false, text = "", id = "t1" }: ResultOptions = {},
+): ToolResultEvent {
+	return {
+		type: "tool_result",
+		toolCallId: id,
+		toolName,
+		input,
+		content: [{ type: "text", text }],
+		isError,
+		details: undefined,
+	} as ToolResultEvent;
+}
+
+/** A finished bash call; `background` is set as pi-bg-bash's input sets it. */
+export function bashResult(
+	command: string,
+	options: ResultOptions & { readonly background?: boolean } = {},
+): ToolResultEvent {
+	const input = options.background
+		? { command, background: true }
+		: { command };
+	return toolResult("bash", input, options);
+}
+
+/** A finished `write` of `content` to `path`. */
+export function writeResult(
+	path: string,
+	content: string,
+	options: ResultOptions = {},
+): ToolResultEvent {
+	return toolResult("write", { path, content }, options);
+}
+
+/** A finished `edit` of `path` replacing `oldText` with `newText`. */
+export function editResult(
+	path: string,
+	newText: string,
+	options: ResultOptions = {},
+): ToolResultEvent {
+	const edits = [{ oldText: "before", newText }];
+	return toolResult("edit", { path, edits }, options);
+}
 
 /** The tool result Pi records for a call aborted after `tool_call`. */
 export function abortedResult(toolCallId = "t1"): ToolResultMessage {
@@ -207,15 +278,20 @@ export async function loadGateSession(
 	let handler: Handler | undefined;
 	let sessionHandler: SessionHandler | undefined;
 	let messageEndHandler: MessageEndHandler | undefined;
+	let resultHandler: ToolResultHandler | undefined;
 	const commands = new Map<string, CommandHandler>();
 	const registered = new Set<string>();
 	const events = createEventBus();
 	const pi = {
 		events,
-		on(event: string, fn: Handler & SessionHandler & MessageEndHandler): void {
+		on(
+			event: string,
+			fn: Handler & SessionHandler & MessageEndHandler & ToolResultHandler,
+		): void {
 			if (event === "tool_call") handler = fn;
 			if (event === "session_start") sessionHandler = fn;
 			if (event === "message_end") messageEndHandler = fn;
+			if (event === "tool_result") resultHandler = fn;
 		},
 		registerCommand(name: string, command: { handler: CommandHandler }): void {
 			commands.set(name, command.handler);
@@ -251,6 +327,15 @@ export async function loadGateSession(
 		},
 		endMessage: async (message: unknown): Promise<MessageEndResult> =>
 			await messageEndHandler?.({ type: "message_end", message }),
+		finishTool: async (
+			event: ToolResultEvent,
+			ctx: ExtensionContext = fakeContext(),
+		): Promise<unknown> => {
+			if (!resultHandler) {
+				throw new Error("the bouncer registered no tool_result handler");
+			}
+			return await resultHandler(event, ctx);
+		},
 		runCommand: async (
 			name: string,
 			args = "",
@@ -495,8 +580,14 @@ export type ModelScript = {
 	readonly thinkingLevelMap?: Readonly<Record<string, string | null>>;
 	/** Whether `hasConfiguredAuth` holds; true unless set. */
 	readonly auth?: boolean;
-	/** The reply to every call, or one per call in order (the last repeats). */
-	readonly reply: ModelReply | readonly ModelReply[];
+	/**
+	 * The reply to every call, or one per call in order (the last repeats), or
+	 * a reply worked out from the judge input of each call.
+	 */
+	readonly reply:
+		| ModelReply
+		| readonly ModelReply[]
+		| ((input: string) => ModelReply);
 };
 
 /** One call the fake registry saw. */
@@ -600,21 +691,24 @@ export function fakeRegistry(
 			options: { sessionId?: string; reasoning?: string; signal?: AbortSignal },
 		): { result(): Promise<FakeMessage> } {
 			const key = `${model.provider}/${model.id}`;
+			const input = context.messages.map((m) => m.content).join("\n");
 			requests.push({
 				model: key,
 				sessionId: options.sessionId,
 				reasoning: options.reasoning,
 				systemPrompt: context.systemPrompt,
-				input: context.messages.map((m) => m.content).join("\n"),
+				input,
 				signal: options.signal,
 			});
 			const count = calls.get(key) ?? 0;
 			calls.set(key, count + 1);
 			const script = models[key];
 			const replies = script?.reply ?? "";
-			const reply = Array.isArray(replies)
-				? (replies[Math.min(count, replies.length - 1)] as ModelReply)
-				: (replies as ModelReply);
+			let reply: ModelReply;
+			if (typeof replies === "function") reply = replies(input);
+			else if (Array.isArray(replies)) {
+				reply = replies[Math.min(count, replies.length - 1)] as ModelReply;
+			} else reply = replies as ModelReply;
 			const settled = settle(reply, options.signal);
 			return { result: (): Promise<FakeMessage> => settled };
 		},

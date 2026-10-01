@@ -15,6 +15,14 @@ import {
 } from "./facts.ts";
 import type { Decision, Judge } from "./gate.ts";
 import {
+	type JudgeSent,
+	recentEarlier,
+	type ToolHistory,
+	userTexts,
+} from "./history.ts";
+import {
+	earlierWithinBudget,
+	historyWithinBudget,
 	type JudgeRegistry,
 	type JudgeResult,
 	NOT_FOUND,
@@ -282,12 +290,14 @@ export function registerYolo(
 }
 
 /**
- * What the extension keeps per session, for the commands to read: the
- * config, the models already reported unavailable, and each model's last
- * failure. Reset at every `session_start`.
+ * What the extension keeps per session, for the commands and the judge to
+ * read: the config, the models already reported unavailable, each model's
+ * last failure, and the session history. Reset at every `session_start`.
  */
 export type SessionState = {
 	config?: GateConfig;
+	/** Recorded in every bouncer mode; only auto mode's judge reads it. */
+	readonly history: ToolHistory;
 	readonly reported: Set<string>;
 	readonly lastFailure: Map<string, string>;
 	/** The remotes at `session_start`, read once. */
@@ -332,21 +342,6 @@ export function trackPause(
 		pause.inRow = 0;
 		showMode(holder, session, ctx);
 	}
-}
-
-/** The text of the last user message on the session's current branch. */
-function lastUserMessage(ctx: ExtensionContext): string | undefined {
-	const branch = ctx.sessionManager.getBranch?.() ?? [];
-	for (let i = branch.length - 1; i >= 0; i -= 1) {
-		const entry = branch[i];
-		if (entry?.type !== "message" || entry.message.role !== "user") continue;
-		const { content } = entry.message;
-		if (typeof content === "string") return content;
-		return content
-			.map((part) => (part.type === "text" ? part.text : ""))
-			.join("");
-	}
-	return undefined;
 }
 
 /**
@@ -492,15 +487,19 @@ export function registerAuto(
 /**
  * The judge for one call in auto mode: the route's judge list, run through
  * Pi's registry on behalf of this session, with the footer saying so while
- * it runs.
+ * it runs. `onSent` hears how many history entries and earlier messages the
+ * request holds.
  */
 export function judgeFor(
 	command: string,
 	ctx: ExtensionContext,
 	holder: ModeHolder,
 	session: SessionState,
+	onSent: (sent: JudgeSent) => void = () => {},
 ): Judge {
 	return async (asks: readonly Ask[]): Promise<JudgeResult> => {
+		// A result that lands while the judge runs does not change its request.
+		const history = historyWithinBudget(session.history.entries, ctx.cwd);
 		showJudging(ctx);
 		try {
 			const { cwd } = ctx;
@@ -509,7 +508,12 @@ export function judgeFor(
 				readRemotes(cwd),
 				session.remotes ?? new Map<string, string>(),
 			]);
-			const userMessage = lastUserMessage(ctx);
+			const texts = userTexts(ctx.sessionManager.getBranch?.() ?? []);
+			// An empty last message gives no user_message: no fallback.
+			const userMessage = texts.at(-1);
+			const earlier = earlierWithinBudget(
+				recentEarlier(texts.slice(0, -1).filter((text) => text !== "")),
+			);
 			const environment = session.config?.auto?.environment ?? [];
 			const request = {
 				command,
@@ -518,8 +522,11 @@ export function judgeFor(
 				git,
 				remotes: remoteFacts(snapshot, now),
 				environment,
+				...(earlier.length > 0 && { earlierUserMessages: earlier }),
+				...(history.length > 0 && { history }),
 				...(userMessage && { userMessage }),
 			};
+			onSent({ history: history.length, earlierMessages: earlier.length });
 			const run = {
 				registry: registryOf(ctx),
 				sessionId: ctx.sessionManager.getSessionId(),

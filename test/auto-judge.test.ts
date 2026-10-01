@@ -245,6 +245,7 @@ test("a judged allow records the verdict, model, time, tried and withoutAuto", a
 		"model",
 		"ms",
 		"tried",
+		"sent",
 	]);
 	assert.equal(auto.verdict, "allow");
 	assert.equal(auto.reason, "Build output.");

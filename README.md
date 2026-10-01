@@ -84,8 +84,24 @@ mode nor a judge (the judge's one-line reason is the deny's reason).
 In auto mode each judge-list entry gets 10 s, and a line gets 20 s in total.
 `auto.firstByProvider` names the entry to ask first for the session model's
 provider. The judge sees the command, the flagged rules, the working
-directory, the git branch and remotes, your last message and the route's
-`auto.environment` facts. It never sees tool output. A model that refuses the
+directory, the git branch and remotes, your last message in full, up to 10
+earlier messages of yours (each cut to 1,000 characters, 4,000 in all), the
+session history and the route's `auto.environment` facts. It never sees tool
+output, file contents, edit text or the agent's own messages. Literal closing
+tags inside any of these blocks are escaped.
+
+The session history is the bouncer's own record of what the agent ran: every
+bash command Pi executed, with its working directory, and the absolute path of
+every `write` and `edit`. It is recorded at `tool_result`, so blocked, refused
+and aborted calls never appear; a call that ran and failed is marked failed,
+and a background start is marked as one. It keeps the newest 50 entries, each
+cut to 1,000 characters, and the judge gets the newest within 8,000
+characters. It is recorded in every mode but read only in auto mode, and
+cleared at every session start (`/new`, `/resume`, `/fork`, `/reload`). With it
+the judge can allow deleting what the agent visibly created this session,
+unless you asked to keep it, but not anything that existed before the session,
+glob or age deletes in shared directories such as `/tmp`, a shared directory
+itself, or a variable target whose value it cannot see. A model that refuses the
 request under its provider's usage policy counts as a deny. Rule-level denies,
 the always-deny set, unparseable commands and the `grep` steer rule are denied
 before any judge is asked, and `auto.alwaysAsk` prefixes always open the

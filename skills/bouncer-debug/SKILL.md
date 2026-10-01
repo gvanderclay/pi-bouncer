@@ -102,8 +102,20 @@ model registry. Its lifetime is YOLO mode's.
 - The judge sees the command, each uncovered ask's rule and summary, the
   working directory, the git branch and dirty state, the git remotes (those
   added or changed since the session started flagged), the user's last
-  message and the route's `auto.environment` facts. Never tool output or
-  `AGENTS.md`.
+  message in full, up to 10 earlier user messages (each cut to 1,000
+  characters, 4,000 in all, newest kept), the session history and the
+  route's `auto.environment` facts. Never tool output, file contents, edit
+  text, the agent's own messages or `AGENTS.md`.
+- The session history is the bouncer's own record, taken at `tool_result` in
+  every mode since the session started: each executed bash command with its
+  working directory, and the absolute path of each `write` and `edit`.
+  Blocked, refused and aborted calls are absent; a call that ran and failed
+  is marked `failed`, a background start `started in background`. It keeps
+  the newest 50 entries (each cut to 1,000 characters) and sends the newest
+  within 8,000 characters. Every session start (`/new`, `/resume`, `/fork`,
+  `/reload`) clears it; only auto mode reads it. The judge may allow
+  deleting what the agent visibly created this session, unless the user
+  asked to keep it.
 - `/auto status` shows the mode, the pause, each list entry and whether it
   resolves, the `firstByProvider` entries with this session's provider
   marked, each model's last failure this session, the `alwaysAsk`
@@ -161,6 +173,9 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       judge answered.
     - `tried`: every `{model, error}` given up on before the answer, in
       list order.
+    - `sent`: `{history, earlierMessages}`, how many session-history
+      entries and earlier user messages the judge was sent, only when a
+      judge was asked. Never their content.
     - `discarded: true` when the bouncer mode changed while the judge was out:
       the verdict was dropped, and the rest of the record (`outcome`, `asks`,
       and `yolo` if the new mode was YOLO) is what the new mode decided.
@@ -219,8 +234,13 @@ holds it.
    `auto.reason` is the judge's reason (also in `reason`), `auto.model` the
    model that said it, and `auto.tried` the models that failed first. The
    judge saw only what the Auto mode section lists; replay the command
-   (step 5) to confirm it reached the judge and was not a rule-level deny,
-   and read the user's last message before the call in the session file.
+   (step 5) to confirm it reached the judge and was not a rule-level deny.
+   To rebuild what the judge saw, read the session file up to the call:
+   the user's last message and the `auto.sent.earlierMessages` user
+   messages before it, and, since the latest session start, the agent's
+   bash, `write` and `edit` tool calls whose results arrived (newest
+   `auto.sent.history` of them, a result with `isError` marked failed).
+   Assistant text and tool results never reached the judge.
    `discarded: true` means that verdict was not acted on. Calls with
    `auto.verdict` `none`, and the models in `tried`, point at a judge list
    that needs fixing (`/auto status`).
