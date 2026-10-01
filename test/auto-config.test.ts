@@ -232,3 +232,110 @@ for (const [label, firstByProvider, problems] of badFirst) {
 		});
 	});
 }
+
+test("a valid auto.jev has no problems and is in the record", async () => {
+	const config = await sessionConfig({
+		auto: { models: ["a/b"], jev: { allowAt: 0.9, denyAt: 0.95 } },
+	});
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual(config.auto, {
+		models: ["a/b"],
+		alwaysAsk: [],
+		environment: 0,
+		jev: { allowAt: 0.9, denyAt: 0.95 },
+	});
+});
+
+test("auto.jev {} takes the placeholder cutoffs: no allowAt and denyAt null", async () => {
+	const config = await sessionConfig({ auto: { models: ["a/b"], jev: {} } });
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual(config.auto, {
+		models: ["a/b"],
+		alwaysAsk: [],
+		environment: 0,
+		jev: { allowAt: null, denyAt: null },
+	});
+});
+
+test("auto.jev with denyAt null and allowAt 1 is valid", async () => {
+	const config = await sessionConfig({
+		auto: { models: ["a/b"], jev: { allowAt: 1, denyAt: null } },
+	});
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual((config.auto as { jev?: unknown }).jev, {
+		allowAt: 1,
+		denyAt: null,
+	});
+});
+
+const badJev: readonly (readonly [
+	label: string,
+	jev: unknown,
+	problems: readonly string[],
+])[] = [
+	["a non-object auto.jev", true, ["auto.jev must be an object"]],
+	["an array auto.jev", [0.9], ["auto.jev must be an object"]],
+	[
+		"allowAt 0.4",
+		{ allowAt: 0.4 },
+		["auto.jev.allowAt must be a number above 0.5 and at most 1"],
+	],
+	[
+		"allowAt 0.5",
+		{ allowAt: 0.5 },
+		["auto.jev.allowAt must be a number above 0.5 and at most 1"],
+	],
+	[
+		"allowAt 1.1",
+		{ allowAt: 1.1 },
+		["auto.jev.allowAt must be a number above 0.5 and at most 1"],
+	],
+	[
+		"allowAt null",
+		{ allowAt: null },
+		["auto.jev.allowAt must be a number above 0.5 and at most 1"],
+	],
+	[
+		'denyAt "x"',
+		{ allowAt: 0.9, denyAt: "x" },
+		["auto.jev.denyAt must be null or a number above 0.5 and at most 1"],
+	],
+	[
+		"an unknown key under auto.jev",
+		{ allowAt: 0.9, model: "jev-2" },
+		['auto.jev: unknown key "model"'],
+	],
+];
+
+for (const [label, jev, problems] of badJev) {
+	test(`${label} is a problem and leaves Jev off`, async () => {
+		const config = await sessionConfig({ auto: { models: ["a/b"], jev } });
+		assert.deepEqual(routeProblems(config), problems);
+		assert.deepEqual(config.auto, {
+			models: ["a/b"],
+			alwaysAsk: [],
+			environment: 0,
+		});
+	});
+}
+
+test("a project file's auto.jev is ignored with the route-only problem, trusted or not", async () => {
+	for (const trusted of [true, false]) {
+		const gate = await loadGateSession();
+		const cwd = tempProjectDir();
+		gate.writeRouteConfig({ auto: { models: ["a/b"] } });
+		writeProjectConfig(cwd, {
+			auto: { models: ["a/b"], jev: { allowAt: 0.6, denyAt: null } },
+		});
+		await gate.startSession("startup", fakeContext(cwd, trusted));
+		const config = gate.records()[0]?.config as ConfigShape;
+		assert.deepEqual(config.files[1]?.problems, [
+			'"auto" is ignored in a project file: only the route sets auto mode',
+		]);
+		assert.deepEqual(config.auto, {
+			models: ["a/b"],
+			alwaysAsk: [],
+			environment: 0,
+		});
+	}
+});

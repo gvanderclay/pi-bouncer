@@ -6,6 +6,7 @@
 // valid parts still apply.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { type JevSettings, jevPart } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
 	type ConfigFile,
@@ -40,6 +41,8 @@ export type AutoSettings = {
 	 * rest of `models` follows in order.
 	 */
 	readonly firstByProvider: Readonly<Record<string, string>>;
+	/** Absent: Jev is off and the judge list rules alone. */
+	readonly jev?: JevSettings;
 };
 
 /** One config file the bouncer looked for; defined in project-config.ts. */
@@ -222,6 +225,9 @@ function validFirstByProvider(
 	return first;
 }
 
+/** `auto` keys checked after the loop in `validAuto`. */
+const CHECKED_AFTER: ReadonlySet<string> = new Set(["firstByProvider", "jev"]);
+
 function validAuto(
 	value: unknown,
 	problems: string[],
@@ -230,11 +236,11 @@ function validAuto(
 		problems.push('"auto" is not an object');
 		return undefined;
 	}
-	const auto = {
-		models: [] as string[],
-		alwaysAsk: [] as string[],
-		environment: [] as string[],
-		firstByProvider: {} as Record<string, string>,
+	const auto: Mutable<AutoSettings> = {
+		models: [],
+		alwaysAsk: [],
+		environment: [],
+		firstByProvider: {},
 	};
 	for (const [key, entries] of Object.entries(value)) {
 		if (key === "models") {
@@ -246,7 +252,7 @@ function validAuto(
 		} else if (key === "alwaysAsk" || key === "environment") {
 			const rule = "a non-empty string";
 			auto[key] = validList(key, entries, isNonEmptyString, rule, problems);
-		} else if (key !== "firstByProvider") {
+		} else if (!CHECKED_AFTER.has(key)) {
 			problems.push(`auto: unknown key "${key}"`);
 		}
 	}
@@ -260,7 +266,7 @@ function validAuto(
 			problems,
 		);
 	}
-	return auto;
+	return { ...auto, ...jevPart(value, problems) };
 }
 
 /**
@@ -429,6 +435,8 @@ export type ConfigRecord = {
 		readonly environment: number;
 		/** Only when set. */
 		readonly firstByProvider?: Readonly<Record<string, string>>;
+		/** Only when Jev is on. */
+		readonly jev?: JevSettings;
 	};
 };
 
@@ -439,12 +447,13 @@ export function configRecord(config: GateConfig): ConfigRecord {
 	}
 	const { files, log, auto, projectTrusted } = config;
 	if (!auto) return { files, projectTrusted, levels, log };
-	const { models, alwaysAsk, environment, firstByProvider } = auto;
+	const { models, alwaysAsk, environment, firstByProvider, jev } = auto;
 	const counted = {
 		models,
 		alwaysAsk,
 		environment: environment.length,
 		...(Object.keys(firstByProvider).length > 0 && { firstByProvider }),
+		...(jev && { jev }),
 	};
 	return { files, projectTrusted, levels, log, auto: counted };
 }

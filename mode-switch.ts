@@ -21,6 +21,7 @@ import {
 	type ToolHistory,
 	userTexts,
 } from "./history.ts";
+import { jevFailures, jevStatus, jevThenJudge } from "./jev.ts";
 import {
 	earlierWithinBudget,
 	historyWithinBudget,
@@ -355,18 +356,16 @@ function notifyFailures(
 	session: SessionState,
 	ctx: ExtensionContext,
 ): void {
-	for (const { model, error } of result.tried) {
-		session.lastFailure.set(model, error);
-	}
-	const fresh = result.tried.filter(
-		({ model }) => !session.reported.has(model),
-	);
+	// Jev's failure counts as one more model given up on.
+	const tried = [...jevFailures(result), ...result.tried];
+	for (const { model, error } of tried) session.lastFailure.set(model, error);
+	const fresh = tried.filter(({ model }) => !session.reported.has(model));
 	for (const { model } of fresh) session.reported.add(model);
 	if (!ctx.hasUI || fresh.length === 0) return;
 	if (result.kind === "none") {
-		const tried = result.tried.map(({ model, error }) => `${model}: ${error}`);
+		const all = tried.map(({ model, error }) => `${model}: ${error}`);
 		ctx.ui.notify(
-			`Auto: no judge available (${tried.join("; ")}). The ${SKILL} skill can fix the list.`,
+			`Auto: no judge available (${all.join("; ")}). The ${SKILL} skill can fix the list.`,
 			"warning",
 		);
 		return;
@@ -393,14 +392,14 @@ function listed(heading: string, items: readonly string[]): string[] {
  * The whole auto-mode setup in one notice: the mode, the pause, each judge
  * list entry and whether it resolves, the `firstByProvider` entries with
  * this session's provider marked, each model's last failure this
- * session, the always-ask prefixes and the number of environment facts. It
- * calls no model.
+ * session, the always-ask prefixes and the number of environment facts, with
+ * Jev's line after the mode. It calls no model.
  */
-function autoStatus(
+async function autoStatus(
 	holder: ModeHolder,
 	session: SessionState,
 	ctx: ExtensionContext,
-): string {
+): Promise<string> {
 	const paused = holder.mode === "auto" && session.pause.paused;
 	const auto = session.config?.auto;
 	const models = auto?.models ?? [];
@@ -421,6 +420,7 @@ function autoStatus(
 	const facts = auto?.environment.length ?? 0;
 	return [
 		`Bouncer auto mode: ${holder.mode} (paused: ${paused ? "yes" : "no"})`,
+		await jevStatus(auto?.jev, registry),
 		...(models.length === 0
 			? [`Judge list: none. The ${SKILL} skill can make one.`]
 			: listed("Judge list", entries)),
@@ -444,15 +444,16 @@ function turnAutoOn(
 }
 
 /** `/auto`: toggle, `on`, `off`, or `status`. */
-function autoCommand(
+async function autoCommand(
 	args: string,
 	holder: ModeHolder,
 	switchMode: ModeSwitch,
 	session: SessionState,
 	ctx: ExtensionContext,
-): void {
+): Promise<void> {
 	if (args.trim() === "status") {
-		if (ctx.hasUI) ctx.ui.notify(autoStatus(holder, session, ctx), "info");
+		const text = await autoStatus(holder, session, ctx);
+		if (ctx.hasUI) ctx.ui.notify(text, "info");
 		return;
 	}
 	const on = requestedOn(args, holder.mode === "auto");
@@ -535,7 +536,9 @@ export function judgeFor(
 			};
 			const auto = session.config?.auto;
 			const models = judgeOrder(auto, ctx.model?.provider);
-			const result = await runJudge(models, request, run);
+			const result = auto?.jev
+				? await jevThenJudge(models, request, run, auto.jev)
+				: await runJudge(models, request, run);
 			notifyFailures(result, session, ctx);
 			return result;
 		} finally {

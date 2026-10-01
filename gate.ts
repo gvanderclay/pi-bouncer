@@ -13,7 +13,7 @@ import {
 	uncovered,
 	yoloAnswers,
 } from "./ask.ts";
-import type { JudgeFailure, JudgeResult } from "./judge.ts";
+import type { JevRecord, JudgeFailure, JudgeResult } from "./judge.ts";
 import type { GateMode } from "./mode.ts";
 import {
 	type Match,
@@ -53,6 +53,8 @@ export type AutoTrace = {
 	readonly ms?: number;
 	/** Every model given up on before the answer, with why. */
 	readonly tried: readonly JudgeFailure[];
+	/** What Jev said first, when the route has `auto.jev`. */
+	readonly jev?: JevRecord;
 	/** Set when the bouncer mode changed while the judge was out: unused. */
 	readonly discarded?: true;
 };
@@ -210,9 +212,12 @@ function yoloDecided(
 }
 
 function autoTrace(result: JudgeResult): AutoTrace {
-	if (result.kind === "none") return { verdict: "none", tried: result.tried };
+	const jev = result.jev && { jev: result.jev };
+	if (result.kind === "none") {
+		return { verdict: "none", tried: result.tried, ...jev };
+	}
 	const { verdict, reason, model, ms, tried } = result;
-	return { verdict, reason, model, ms, tried };
+	return { verdict, reason, model, ms, tried, ...jev };
 }
 
 const NO_JUDGE = "Auto: no judge available";

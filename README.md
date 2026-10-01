@@ -62,7 +62,7 @@ YOLO mode off, and the other way round.
 | Mode | Flags | What it does |
 | --- | --- | --- |
 | normal (off) | none | every ask opens the dialog |
-| auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason, and a hand-off or no answer opens the dialog. Three judge denies in a row, or 20 in a session, pause it until you allow a call. It refuses to turn on when no list entry resolves |
+| auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to Jev first when the route sets `auto.jev`, then to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason, and a hand-off or no answer opens the dialog. Three judge denies in a row, or 20 in a session, pause it until you allow a call. It refuses to turn on when no list entry resolves |
 | YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set, unreadable commands and the `grep` steer rule still deny |
 
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
@@ -108,6 +108,23 @@ before any judge is asked, and `auto.alwaysAsk` prefixes always open the
 dialog unless the line holds a grep. A grep block never counts toward the
 pause.
 
+With `auto.jev` in the route's `bouncer.json`, auto mode asks Jev first:
+OpenCode Zen's `jev-1.13` classifier, reached at a fixed SystemOne URL with
+the opencode-go key Pi holds for the route. Jev sees exactly what the judge
+sees, under the same budgets, and answers with a safe probability. At or
+above `allowAt` the line runs quietly with no judge-list call, recorded with
+the model `opencode-go/jev-1.13`; anything else (below `allowAt`, an unsafe
+answer, no key, an HTTP error, an unreadable reply or no reply within 5 s)
+goes to the judge list as usual. Jev's 5 s come out of the line's 20 s, and
+aborting the turn aborts it. A failure is reported once per session, like a
+judge-list model's, and `/auto status` shows whether Jev is on, its cutoffs
+and whether the key resolves. Every Jev answer is in the call's log record.
+Jev never sees anything the judge list would not: rule-level denies, the
+always-deny set, unparseable commands, the `grep` steer rule,
+`auto.alwaysAsk` hits, a paused auto mode and lines session allows cover are
+decided before it is asked. Jev cannot turn auto mode on by itself:
+`auto.models` stays required.
+
 ## Dialog
 
 An ask names the rule and quotes the command. The choices are Allow once;
@@ -143,8 +160,15 @@ read: the warning tells you to move it. `levels` sets any built-in
 rule to `ask` or `deny`, except the unreadable-command denies and the `grep`
 steer rule, whose level is fixed; the route's file also carries `log` (the
 log's rotation size, generations kept and age pruning), `auto` (the judge list
-`models`, `alwaysAsk` prefixes, `environment` facts and `firstByProvider`)
-and `startMode` (`off` or `auto`, see Modes).
+`models`, `alwaysAsk` prefixes, `environment` facts, `firstByProvider` and
+`jev`) and `startMode` (`off` or `auto`, see Modes).
+`auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
+and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
+`null`. Until the Jev bench sets real defaults, an absent `allowAt` means Jev
+never allows and an absent `denyAt` is `null`, so `"jev": {}` asks Jev and
+logs its answer but lets it decide nothing. Jev does not deny yet: an unsafe
+answer goes to the judge list whatever `denyAt` says. An invalid `auto.jev`
+is a config problem and leaves Jev off; a project file's `auto` is ignored.
 An invalid part falls back to its built-in value, and one warning lists every
 problem. Without this file the built-in levels apply.
 

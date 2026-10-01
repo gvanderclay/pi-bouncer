@@ -365,6 +365,7 @@ test("/auto status lists the mode, each entry's resolve state and the prefixes, 
 		await statusNotice(gate, fake),
 		[
 			"Bouncer auto mode: off (paused: no)",
+			"Jev: off",
 			"Judge list:",
 			"- gone/one: model not found",
 			"- fake/judge: resolves",
@@ -392,6 +393,7 @@ test("/auto status shows a model's last failure until the next session start", a
 		await statusNotice(gate, fake),
 		[
 			"Bouncer auto mode: auto (paused: no)",
+			"Jev: off",
 			"Judge list:",
 			"- fake/first: resolves",
 			"- fake/judge: resolves",
@@ -416,6 +418,7 @@ test("/auto status with no judge list names the skill", async () => {
 		await statusNotice(gate, allowingRegistry()),
 		[
 			"Bouncer auto mode: off (paused: no)",
+			"Jev: off",
 			"Judge list: none. The auto-judge-list skill can make one.",
 			"Last failures this session: none",
 			"Always ask: none",
@@ -431,6 +434,7 @@ test("/auto status shows firstByProvider and marks this session's provider", asy
 	const fake = allowingRegistry();
 	const lines = [
 		"Bouncer auto mode: off (paused: no)",
+		"Jev: off",
 		"Judge list:",
 		"- go/deepseek: model not found",
 		"- fake/judge: resolves",

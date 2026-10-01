@@ -44,9 +44,9 @@ it shows up as a problem asking to move it. `levels` maps a built-in rule to
 and the `grep` steer rule always deny, and setting one is a config
 problem. An invalid part falls back to its built-in value. Edits apply
 from the next session start, never mid-session. The route file alone may
-also set `auto` (auto mode's `models`, `alwaysAsk`, `environment` and
-`firstByProvider`); a
-project file's `auto` is ignored with a warning. Don't read the files to
+also set `auto` (auto mode's `models`, `alwaysAsk`, `environment`,
+`firstByProvider` and `jev`); a project file's `auto`, `jev` included, is
+ignored with a warning, trusted or not. Don't read the files to
 explain a past call: they may have changed since. The session record's
 `config` says what applied.
 
@@ -104,6 +104,20 @@ model registry. Its lifetime is YOLO mode's.
   write no record of their own; the call records' `paused` verdicts show it.
 - A mode switch while a judge call is out drops the judge's verdict, and the
   new mode decides the call.
+- **Jev**: when the route's `auto` has `jev`, the judge list is asked only
+  after Jev, OpenCode Zen's `jev-1.13` classifier (called with the route's
+  opencode-go key). Jev sees what the judge sees and answers with a safe
+  probability. `auto.jev.allowAt` and `auto.jev.denyAt` are optional
+  numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
+  `allowAt` means Jev never allows, an absent `denyAt` is `null`, and an
+  invalid `auto.jev` is a config problem that leaves Jev off. A safe
+  probability at or above `allowAt` allows the line with no judge-list call,
+  and `auto.model` is `opencode-go/jev-1.13`. Anything else, including an
+  unsafe answer (Jev does not deny yet) and a failure (no key, HTTP error,
+  unreadable reply, no reply within 5 s, aborted turn), goes to the judge
+  list with what is left of the line's 20 s. A Jev failure is reported once
+  per session under `opencode-go/jev-1.13`. Everything denied or never
+  judged above never reaches Jev either.
 - The judge sees the command, each uncovered ask's rule and summary, the
   working directory, the git branch and dirty state, the git remotes (those
   added or changed since the session started flagged), the user's last
@@ -121,7 +135,8 @@ model registry. Its lifetime is YOLO mode's.
   `/reload`) clears it; only auto mode reads it. The judge may allow
   deleting what the agent visibly created this session, unless the user
   asked to keep it.
-- `/auto status` shows the mode, the pause, each list entry and whether it
+- `/auto status` shows the mode, the pause, Jev (off, or on with its
+  cutoffs and whether the opencode-go key resolves), each list entry and whether it
   resolves, the `firstByProvider` entries with this session's provider
   marked, each model's last failure this session, the `alwaysAsk`
   prefixes and how many environment facts there are, without calling a
@@ -146,7 +161,8 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
   - `log`: the effective `rotateAboveMiB`, `generations` and `maxAgeDays`.
   - `auto`, only when the route sets it: the judge list `models`, the
     `alwaysAsk` prefixes, `environment` as a count of facts (their text
-    is not logged), and `firstByProvider` when it is set.
+    is not logged), `firstByProvider` when it is set, and `jev` (its
+    `allowAt` and `denyAt`, `null` for never) when Jev is on.
 - `type: "call"`: one per bash call the bouncer intervened in.
   - `command`: the full command, never clipped.
   - `ui`: whether anyone could answer a dialog. Without a UI every match
@@ -174,10 +190,16 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       answered), `paused` (auto mode was paused, so the dialog opened) or
       `always-ask` (an `alwaysAsk` prefix hit). The last two mean no judge
       was called.
-    - `reason`, `model` (the `provider/id` that answered) and `ms`, when a
-      judge answered.
+    - `reason`, `model` (the `provider/id` that answered, or
+      `opencode-go/jev-1.13` when Jev allowed) and `ms`, when a judge
+      answered.
     - `tried`: every `{model, error}` given up on before the answer, in
-      list order.
+      list order. Empty when Jev decided; a Jev failure is in `jev`, not here.
+    - `jev`, only when the route has `auto.jev` and Jev was asked: `answer`
+      (`safe`, or `unsure` when the judge list was asked next), `safe` (the
+      safe probability), `confidence` and `ms`; or, when the call failed,
+      `error` and `ms`. `verdict` and `model` still describe the decision
+      that took effect.
     - `sent`: `{history, earlierMessages}`, how many session-history
       entries and earlier user messages the judge was sent, only when a
       judge was asked. Never their content.
@@ -249,6 +271,11 @@ holds it.
    `discarded: true` means that verdict was not acted on. Calls with
    `auto.verdict` `none`, and the models in `tried`, point at a judge list
    that needs fixing (`/auto status`).
+   **Did Jev decide?** `auto.model` `opencode-go/jev-1.13` means Jev allowed
+   the call: `auto.jev.safe` reached the route's `allowAt` (the session
+   record's `config.auto.jev`). Otherwise `auto.jev.answer` `unsure` with its
+   `safe` and `confidence` shows why Jev deferred, and `auto.jev.error` that
+   the call failed (for example `no opencode-go key`).
 4. **No record for the command?** Check the session's `session` records.
    None at all means the bouncer wasn't loaded in that session. `parser: false`
    means every bash call was denied. A live bouncer with a working parser and
@@ -309,6 +336,9 @@ jq -c 'select(.type == "call" and .auto) | {command, verdict: .auto.verdict, mod
 
 # Judge-list models that failed, and why.
 jq -c 'select(.type == "call") | .auto.tried[]? ' "$BOUNCER_LOG/log.jsonl"
+
+# What Jev said about each call it was asked about.
+jq -c 'select(.type == "call" and .auto.jev) | {command, jev: .auto.jev, model: .auto.model}' "$BOUNCER_LOG/log.jsonl"
 
 # When auto mode turned on or off, and how.
 jq -c 'select(.type == "auto") | {time, on, how}' "$BOUNCER_LOG/log.jsonl"

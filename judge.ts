@@ -309,15 +309,26 @@ export function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 /** One model the runner gave up on, and why. */
 export type JudgeFailure = { readonly model: string; readonly error: string };
 
-/** What running the judge list gave. */
-export type JudgeResult =
+/** What Jev said about a line, or why it said nothing; see `jev.ts`. */
+export type JevRecord =
+	| {
+			readonly answer: "safe" | "unsafe" | "unsure";
+			readonly safe: number;
+			readonly confidence: number;
+			readonly ms: number;
+	  }
+	| { readonly error: string; readonly ms: number };
+
+/** What running the judge list gave; `jev` when Jev was asked first. */
+export type JudgeResult = (
 	| (JudgeReply & {
 			readonly kind: "verdict";
 			readonly model: string;
 			readonly ms: number;
 			readonly tried: readonly JudgeFailure[];
 	  })
-	| { readonly kind: "none"; readonly tried: readonly JudgeFailure[] };
+	| { readonly kind: "none"; readonly tried: readonly JudgeFailure[] }
+) & { readonly jev?: JevRecord };
 
 /** Where and on whose behalf the judge list runs. */
 export type JudgeRun = {
@@ -325,6 +336,8 @@ export type JudgeRun = {
 	readonly sessionId: string;
 	/** The turn's signal: aborting it aborts the outstanding call. */
 	readonly signal?: AbortSignal;
+	/** What is left of the line's budget; the whole of it unless set. */
+	readonly lineMs?: number;
 };
 
 // Enough for one short JSON object even after a little reasoning.
@@ -399,7 +412,7 @@ async function askModel(
 
 /** Each model's budget, and the whole line's. */
 const MODEL_MS = 10_000;
-const LINE_MS = 20_000;
+export const LINE_MS = 20_000;
 
 /** Why a call that ended without a verdict failed, budgets first. */
 function failure(
@@ -416,8 +429,9 @@ function failure(
 
 /**
  * Asks the judge list in order; the first model that answers is the judge.
- * Each model gets 10 s and the line 20 s; aborting the turn aborts the
- * outstanding call. Every model given up on is in `tried`, with why.
+ * Each model gets 10 s and the line 20 s, or `run.lineMs` when Jev used
+ * some of it; aborting the turn aborts the outstanding call. Every model
+ * given up on is in `tried`, with why.
  */
 export async function runJudge(
 	models: readonly string[],
@@ -426,7 +440,7 @@ export async function runJudge(
 ): Promise<JudgeResult> {
 	const tried: JudgeFailure[] = [];
 	const line = new AbortController();
-	const lineTimer = setTimeout(() => line.abort(), LINE_MS);
+	const lineTimer = setTimeout(() => line.abort(), run.lineMs ?? LINE_MS);
 	try {
 		for (const entry of models) {
 			if (line.signal.aborted || run.signal?.aborted) break;

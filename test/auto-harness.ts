@@ -69,17 +69,21 @@ export function modeRecords(
 export const HARD_DENY_TAIL =
 	"None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.";
 
-/** A bouncer in auto mode whose judge list is `fake/judge`, scripted by `script`. */
+/**
+ * A bouncer in auto mode whose judge list is `fake/judge`, scripted by
+ * `script`; the registry gives `keys` by provider.
+ */
 export async function judgedGate(
 	script: ModelScript | ModelReply,
 	auto: object = {},
 	levels?: object,
+	keys: Readonly<Record<string, string>> = {},
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {
 	const models =
 		typeof script === "object" && "reply" in script
 			? { [JUDGE]: script }
 			: { [JUDGE]: { reply: script } };
-	const fake = fakeRegistry(models);
+	const fake = fakeRegistry(models, keys);
 	const gate = await listedGate([JUDGE], auto);
 	if (levels) {
 		gate.writeRouteConfig({ auto: { models: [JUDGE], ...auto }, levels });
@@ -117,13 +121,17 @@ export function autoVerdict(record: LogRecord | undefined): unknown {
 	return (record?.auto as { verdict?: unknown } | undefined)?.verdict;
 }
 
-/** A bouncer in auto mode whose judge list is `models`, scripted by `scripts`. */
+/**
+ * A bouncer in auto mode whose judge list is `models`, scripted by
+ * `scripts`; the registry gives `keys` by provider.
+ */
 export async function listGate(
 	models: readonly string[],
 	scripts: Readonly<Record<string, ModelScript>>,
 	auto: object = {},
+	keys: Readonly<Record<string, string>> = {},
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {
-	const fake = fakeRegistry(scripts);
+	const fake = fakeRegistry(scripts, keys);
 	const gate = await listedGate(models, auto);
 	await gate.runCommand("auto", "", registryUI(fake).ctx);
 	assert.equal(gate.mode.mode, "auto");
