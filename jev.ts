@@ -2,8 +2,9 @@
 // a bash line in one call: `safety`, which allows, and the four in
 // `jev-questions.ts`, whose deny score denies. Based on the SystemOne client in pi-jev-device
 // (`src/policy/transport.ts`, `src/policy/types.ts`), without its retries:
-// the judge list is the retry. The client never throws, and its errors never
-// hold the key.
+// a failed call goes to the judge list. The client never throws, and its
+// errors never hold the key. `ruling.ts` decides when Jev is asked and what
+// its answer does to the line.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
@@ -11,7 +12,6 @@ import {
 	type DenyAnswers,
 	denyScore,
 	field,
-	type JevRecord,
 	OTHER_AT,
 	probability,
 	readDenyAnswers,
@@ -20,14 +20,7 @@ import {
 	earlierWithinBudget,
 	historyWithinBudget,
 	JUDGE_CRITERIA,
-	type JudgeFailure,
-	type JudgeRegistry,
 	type JudgeRequest,
-	type JudgeResult,
-	type JudgeRun,
-	LINE_MS,
-	runJudge,
-	UNSAFE_REASON,
 } from "./judge.ts";
 
 /** Where Jev is asked, and which Jev. */
@@ -93,12 +86,18 @@ export function jevState(request: JudgeRequest): Record<string, unknown> {
 	};
 }
 
+/** The part of Pi's model registry Jev uses: its key lookup. */
+export type JevKeyLookup = {
+	/** The provider's API key, as Pi resolves it for the route. */
+	getApiKeyForProvider?(provider: string): Promise<string | undefined>;
+};
+
 /**
  * The key Jev is called with, from Pi's registry; none is `undefined`. A
  * registry that fails to look it up throws, and the caller reports why.
  */
 export async function jevKey(
-	registry: JudgeRegistry,
+	registry: JevKeyLookup,
 ): Promise<string | undefined> {
 	return (await registry.getApiKeyForProvider?.(JEV_PROVIDER)) || undefined;
 }
@@ -240,11 +239,26 @@ export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 	return { answer, ...reading, ms: call.ms };
 }
 
-/** Jev as a judge-list entry names it, in the log and the notices. */
-export const JEV_ENTRY = `${JEV_PROVIDER}/${JEV_MODEL}`;
+/** Jev's name in the log and the notices; it is not a judge-list entry. */
+export const JEV_NAME = `${JEV_PROVIDER}/${JEV_MODEL}`;
 
 /** A Jev allow's reason; like a judge's, it is never shown to the model. */
 export const JEV_ALLOW_REASON = "Jev rated it safe.";
+
+/** A Jev deny's reason; like every deny, it never names a judge. */
+export const UNSAFE_REASON = "It was rated as likely unsafe.";
+
+/** What the log keeps of Jev's answer to a line, or why there is none. */
+export type JevRecord =
+	| (DenyAnswers & {
+			readonly answer: "safe" | "unsafe" | "unsure";
+			readonly safe: number;
+			/** The deny score. */
+			readonly unsafe: number;
+			readonly confidence: number;
+			readonly ms: number;
+	  })
+	| { readonly error: string; readonly ms: number };
 
 /** What the log keeps of an answer: the reading, or the error. */
 export function jevRecord(answer: JevAnswer): JevRecord {
@@ -264,47 +278,6 @@ export function jevRecord(answer: JevAnswer): JevRecord {
 	};
 }
 
-/**
- * Jev, then the judge list: a safe answer at `allowAt` allows the line, an
- * unsafe one at `denyAt` denies it, and anything else, a failure included,
- * goes to the judge list with what is left of the line's budget.
- */
-export async function jevThenJudge(
-	models: readonly string[],
-	request: JudgeRequest,
-	run: JudgeRun,
-	settings: JevSettings,
-): Promise<JudgeResult> {
-	const start = Date.now();
-	let call: JevCall;
-	try {
-		const key = await jevKey(run.registry);
-		call = key
-			? await askJev(request, key, run.signal)
-			: { error: NO_KEY, ms: 0 };
-	} catch (error) {
-		call = { error: errorText(error), ms: Date.now() - start };
-	}
-	const answer = classify(call, settings);
-	const jev = jevRecord(answer);
-	if (answer.answer !== "unsure") {
-		const decided =
-			answer.answer === "safe"
-				? ({ verdict: "allow", reason: JEV_ALLOW_REASON } as const)
-				: ({ verdict: "deny", reason: UNSAFE_REASON } as const);
-		const result = { kind: "verdict", ...decided, model: JEV_ENTRY } as const;
-		return { ...result, ms: call.ms, tried: [], jev };
-	}
-	const lineMs = LINE_MS - (Date.now() - start);
-	return { ...(await runJudge(models, request, { ...run, lineMs })), jev };
-}
-
-/** Jev's failure as a judge-list failure, for the session's notices. */
-export function jevFailures(result: JudgeResult): JudgeFailure[] {
-	if (!result.jev || !("error" in result.jev)) return [];
-	return [{ model: JEV_ENTRY, error: result.jev.error }];
-}
-
 function cutoffText(cutoff: number | null): string {
 	return cutoff === null ? "none" : String(cutoff);
 }
@@ -312,7 +285,7 @@ function cutoffText(cutoff: number | null): string {
 /** `/auto status`'s Jev line: off, or on with its cutoffs and its key. */
 export async function jevStatus(
 	settings: JevSettings | undefined,
-	registry: JudgeRegistry,
+	registry: JevKeyLookup,
 ): Promise<string> {
 	if (!settings) return "Jev: off";
 	const { allowAt, denyAt } = settings;

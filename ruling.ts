@@ -10,13 +10,15 @@ import {
 	askJev,
 	classify,
 	JEV_ALLOW_REASON,
-	JEV_ENTRY,
+	JEV_NAME,
 	type JevCall,
+	type JevKeyLookup,
+	type JevRecord,
 	jevKey,
 	jevRecord,
 	NO_KEY,
+	UNSAFE_REASON,
 } from "./jev.ts";
-import type { JevRecord } from "./jev-questions.ts";
 import {
 	type JudgeFailure,
 	type JudgeRegistry,
@@ -25,7 +27,6 @@ import {
 	type JudgeRun,
 	LINE_MS,
 	runJudge,
-	UNSAFE_REASON,
 } from "./judge.ts";
 
 /** What the ruling gave: the judge list's result, and Jev's when asked. */
@@ -33,7 +34,7 @@ export type Ruling = JudgeResult & { readonly jev?: JevRecord };
 
 /** Where and on whose behalf a line is ruled; the line's budget is its own. */
 export type RulingRun = Omit<JudgeRun, "lineMs" | "registry"> & {
-	readonly registry: JudgeRegistry;
+	readonly registry: JudgeRegistry & JevKeyLookup;
 };
 
 /** Jev's call for `request`, its key lookup included; it never throws. */
@@ -75,7 +76,7 @@ export async function ruleLine(
 			answer.answer === "safe"
 				? ({ verdict: "allow", reason: JEV_ALLOW_REASON } as const)
 				: ({ verdict: "deny", reason: UNSAFE_REASON } as const);
-		const result = { kind: "verdict", ...decided, model: JEV_ENTRY } as const;
+		const result = { kind: "verdict", ...decided, model: JEV_NAME } as const;
 		return { ...result, ms: answer.ms, tried: [], jev };
 	}
 	const lineMs = LINE_MS - (Date.now() - start);
@@ -89,7 +90,7 @@ export async function ruleLine(
 export function rulingFailures(ruling: Ruling): JudgeFailure[] {
 	const jev =
 		ruling.jev && "error" in ruling.jev
-			? [{ model: JEV_ENTRY, error: ruling.jev.error }]
+			? [{ model: JEV_NAME, error: ruling.jev.error }]
 			: [];
 	return [...jev, ...ruling.tried];
 }

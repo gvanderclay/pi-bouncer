@@ -5,7 +5,6 @@
 import { errorText } from "./error-text.ts";
 import type { GitState, RemoteFact } from "./facts.ts";
 import { type HistoryEntry, newestWithin } from "./history.ts";
-import type { JevRecord } from "./jev-questions.ts";
 
 /** The earlier-messages block stays within this many characters. */
 export const EARLIER_CHARS = 4_000;
@@ -56,7 +55,7 @@ export type JudgeReply = {
 
 /**
  * The judge prompt's safety criteria: Claude Code's explicit-intent bar, no
- * allow or deny lists. Jev's instructions are these too.
+ * allow or deny lists.
  */
 export const JUDGE_CRITERIA = `You are a security reviewer for a coding agent's shell commands. A rule-based bouncer flagged the command below because it matched one or more risky rules. Decide what happens to it:
 - "allow": clearly safe and routine for development (build artefacts, caches, temporary files, the agent's own feature branch), or exactly what the user explicitly asked for.
@@ -275,8 +274,6 @@ export type JudgeCallOptions = {
 export type JudgeRegistry = {
 	find(provider: string, modelId: string): JudgeModel | undefined;
 	hasConfiguredAuth(model: JudgeModel): boolean;
-	/** The provider's API key, as Pi resolves it for the route; Jev's key. */
-	getApiKeyForProvider?(provider: string): Promise<string | undefined>;
 	streamSimple(
 		model: JudgeModel,
 		context: {
@@ -310,16 +307,15 @@ export function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 /** One model the runner gave up on, and why. */
 export type JudgeFailure = { readonly model: string; readonly error: string };
 
-/** What running the judge list gave; `jev` when Jev was asked first. */
-export type JudgeResult = (
+/** What running the judge list gave. */
+export type JudgeResult =
 	| (JudgeReply & {
 			readonly kind: "verdict";
 			readonly model: string;
 			readonly ms: number;
 			readonly tried: readonly JudgeFailure[];
 	  })
-	| { readonly kind: "none"; readonly tried: readonly JudgeFailure[] }
-) & { readonly jev?: JevRecord };
+	| { readonly kind: "none"; readonly tried: readonly JudgeFailure[] };
 
 /** Where and on whose behalf the judge list runs. */
 export type JudgeRun = {
@@ -327,7 +323,7 @@ export type JudgeRun = {
 	readonly sessionId: string;
 	/** The turn's signal: aborting it aborts the outstanding call. */
 	readonly signal?: AbortSignal;
-	/** What is left of the line's budget; the whole of it unless set. */
+	/** What is left of the line's budget; the whole 20 s unless set. */
 	readonly lineMs?: number;
 };
 
@@ -358,9 +354,6 @@ export function resolveEntry(
 
 /** The deny reason for a refusal; like every deny, it never names a judge. */
 export const REFUSAL_REASON = "It was refused as likely harmful.";
-
-/** The deny reason when Jev decides; like every deny, it never names a judge. */
-export const UNSAFE_REASON = "It was rated as likely unsafe.";
 
 /**
  * A usage-policy refusal: pi-ai's Anthropic adapter ends it as an `error`
@@ -423,9 +416,9 @@ function failure(
 
 /**
  * Asks the judge list in order; the first model that answers is the judge.
- * Each model gets 10 s and the line 20 s, or `run.lineMs` when Jev used
- * some of it; aborting the turn aborts the outstanding call. Every model
- * given up on is in `tried`, with why.
+ * Each model gets 10 s and the line what is left of its budget, `run.lineMs`,
+ * or the whole 20 s; aborting the turn aborts the outstanding call. Every
+ * model given up on is in `tried`, with why.
  */
 export async function runJudge(
 	models: readonly string[],

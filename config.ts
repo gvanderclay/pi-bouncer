@@ -1,9 +1,9 @@
 // The bouncer config: finds, reads, validates and merges the route's
 // `bouncer.json` and the project's `.pi/extensions/bouncer/config.json`, under
 // the project rules in project-config.ts. Free of Pi; only index.ts,
-// explain.ts and mode-switch.ts (for `judgeOrder`) import it. It never throws:
-// each invalid part is a problem and falls back to its built-in value, and the
-// valid parts still apply.
+// explain.ts, mode-switch.ts and ruling.ts (for `judgeOrder`) import it. It
+// never throws: each invalid part is a problem and falls back to its built-in
+// value, and the valid parts still apply.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type JevSettings, jevPart } from "./auto-jev-config.ts";

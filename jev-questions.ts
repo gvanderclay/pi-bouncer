@@ -69,18 +69,6 @@ export type DenyAnswers = {
 	readonly risky_target: number;
 };
 
-/** What the log keeps of Jev's answer to a line, or why there is none. */
-export type JevRecord =
-	| (DenyAnswers & {
-			readonly answer: "safe" | "unsafe" | "unsure";
-			readonly safe: number;
-			/** The deny score. */
-			readonly unsafe: number;
-			readonly confidence: number;
-			readonly ms: number;
-	  })
-	| { readonly error: string; readonly ms: number };
-
 export function probability(value: unknown): value is number {
 	return typeof value === "number" && value >= 0 && value <= 1;
 }

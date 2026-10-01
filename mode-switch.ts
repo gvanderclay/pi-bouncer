@@ -1,6 +1,7 @@
 // The bouncer mode's Pi side: the one switch path, the /yolo and /auto
-// commands, the start flags, the footer status, and the judge wired to Pi's
-// model registry. The mode itself lives in `mode.ts`; `gate.ts` decides.
+// commands, the start flags, the footer status, and the auto-mode ruling
+// (`ruling.ts`) wired to Pi's model registry, with its notices. The mode
+// itself lives in `mode.ts`; `gate.ts` decides.
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -21,7 +22,7 @@ import {
 	type ToolHistory,
 	userTexts,
 } from "./history.ts";
-import { jevStatus } from "./jev.ts";
+import { type JevKeyLookup, jevStatus } from "./jev.ts";
 import {
 	earlierWithinBudget,
 	historyWithinBudget,
@@ -118,11 +119,11 @@ function showJudging(ctx: ExtensionContext): void {
 	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("muted", "🤖 judging…"));
 }
 
-// Pi's registry, seen through the part the judge uses. A context without one
-// resolves nothing.
-function registryOf(ctx: ExtensionContext): JudgeRegistry {
+// Pi's registry, seen through the parts the judge list and Jev use. A
+// context without one resolves nothing.
+function registryOf(ctx: ExtensionContext): JudgeRegistry & JevKeyLookup {
 	const registry = (ctx as { modelRegistry?: unknown }).modelRegistry;
-	if (registry) return registry as JudgeRegistry;
+	if (registry) return registry as JudgeRegistry & JevKeyLookup;
 	return {
 		find: () => undefined,
 		hasConfiguredAuth: () => false,
@@ -485,7 +486,7 @@ export function registerAuto(
 }
 
 /**
- * The judge for one call in auto mode: the route's judge list, run through
+ * The judge for one call in auto mode: the auto-mode ruling, run through
  * Pi's registry on behalf of this session, with the footer saying so while
  * it runs. `onSent` hears how many history entries and earlier messages the
  * request holds.
