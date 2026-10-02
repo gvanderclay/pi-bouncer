@@ -68,9 +68,9 @@ function configLine(config: GateConfig): string {
 		: `config: ${files}`;
 }
 
-type Trust = { readonly trusted: boolean; readonly source: string };
+export type Trust = { readonly trusted: boolean; readonly source: string };
 
-function asText(
+export function asText(
 	{ matches, withUI, withoutUI, withYolo, withAuto }: Inspection,
 	config: GateConfig,
 	trust: Trust,

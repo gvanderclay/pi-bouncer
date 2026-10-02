@@ -12,6 +12,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
+import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
 import { readRemotes } from "./facts.ts";
 import {
@@ -335,6 +336,7 @@ export default async function bouncer(
 	registerYolo(pi, holder, rt.switchMode);
 	registerAuto(pi, holder, rt.switchMode, rt.session);
 	registerSessionLaunch(pi, holder);
+	registerBouncer(pi, { holder, session, parser, agentDir, logDir });
 	pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) =>
 		startSession(rt, event, ctx),
 	);

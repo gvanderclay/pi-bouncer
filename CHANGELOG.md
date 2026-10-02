@@ -27,6 +27,8 @@ bouncer lived in its author's dotfiles.
 - A JSON Schema for both config files, `schema/bouncer.schema.json`, and a
   top-level `"$schema"` key that points an editor at it. `$schema` was
   reported as an unknown key before.
+- The `/bouncer` command: `status` (the default), `rules`, `explain
+  <command>`, `init` and `check`.
 
 ### Changed
 

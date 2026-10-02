@@ -227,6 +227,11 @@ never depends on the bouncer config, so the `log` limits cannot move it.
 
 | Command | What it does |
 | --- | --- |
+| `/bouncer [status]` | shows the mode, the config files and their problems, project trust, each rule's level, the log path and auto mode |
+| `/bouncer rules` | lists every rule with its level and what it catches |
+| `/bouncer explain <command>` | shows what the bouncer would do with a command, without running it |
+| `/bouncer init` | writes an empty user config with `$schema`, if none exists |
+| `/bouncer check` | re-reads both config files and lists their problems, without applying them |
 | `/auto [on\|off\|status]` | toggles auto mode, or reports why it cannot turn on |
 | `/yolo [on\|off]` | toggles YOLO mode |
 
