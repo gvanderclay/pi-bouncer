@@ -44,15 +44,20 @@ export type Peeled =
 			readonly script: string;
 	  };
 
+const ENV: Wrapper = {
+	names: ["env"],
+	shortValues: "uCPSa",
+	longValues: ["unset", "chdir", "split-string", "argv0"],
+	assignments: true,
+	dashOption: true,
+	split: { short: "S", long: "split-string" },
+};
+
+/** env's short options that take a value, for rules that read env's options. */
+export const ENV_SHORT_VALUES: string = ENV.shortValues ?? "";
+
 const WRAPPERS: readonly Wrapper[] = [
-	{
-		names: ["env"],
-		shortValues: "uCPSa",
-		longValues: ["unset", "chdir", "split-string", "argv0"],
-		assignments: true,
-		dashOption: true,
-		split: { short: "S", long: "split-string" },
-	},
+	ENV,
 	{ names: ["command"], noRun: "vV" },
 	{ names: ["builtin"] },
 	{ names: ["exec"], shortValues: "a" },
@@ -242,6 +247,39 @@ export function peel(invocation: Invocation): Peeled | undefined {
 		cursor.index += 1;
 	}
 	return peelCommand(wrapper, invocation, args.slice(cursor.index), cursor);
+}
+
+export type EnvParts = {
+	/** Everything before the first assignment or command, `--` included. */
+	readonly options: readonly string[];
+	/** The `NAME=value` operands before the command. */
+	readonly assignments: readonly string[];
+	/** The command env runs, with its arguments (empty with -S: see `split`). */
+	readonly command: readonly string[];
+	/** The -S string, which holds the command; `command` is then what follows it. */
+	readonly split?: string;
+};
+
+// Splits env's arguments with the same option table the scan uses, so that
+// the command's own words are never read as env's options or assignments.
+export function envParts(args: readonly string[]): EnvParts {
+	const cursor: Cursor = { index: 0 };
+	skipOptions(ENV, args, cursor);
+	const options = args.slice(0, cursor.index);
+	if (cursor.split !== undefined) {
+		return {
+			options,
+			assignments: [],
+			command: args.slice(cursor.index),
+			split: cursor.split,
+		};
+	}
+	while (ASSIGNMENT.test(args[cursor.index] ?? "")) cursor.index += 1;
+	return {
+		options,
+		assignments: args.slice(options.length, cursor.index),
+		command: args.slice(cursor.index),
+	};
 }
 
 function peelCommand(

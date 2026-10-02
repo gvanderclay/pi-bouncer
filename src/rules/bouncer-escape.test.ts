@@ -33,6 +33,10 @@ const denied = [
 	"env -i pi",
 	"env - pi -p hi",
 	"env -i /opt/homebrew/bin/pi",
+	"PI_BOUNCER_AGENT+=x pi",
+	"env -S 'FOO=1 PI_BOUNCER_AGENT=w pi'",
+	"env -S 'PI_BOUNCER_AGENT=w pi'",
+	"env -i -S 'pi -p hi'",
 ];
 
 const allowed = [
@@ -51,6 +55,10 @@ const allowed = [
 	"unset FOO",
 	"env -u FOO pi",
 	"env -i ls",
+	"env -i ls pi",
+	"env -i grep x pi",
+	"env ls -u PI_BOUNCER_AGENT",
+	"env ls PI_BOUNCER_AGENT=x",
 	"echo unset PI_BOUNCER_AGENT",
 ];
 

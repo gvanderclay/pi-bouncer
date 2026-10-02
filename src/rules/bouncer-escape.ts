@@ -1,6 +1,8 @@
 import { AGENT_VARIABLES } from "../agent-env.ts";
 import { commandName } from "../scan/normalize.ts";
 import type { Invocation } from "../scan/walk.ts";
+import type { EnvParts } from "../scan/wrappers.ts";
+import { ENV_SHORT_VALUES, envParts } from "../scan/wrappers.ts";
 import { hasShortFlag, isLongOption, optionArgs } from "./argv.ts";
 import type { Rule } from "./rule.ts";
 
@@ -33,9 +35,7 @@ function namesVariable(arg: string): boolean {
 function setsVariable(invocation: Invocation): boolean {
 	if (invocation.assignments.some(isVariable)) return true;
 	if (invocation.name === "env") {
-		return invocation.args.some(
-			(arg) => arg.includes("=") && namesVariable(arg),
-		);
+		return envParts(invocation.args).assignments.some(namesVariable);
 	}
 	return DECLARERS.has(invocation.name) && invocation.args.some(namesVariable);
 }
@@ -58,21 +58,31 @@ function unsetValues(args: readonly string[]): string[] {
 	return values;
 }
 
+// The command env runs: its operand, or the first word of its -S string
+// after any NAME=value words.
+function runsPi({ command, split }: EnvParts): boolean {
+	const words = split?.split(/\s+/).filter((word) => word !== "") ?? [];
+	const first = command[0] ?? words.find((word) => !/^\w+=/.test(word));
+	return first !== undefined && commandName(first) === "pi";
+}
+
 // `env -i` or `env -` running pi: the profile variables are gone.
-function clearsEnvironmentForPi(args: readonly string[]): boolean {
+function clearsEnvironmentForPi(parts: EnvParts): boolean {
+	const { options } = parts;
 	const clears =
-		args.includes("-") ||
-		hasShortFlag(args, "i", "uCPSa") ||
-		args.some((arg) => isLongOption(arg, "ignore-environment"));
-	return clears && args.some((arg) => commandName(arg) === "pi");
+		options.includes("-") ||
+		hasShortFlag(options, "i", ENV_SHORT_VALUES) ||
+		options.some((arg) => isLongOption(arg, "ignore-environment"));
+	return clears && runsPi(parts);
 }
 
 function clearsVariable(invocation: Invocation): boolean {
 	if (invocation.name === "unset") return invocation.args.some(isVariable);
 	if (invocation.name !== "env") return false;
+	const parts = envParts(invocation.args);
 	return (
-		unsetValues(optionArgs(invocation.args)).some(isVariable) ||
-		clearsEnvironmentForPi(invocation.args)
+		unsetValues(optionArgs(parts.options)).some(isVariable) ||
+		clearsEnvironmentForPi(parts)
 	);
 }
 

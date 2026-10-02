@@ -82,7 +82,10 @@ function splitWords(script: ParsedScript): readonly string[] | undefined {
 	) {
 		return undefined;
 	}
-	return [command.name, ...command.suffix].flatMap((word) =>
+	// Leading NAME=value words belong to the command env runs.
+	const assignments = command.prefix.map((a) => a.text);
+	const words = [command.name, ...command.suffix].flatMap((word) =>
 		word ? [word.value] : [],
 	);
+	return [...assignments, ...words];
 }
