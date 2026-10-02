@@ -23,14 +23,28 @@ The productionizing plan, with its decisions, is `docs/plan.md`.
 - `node scripts/check-pack.mjs` after changing `package.json` `files` or adding
   a top-level path.
 
+## Changes
+
+- Never commit to `main`: a ruleset refuses pushes there. Work on a branch,
+  open a pull request with `gh pr create`, and merge with
+  `gh pr merge --squash --auto`; it merges once the `check` and `pack` jobs
+  pass. The pull request title becomes the commit message.
+- Repository settings and rulesets live in `.github/repo-settings.json`.
+  Change them there, in a pull request, then apply them with
+  `node scripts/repo-settings.mjs` (`--dry-run` first); never in GitHub's UI.
+- Fill in `.github/pull_request_template.md`. `CONTRIBUTING.md` is the
+  human-facing copy of these rules; keep the two in step.
+
 ## Releases
 
 - Add each user-visible change under `## [Unreleased]` in `CHANGELOG.md` as
   it lands. Never edit `version` or tag by hand.
-- Release with `gh workflow run release.yml -f bump=patch` (or `minor`,
-  `major`) from `main`: it checks, bumps, moves the CHANGELOG entries, tags,
-  publishes to npm by trusted publishing, and makes the GitHub release. It
-  refuses when `[Unreleased]` is empty.
+- Release with `pnpm release patch` (or `minor`, `major`) on an up-to-date
+  `main`: it bumps the version, moves the CHANGELOG entries and opens a
+  release pull request set to auto-merge. It refuses when `[Unreleased]` is
+  empty. Once that merges, `release.yml` sees an untagged version on `main`,
+  checks, tags, publishes to npm by trusted publishing, and makes the GitHub
+  release.
 
 ## Rules
 
@@ -42,5 +56,5 @@ The productionizing plan, with its decisions, is `docs/plan.md`.
 - Every feature stays available; a changed default keeps the old behaviour
   one config line away, named in `CHANGELOG.md`.
 - The bouncer gates the shell it is developed in. Try unpushed changes with
-  `pi -e <this checkout>`, and keep each pushed step green: a broken rule can
+  `pi -e <this checkout>`, and keep each merged step green: a broken rule can
   deny every bash call for anyone following `main`.

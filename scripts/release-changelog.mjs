@@ -1,6 +1,6 @@
 // Moves CHANGELOG.md's [Unreleased] entries under a heading for a new
 // version, and updates the compare links at the bottom. Refuses when there is
-// nothing under [Unreleased]. Used by .github/workflows/release.yml.
+// nothing under [Unreleased]. Used by scripts/release.mjs.
 // Run from the package root: node scripts/release-changelog.mjs <version>
 import { readFileSync, writeFileSync } from "node:fs";
 

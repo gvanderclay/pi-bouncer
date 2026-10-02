@@ -1,19 +1,15 @@
 name: Release
 
-# Run from the Actions tab, or: gh workflow run release.yml -f bump=patch
-# The release job checks the code, bumps the version, moves the CHANGELOG's
-# [Unreleased] entries under it, and pushes the commit and tag. The publish
-# job then publishes that tag to npm through trusted publishing (no token):
-# the package's npm settings name this repository and this workflow file. If
-# only publishing fails, re-run the failed job; it never bumps again.
+# Runs on every push to main. When package.json names a version that has no
+# tag yet, which is what merging a pull request from `pnpm release <bump>`
+# does, it checks the code, tags the commit, publishes to npm through trusted
+# publishing (no token; the package's npm settings name this repository and
+# this workflow file) and makes the GitHub release. Any other push stops after
+# the first job. If publishing fails, re-run the failed job: it skips a tag
+# that already exists.
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: Which part of the version to raise
-        type: choice
-        options: [patch, minor, major]
-        default: patch
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -21,20 +17,42 @@ permissions:
 concurrency: release
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
     outputs:
-      tag: ${{ steps.bump.outputs.tag }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: tag
+        name: find an unreleased version
+        run: |
+          tag="v$(node -p 'require("./package.json").version')"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "$tag is already released"
+          else
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: version
+    if: needs.version.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the tag and the GitHub release
+      id-token: write # trusted publishing and provenance
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24.x
+          registry-url: https://registry.npmjs.org
           cache: pnpm
+      # Trusted publishing needs npm 11.5.1 or later; pinned to 11 so a new
+      # major cannot change the publish step unannounced.
+      - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
@@ -45,46 +63,19 @@ jobs:
           pnpm test
       - run: pnpm build
       - run: node scripts/check-pack.mjs
-      - id: bump
-        name: bump the version and the CHANGELOG
+      - name: tag
         run: |
-          version=$(npm version "${{ inputs.bump }}" --no-git-tag-version | sed 's/^v//')
-          node scripts/release-changelog.mjs "$version"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-      - name: commit, tag and push
-        run: |
-          tag="${{ steps.bump.outputs.tag }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Release $tag"
-          git tag -a "$tag" -m "pi-bouncer $tag"
-          git push --atomic origin HEAD:main "$tag"
-
-  publish:
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # the GitHub release
-      id-token: write # trusted publishing and provenance
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag }}
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.x
-          registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or later; pinned to 11 so a new
-      # major cannot change the publish step unannounced.
-      - run: npm install -g npm@11
-      - run: pnpm install --frozen-lockfile
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "pi-bouncer $TAG"
+            git push origin "$TAG"
+          fi
       # prepack rebuilds dist/ inside npm publish.
       - run: npm publish --provenance --access public
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
         run: |
           version="${TAG#v}"
           awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > notes.md

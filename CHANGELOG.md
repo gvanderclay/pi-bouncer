@@ -8,10 +8,10 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Releases are one workflow run: `gh workflow run release.yml -f bump=patch`
-  bumps the version, moves the changelog entries, tags, publishes to npm by
-  trusted publishing and makes the GitHub release. Pushing a tag no longer
-  publishes.
+- Releases go through a pull request: `pnpm release patch` bumps the version,
+  moves the changelog entries and opens a release pull request. Merging it
+  tags, publishes to npm by trusted publishing and makes the GitHub release.
+  Pushing a tag no longer publishes.
 
 ## [0.1.0] - 2026-10-02
 
