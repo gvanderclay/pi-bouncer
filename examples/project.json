@@ -1,0 +1,12 @@
+{
+	"$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"levels": { "git-push-force": "deny" },
+	"rules": [
+		{
+			"name": "db-reset",
+			"command": "pnpm",
+			"args": ["db:reset"],
+			"summary": "resets the development database"
+		}
+	]
+}

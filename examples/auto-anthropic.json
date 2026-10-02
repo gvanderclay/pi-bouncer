@@ -1,0 +1,6 @@
+{
+	"$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"auto": {
+		"models": ["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-5-5"]
+	}
+}

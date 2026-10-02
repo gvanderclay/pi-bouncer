@@ -1,8 +1,8 @@
 # Design notes
 
 These notes record the evidence behind three of the bouncer's defaults: the
-cutoffs Jev decides at, what a project's config may change, and the built-in
-`grep` steer rule. They are distilled from the original design notes, written
+cutoffs Jev decides at, what a project's config may change, and the `grep`
+steer rule. They are distilled from the original design notes, written
 while the bouncer lived in its owner's dotfiles, and the code cites them where
 a default would otherwise look arbitrary. Terms are those of `glossary.md`.
 Dates are when the measurements were made (2026-10-01 for the Jev runs).
@@ -157,7 +157,8 @@ every mode with no dialog, judge call or warning, does not count toward auto
 mode's pause, and is written to the bouncer log so its frequency can be
 counted. Its message says grep is not allowed, that nothing ran, and to run the
 search with `rg`, with a one-line hint that `rg` is recursive and uses regex by
-default (`-F` for a fixed string, `-n` for line numbers). Its level is fixed. A
+default (`-F` for a fixed string, `-n` for line numbers). Its level is deny or
+off. A
 real deny on the same line wins over it, and it wins over every ask, so the
 model retries with `rg` and any ask comes back on the retry.
 
@@ -172,14 +173,12 @@ peel the commands in `find`'s and `fd`'s exec slots: `find . -exec grep x {} \;`
 yields only `find`. So the rule reads those slots itself: the word after find's
 `-exec`, `-execdir`, `-ok` or `-okdir`, and the command given to fd's `-x`,
 `-X`, `--exec` or `--exec-batch` (also as a short cluster ending in `x`, and for
-`fdfind`). Peeling them in the scan would change what every rule sees, and was
-left for its own piece of work. A wrapper inside the slot, such as
-`find . -exec env grep`, is not covered.
+`fdfind`). Peeling them in the scan would change what every rule sees, so
+custom rules read them instead (`hiddenArgvs` in `src/rules/hidden-exec.ts`).
+A wrapper inside the slot, such as `find . -exec env grep`, is not covered.
 
-Steering is a personal preference and it breaks searching for anyone without
-ripgrep, so the plan (`docs/plan.md`, decision D-1 and step 3.6) moves it out
-of the built-in policy: the package ships no grep rule, custom rules arrive in
-step 3.6, and the owner keeps grep as a custom steer rule in their own user
-config. The existing grep tests are meant to run unchanged against that config
-rule, which also shows custom rules can express a real built-in rule. Until
-then `src/rules/grep.ts` is the built-in version, and its source says it moves.
+Steering is a personal preference, and it breaks searching for anyone without
+ripgrep, so the package ships no grep rule (`docs/plan.md`, decision D-1). The
+rule is a custom steer rule, `examples/prefer-rg.json`, which the owner keeps
+in their user config. The grep tests load that file, which also shows custom
+rules can express what used to be a built-in rule.

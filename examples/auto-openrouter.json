@@ -1,0 +1,10 @@
+{
+	"$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"auto": {
+		"models": [
+			"openrouter/google/gemini-3.5-flash",
+			"openrouter/anthropic/claude-haiku-4.5"
+		],
+		"jev": { "model": "openrouter/typesafe/jev-1.13" }
+	}
+}

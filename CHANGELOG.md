@@ -47,6 +47,11 @@ bouncer lived in its author's dotfiles.
   makes a steer rule, denied in every mode with that text sent to the model.
   An untrusted project may add ask and deny rules but not steer rules.
   `examples/prefer-rg.json` is a recipe.
+- Example configs in `examples/`: a minimal one, auto mode with Anthropic,
+  auto mode with OpenRouter (Jev included), and a project file. The tests
+  check that each validates and loads with no problems.
+- A rewritten README, with the key reference in `docs/configuration.md` and
+  the detailed behaviour in `docs/behaviour.md`.
 
 ### Changed
 

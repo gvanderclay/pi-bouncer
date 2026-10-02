@@ -1,12 +1,13 @@
 // The JSON Schema and the config validator must agree: a config the bouncer
 // reads without problems validates, and one it reports problems for does not.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Ajv } from "ajv";
 import {
 	PREFER_RG,
+	projectConfigPath,
 	tempAgentDir,
 	tempProjectDir,
 	writeConfig,
@@ -155,6 +156,36 @@ test("every config the bouncer reports problems for fails validation", () => {
 		assert.notDeepEqual(problems(config), [], JSON.stringify(config));
 		assert.equal(validate(config), false, JSON.stringify(config));
 	}
+});
+
+const examplesDir = new URL("../examples/", import.meta.url);
+const examples = readdirSync(examplesDir).map((name) => ({
+	name,
+	config: JSON.parse(readFileSync(new URL(name, examplesDir), "utf8")),
+}));
+
+test("every example config validates and loads with no problems", () => {
+	assert.ok(examples.length >= 5);
+	for (const { name, config } of examples) {
+		assert.deepEqual(problems(config), [], name);
+		assert.ok(validate(config), JSON.stringify([name, validate.errors]));
+	}
+});
+
+test("the project example loads with no problems in an untrusted project", () => {
+	const cwd = tempProjectDir();
+	const project = examples.find(({ name }) => name === "project.json");
+	writeConfig(projectConfigPath(cwd), project?.config);
+	const config = loadConfig(tempAgentDir(), { cwd, trusted: false });
+	assert.deepEqual(config.problems, []);
+	assert.ok(
+		config.files.some((file) => file.loaded && file.path.includes(cwd)),
+	);
+	assert.ok(
+		config.policy.some(
+			(entry) => entry.kind === "rule" && entry.rule.name === "db-reset",
+		),
+	);
 });
 
 test("the schema's levels are exactly the rules a config can set", () => {

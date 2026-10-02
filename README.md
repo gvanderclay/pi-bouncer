@@ -1,269 +1,217 @@
-# bouncer
+# pi-bouncer
 
-Guards the model's `bash` tool with a short, fixed list of rules. The npm
-package is `pi-bouncer`.
+Guards Pi's bash tool: asks before destructive commands, blocks catastrophic
+ones, with an optional model-judged auto mode.
 
-Every command is parsed with `unbash` and checked wherever the danger hides —
-chains, pipelines, `$(…)`, wrappers such as `env`/`timeout`/`xargs`/
-`setsid`/`flock`/`watch` (the shell strings `watch` and `flock -c` run are
-parsed too), `bash -c`/`eval`, paths and quoting. Recoverable-if-intended
-actions open a dialog that names the rule and quotes the command: recursive
-`rm`, `find -delete`/`-exec`, `fd -x`, `rg --pre`, the template runners
-`parallel`/`rush`/`rust-parallel`, work-losing git (`clean -f`,
-`reset --hard`, `checkout --`, `restore`, `stash drop`), forced or deleting
-pushes, downloads piped into a shell, package publishing, and `gh repo`
-deletion. Catastrophic or unreadable actions are denied with no dialog and a
-warning: `sudo`/`su`/`doas`, shutdown, disk formatting, `dd` to a device, a
-recursive `rm` of `/`, a system directory, `~` or an important folder in it,
-and commands that cannot be parsed. A deny anywhere on a line wins. Each
-rule's level is built in and can be changed in the bouncer config.
+Every command the model runs through `bash` is parsed and checked, including
+inside chains, `$(…)`, wrappers such as `env` or `xargs`, and `bash -c`.
+Recoverable mistakes, such as `rm -rf build` or `git reset --hard`, open a
+dialog. Catastrophic ones, such as `sudo`, `rm -rf ~` or formatting a disk,
+are denied outright.
 
-You can add your own rules (see Configuration). A custom rule with an
-`instead` text is a steer rule: it blocks a command the model should replace
-and says what to run instead. It denies in every mode, including YOLO, with
-no dialog, no judge call and no warning, and every block is logged. A real
-deny on the same line wins with its warning; a steer block wins over every
-ask. `examples/prefer-rg.json` is one: it blocks `grep`, `egrep` and `fgrep`
-and sends the model to `rg`.
+The bouncer is a guard rail against accidents, not a sandbox. A determined or
+prompt-injected model can find commands it does not recognise, and Pi's
+`write` and `edit` tools are not gated. For real isolation, run Pi in a
+container or virtual machine, as
+[Pi's security guide](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md)
+describes.
 
 ## Install
 
-```bash
-pi install <path to this directory>
-```
-
-Then install the parser once per machine. Without it the bouncer fails closed and
-denies every `bash` call with this instruction:
-
-```bash
-cd <path to this directory> && pnpm install
-```
-
-Once it is published, install it by name instead:
+Install the package from npm:
 
 ```bash
 pi install npm:pi-bouncer
 ```
 
-The `pi` manifest loads `./src/index.ts` and `./skills`. The tests
-(`*.test.ts` beside the code they cover, with shared helpers in `test/`) are
-neither loaded by Pi nor included in the npm tarball.
+To follow the latest commit instead, install it from GitHub:
 
-## Requirements
+```bash
+pi install git:github.com/gvanderclay/pi-bouncer
+```
 
-- Pi, with `pi.events`, `pi.on`, `pi.registerCommand` and `pi.getFlag`.
-- `@earendil-works/pi-coding-agent`, declared as a peer dependency and
-  supplied by Pi.
-- `unbash` (a regular dependency) and `pnpm install` in this directory.
+Pi installs the bash parser, `unbash`, with the package. A local checkout is
+not installed for you, so run `npm install` in it once; without the parser,
+the bouncer denies every `bash` call and says so.
+
+## Quick start
+
+Start Pi. With no config file, the first session shows "Bouncer is on: it
+asks before destructive bash commands. /bouncer shows rules and config." The
+built-in rules apply, and an ask opens a dialog such as:
+
+```text
+Bouncer: recursive rm deletes whole directory trees (rule: recursive-rm)
+rm -rf build
+```
+
+You can allow it once or for the session, deny it (optionally with a reason
+for the model), or deny and stop the turn. `/bouncer` shows the mode, the
+config files, every rule's level and the log path, and
+`/bouncer explain <command>` shows what the bouncer would do with a command
+without running it. `/bouncer init` writes an empty config file to
+`~/.pi/agent/bouncer.json`.
+
+To let a model decide asks for you, add a judge list to that file and run
+`/auto`:
+
+```json
+{
+  "auto": { "models": ["anthropic/claude-haiku-4-5"] }
+}
+```
+
+Any model Pi has credentials for works. Read [Auto mode](#auto-mode) first:
+it sends your commands and messages to that model's provider.
 
 ## Modes
 
-The mode is one process-wide setting, in memory only: it survives `/new`,
-`/resume` and `/reload` and ends with the process. Turning auto mode on turns
-YOLO mode off, and the other way round.
-
-| Mode | Flags | What it does |
+| Mode | Turn it on | What happens to an ask |
 | --- | --- | --- |
-| normal (off) | none | every ask opens the dialog |
-| auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to Jev first when the route sets `auto.jev`, then to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason (or a fixed one when Jev denies), and a hand-off or no answer opens the dialog. Three denies in a row, or 20 in a session, Jev's included, pause it until you allow a call. It refuses to turn on when no list entry resolves |
-| YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set, unreadable commands and steer rules still deny |
+| normal | the default | a dialog opens |
+| auto | `/auto`, `pi --auto`, or `"startMode": "auto"` | a judge model allows it, denies it, or hands it to the dialog |
+| YOLO | `/yolo` or `pi --yolo` | it is allowed |
 
-`--auto` with `--yolo` is an error. A dialog can also switch to either mode
-after allowing the current line.
+Auto mode never overrides a deny. YOLO mode allows rules set to deny as well,
+but neither mode ever allows the always-deny set (marked below), a command
+that cannot be parsed, or a steer rule. The mode lasts until the Pi process
+ends, and the footer shows auto or YOLO while it is on.
 
-The route's `bouncer.json` can set `"startMode": "auto"` so every process
-starts in auto mode without `--auto`; `"off"`, the default, starts in normal
-mode. It applies at the process's first session start only, refuses as
-`/auto` does when no judge-list entry resolves, and gives way to `--yolo` or
-`--auto`. `"yolo"` is not accepted: YOLO mode only ever starts from
-`pi --yolo` or `/yolo`.
+## Rules
 
-The footer shows the mode: a bold red `🔥 YOLO`, or `🤖 AUTO`,
-`🤖 AUTO (paused)` and, while a judge call is out, `🤖 judging…`. The model is
-never told either mode is on: a YOLO-allowed call just runs, and an auto-mode
-deny is sent in the same hard-deny form as any other deny, naming neither auto
-mode nor a judge (the judge's one-line reason is the deny's reason).
+Each rule has a level: `ask` opens the dialog, `deny` blocks with no dialog.
 
-In auto mode each judge-list entry gets 10 s, and a line gets 20 s in total.
-`auto.firstByProvider` names the entry to ask first for the session model's
-provider. The judge sees the command, the flagged rules, the working
-directory, the git branch and remotes, your last message in full, up to 10
-earlier messages of yours (each cut to 1,000 characters, 4,000 in all), the
-session history and the route's `auto.environment` facts. It never sees tool
-output, file contents, edit text or the agent's own messages. Literal closing
-tags inside any of these blocks are escaped.
+| Rule | Level | Catches |
+| --- | --- | --- |
+| `rm-root` ✱ | deny | recursive `rm` of `/`, a system directory, `~`, or a folder such as `~/Documents` or `~/.ssh` |
+| `privilege` ✱ | deny | `sudo`, `su`, `doas` |
+| `power` ✱ | deny | shutdown and reboot |
+| `disk-format` ✱ | deny | formatting, erasing or repartitioning a disk |
+| `dd-device` ✱ | deny | `dd` writing to a `/dev` path |
+| `recursive-rm` | ask | any other recursive `rm` |
+| `find-delete` | ask | `find -delete` |
+| `find-exec` | ask | `find -exec`, `-execdir`, `-ok`, `-okdir` |
+| `fd-exec` | ask | `fd -x`, `fd -X` |
+| `rg-pre` | ask | `rg --pre` |
+| `opaque-exec` | ask | `parallel`, `rush`, `rust-parallel` |
+| `git-clean` | ask | `git clean -f` |
+| `git-reset-hard` | ask | `git reset --hard` |
+| `git-checkout-discard` | ask | `git checkout -- <path>`, `git checkout .`, `git checkout -f` |
+| `git-restore-worktree` | ask | `git restore` of the working tree |
+| `git-stash-destroy` | ask | `git stash drop`, `git stash clear` |
+| `git-push-force` | ask | force and mirror pushes |
+| `git-push-delete` | ask | pushes that delete or prune remote branches and tags |
+| `remote-script` | ask | a download piped into a shell, such as `curl … \| sh` |
+| `publish` | ask | publishing a package, such as `npm publish` |
+| `gh-delete` | ask | deleting a GitHub repository or release |
 
-The session history is the bouncer's own record of what the agent ran: every
-bash command Pi executed, with its working directory, and the absolute path of
-every `write` and `edit`. It is recorded at `tool_result`, so blocked, refused
-and aborted calls never appear; a call that ran and failed is marked failed,
-and a background start is marked as one. It keeps the newest 50 entries, each
-cut to 1,000 characters, and the judge gets the newest within 8,000
-characters. It is recorded in every mode but read only in auto mode, and
-cleared at every session start (`/new`, `/resume`, `/fork`, `/reload`). With it
-the judge can allow deleting what the agent visibly created this session,
-unless you asked to keep it, but not anything that existed before the session,
-glob or age deletes in shared directories such as `/tmp`, a shared directory
-itself, or a variable target whose value it cannot see. A model that refuses the
-request under its provider's usage policy counts as a deny. Rule-level denies,
-the always-deny set, unparseable commands and steer rules are denied
-before any judge is asked, and `auto.alwaysAsk` prefixes always open the
-dialog unless a steer rule blocks the line. A steer block never counts toward
-the pause.
-
-With `auto.jev` in the route's `bouncer.json`, auto mode asks Jev first:
-TypeSafe's classifier, always called through Pi's classifier support with
-no retries. By default that is OpenCode Zen's `jev-1.13` (Pi's
-`opencode/jev-1.13`) with the opencode-go key Pi holds for the route. With
-`auto.jev.model` set it is that classifier model, with Pi's own credentials:
-for example
-`openrouter/typesafe/jev-1.13` (`OPENROUTER_API_KEY` or `/login`),
-`typesafe/jev-latest` (`TYPESAFE_API_KEY`) or `opencode/jev-1.13` (the same
-Zen model as the default, with the key Pi holds for `opencode` rather than
-`opencode-go`); Pi's `docs/models.md` lists them all. A provider Pi does
-not know can be added with a Pi extension that registers a classifier model.
-Jev sees exactly what the judge
-sees, under the same budgets, and answers five questions in one call. Two
-numbers come out of them. The `safety` question, built from the judge's own
-criteria, gives a safe probability, used only to allow. Four short questions
-(what kind of change the command makes, whether the agent created its
-target, what the user asked for, and whether it deletes a risky target)
-give a deny score, combined in code and used only to deny: the strongest of
-the reasons to refuse (harmful, asked to keep, risky target) caps the
-strongest reason to allow (routine, created, asked for). A safe probability
-at or above `allowAt` runs the line quietly with no judge-list call. A deny
-score at or above `denyAt`, when `denyAt` is not `null`, blocks it with no
-judge-list call, in the ordinary hard-deny form with a fixed reason that
-names no judge; it counts toward the pause like a judge deny, and a Jev
-allow ends a run of denies. Either is recorded with the model
-`opencode-go/jev-1.13`, or `auto.jev.model` when set. Anything else (below both cutoffs, both reached, a
-change Jev calls `other` at 0.5 or more, no key, an HTTP error, a reply
-missing any of the five answers or no reply within 5 s) goes to the judge
-list as usual. Jev's 5 s come out of the line's 20 s, and
-aborting the turn aborts it. A failure is reported once per session, like a
-judge-list model's, and `/auto status` shows whether Jev is on, its cutoffs,
-and which provider it uses and whether its key resolves. Every Jev answer is in the call's log record.
-Jev never sees anything the judge list would not: rule-level denies, the
-always-deny set, unparseable commands, steer rules,
-`auto.alwaysAsk` hits, a paused auto mode and lines session allows cover are
-decided before it is asked. Jev cannot turn auto mode on by itself:
-`auto.models` stays required.
-
-## Dialog
-
-An ask names the rule and quotes the command. The choices are Allow once;
-Allow for this session (only that exact command, in that directory, for that
-rule, in memory until the next session start, `/new`, `/resume`, `/fork` or
-`/reload`); Deny; Deny with reason (your text goes to the model); Deny and stop
-(also aborts the turn); Auto mode and Allow all (YOLO), each of which allows
-the rest of the line and turns that mode on (Auto shows only when the judge
-list resolves). Escape or aborting the turn denies, and a line with several
-dangers asks once for each ("1 of N"). Without a UI every ask denies. A deny
-anywhere on a line wins, and a deny tells the model not to work around it.
-The always-deny set is `sudo`/`su`/`doas`, shutdown, disk formatting, `dd` to
-a device and `rm-root` (a recursive `rm` of `/`, a system directory, `~` or an
-important folder in it such as `~/Documents`, `~/workspace` or `~/.ssh`;
-relative paths resolve against the session's working directory). YOLO and
-auto mode never allow it, nor unparseable commands, whatever the config says.
-A line with a steer rule's match and no real deny gets the steer block, with
-no dialog and no warning, however many asks it holds.
-`!` commands are never gated.
+✱ The always-deny set: its level can be `ask` or `deny` but never `off`.
+Every other rule can also be `off`. Commands that cannot be parsed are
+always denied. A deny anywhere on a line wins over every ask.
 
 ## Configuration
 
-At every session start the bouncer reads `<agent dir>/bouncer.json` for
-the route, and `.pi/extensions/bouncer/config.json` in the session's
-working directory overrides it entry by entry. Both are plain JSON. The
-project file sits under `.pi/extensions`, so Pi asks you to trust a project
-that ships one, and the bouncer reads that trust once at session start
-(`/trust` applies after a restart or `/reload`). An untrusted project's file
-may only make a rule stricter, and no project file, trusted or not, may
-loosen the always-deny set; only the route's file can. Each ignored entry is
-named in the session-start warning. The old `.pi/bouncer.json` is no longer
-read: the warning tells you to move it. `levels` sets any built-in
-rule to `ask`, `deny` or `off`, where `off` removes the rule. The always-deny
-set (`rm-root`, `disk-format`, `dd-device`, `power`, `privilege`) can be `ask`
-or `deny` but never `off`, and the unreadable-command denies are fixed. The
-route's file also carries `log` (the
-log's rotation size, generations kept and age pruning), `auto` (the judge list
-`models`, `alwaysAsk` prefixes, `environment` facts, `firstByProvider` and
-`jev`) and `startMode` (`off` or `auto`, see Modes).
-Either file may add to `rm-root` with `protect`: `"protect": {"home":
-["code"], "paths": ["/srv/data"]}` denies a recursive `rm` of `~/code`, of
-`/srv/data` and of anything directly in `/srv/data`. It only adds, so an
-untrusted project's `protect` applies too, and the built-in paths always stay.
-Either file may define custom rules under `rules`, a list of objects with a
-`name` (lowercase, not a built-in rule's), a `command` (a program name or a
-list of them; `/usr/bin/kubectl` matches `kubectl`), optional `args` that must
-all follow it in order, a `summary`, and a `level` (`ask`, the default, `deny`
-or `off`). `{"name": "kubectl-delete", "command": "kubectl", "args":
-["delete"], "level": "deny", "summary": "deletes cluster resources"}` denies
-`kubectl -n prod delete pod x`, also through wrappers, chains, `sh -c`, and
-the commands `find -exec` and `fd -x` run. An `instead` text makes the rule a
-steer rule (`deny` or `off`). Custom rules behave like built-in ones in every
-mode. A project may not reuse a user rule's name, and an untrusted project may
-add ask and deny rules but not steer rules, since steer text reaches the model.
-`auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
-and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
-`null`. Its optional `model` is a Pi classifier model as `provider/id`; absent,
-Jev goes through OpenCode Zen with the opencode-go key. An absent `allowAt` defaults to 0.75, set from the Jev bench and
-held-out run of 2026-10-01, and an absent `denyAt` defaults to `null`, so
-`"jev": {}` lets Jev allow at a safe probability of 0.75 or more and never
-deny. `allowAt` applies to the safe probability and `denyAt` to the deny
-score. Jev denies only when the route sets `denyAt`; with `denyAt` `null` a
-high deny score goes to the judge list. An invalid `auto.jev`
-is a config problem and leaves Jev off; a project file's `auto` is ignored.
-An invalid part falls back to its built-in value, and one warning lists every
-problem. Without this file the built-in levels apply. Either file may set
-`"$schema"` to the JSON Schema in `schema/bouncer.schema.json`, as below, for
-completion and checks in your editor.
+The user config is `~/.pi/agent/bouncer.json` (Pi's agent dir, or
+`$PI_CODING_AGENT_DIR`). A project can add `.pi/extensions/bouncer/config.json`,
+which Pi asks you to trust; an untrusted project may only make rules
+stricter. This config raises a level, turns a rule off, protects one more
+folder from `rm -rf`, and adds a rule of your own:
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
-  "levels": { "privilege": "ask" },
-  "log": { "rotateAboveMiB": 5, "generations": 5, "maxAgeDays": 90 }
+  "levels": { "git-push-force": "deny", "opaque-exec": "off" },
+  "protect": { "home": ["code"] },
+  "rules": [
+    {
+      "name": "kubectl-delete",
+      "command": "kubectl",
+      "args": ["delete"],
+      "summary": "deletes cluster resources"
+    }
+  ]
 }
 ```
 
-The `log` values shown are the defaults: rotate above 5 MiB, keep 5 gzipped
-generations, prune anything older than 90 days. The daily route's file holds
-its judge list and asks Sonnet first on `anthropic` (`firstByProvider`).
+A custom rule with an `instead` text is a steer rule: it blocks a command in
+every mode and tells the model what to run instead.
+[`examples/prefer-rg.json`](examples/prefer-rg.json) sends the model from
+`grep` to `rg`. [The configuration reference](docs/configuration.md) lists
+every key, and [`examples/`](examples/) has a minimal config, auto mode with
+Anthropic or OpenRouter, and a project file.
 
-## Log
+## Auto mode
 
-One JSON line is appended to `<agent dir>/bouncer/log.jsonl` (or
-`$PI_BOUNCER_LOG_DIR`) for each of these: a hard deny, a no-UI deny, each dialog
-answer, a session-allow hit, a call YOLO mode allowed, a call auto mode decided,
-every mode switch and every session start. Calls the bouncer lets through
-untouched are not logged. The log rotates into gzipped generations within the
-config's limits, and a write failure never changes a decision. The location
-never depends on the bouncer config, so the `log` limits cannot move it.
+Auto mode needs a judge list, `auto.models`, in the user config. Each ask
+goes to the first model in the list that answers; it allows or denies the
+command, or hands it to the dialog. Each judged ask costs a model call, or
+more when an entry fails to answer.
+Three denies in a row, or 20 in a session, pause auto mode until you allow a
+call. The `auto-judge-list` skill researches and benchmarks models and
+writes the list for you.
+
+Privacy: for each ask, auto mode sends the judge's provider the command, the
+working directory, the git branch and remotes, your recent messages, and the
+list of commands and file writes the agent made this session. It never sends
+tool output or file contents.
+
+Optionally, `"jev": {}` under `auto` asks Jev, TypeSafe's command
+classifier, before the judge list. A confident "safe" answer runs the command
+without a judge call. By default Jev runs through OpenCode Zen with Pi's
+`opencode-go` key; `auto.jev.model` can pick another provider, such as
+`openrouter/typesafe/jev-1.13`.
+
+[How the bouncer decides](docs/behaviour.md) covers the judge's exact input,
+time limits, Jev's cutoffs and the dialog in full.
 
 ## Commands and skills
 
 | Command | What it does |
 | --- | --- |
-| `/bouncer [status]` | shows the mode, the config files and their problems, project trust, each rule's level, the log path and auto mode |
+| `/bouncer [status]` | shows the mode, config files and problems, project trust, rule levels, the log path and auto mode |
 | `/bouncer rules` | lists every rule with its level and what it catches |
 | `/bouncer explain <command>` | shows what the bouncer would do with a command, without running it |
 | `/bouncer init` | writes an empty user config with `$schema`, if none exists |
-| `/bouncer check` | re-reads both config files and lists their problems, without applying them |
-| `/auto [on\|off\|status]` | toggles auto mode, or reports why it cannot turn on |
+| `/bouncer check` | re-reads both config files and lists their problems |
+| `/auto [on\|off\|status]` | toggles auto mode, or says why it cannot turn on |
 | `/yolo [on\|off]` | toggles YOLO mode |
 
-Two skills are bundled and load with the package:
+The package also loads two skills. `auto-judge-list` builds or refreshes the
+judge list, and `bouncer-debug` explains why a command was blocked, asked
+about or let through.
 
-| Skill | What it does |
-| --- | --- |
-| `auto-judge-list` | Researches current models, benchmarks them with live judge calls after you agree, and writes only the judge-list changes you accept |
-| `bouncer-debug` | Explains why the bouncer blocked, asked about or let through a command, from the log and by replaying the command under the same config |
+## Log and debugging
 
-## Hooks
+The bouncer appends one JSON line to `~/.pi/agent/bouncer/log.jsonl` (or
+`$PI_BOUNCER_LOG_DIR/log.jsonl`) for every deny, dialog answer, auto-mode
+decision, mode switch and session start. Commands it lets through untouched
+are not logged. Ask the agent why something was blocked and the
+`bouncer-debug` skill reads the log and replays the command.
 
-Hooks consumed: `session:launch`. A launcher emits it as `{ args, env }`
-just before it starts a child Pi process; the bouncer appends `--auto` or
-`--yolo` to `args` when that mode is on, and nothing when it is off. The
-listener is synchronous and only appends: `args` and `env` are otherwise the
-emitter's, and there is no veto. The bouncer provides no hooks and imports no
-other extension.
+## Integrations
+
+A launcher extension can emit the `session:launch` event as `{ args, env }`
+just before it starts a child Pi process. The bouncer appends `--auto` or
+`--yolo` to `args` when that mode is on, so the child starts in the same
+mode. It changes nothing else and cannot veto the launch.
+
+## Compatibility and limitations
+
+- Pi 1.0 or later, on Node 22.19 or later. On a Pi without project trust the
+  bouncer warns and treats every project as untrusted.
+- macOS and Linux. Only the `bash` tool is gated: Windows `powershell`,
+  `!` commands you type, and Pi's `write` and `edit` tools are not.
+- Without a UI (print, JSON or RPC mode with no dialogs), every ask denies.
+- A usage-policy refusal counts as a judge deny only for providers that
+  report it, such as Anthropic.
+
+## More
+
+[The glossary](docs/glossary.md) defines the words the bouncer uses, and
+[the design notes](docs/design-notes.md) record the evidence behind its
+defaults. [CHANGELOG.md](CHANGELOG.md) lists changes, and
+[SECURITY.md](SECURITY.md) says how to report a bypass.
+
+## License
+
+[MIT](LICENSE)

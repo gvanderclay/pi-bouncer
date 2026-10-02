@@ -1,0 +1,4 @@
+{
+	"$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"levels": { "publish": "deny" }
+}
