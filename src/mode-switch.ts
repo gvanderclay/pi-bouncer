@@ -4,7 +4,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Ask } from "./ask.ts";
 import type { GateConfig } from "./config.ts";
-import { errorText } from "./error-text.ts";
 import {
 	type Remotes,
 	readGitState,
@@ -21,7 +20,7 @@ import {
 import { jevStatus } from "./jev.ts";
 import { NOT_FOUND, resolveEntry } from "./judge.ts";
 import { judgeRequest } from "./judge-request.ts";
-import { appendRecord, logFile } from "./log.ts";
+import { appendRecord, type How, type Logging, recordHead } from "./log.ts";
 import type { GateMode, ModeHolder } from "./mode.ts";
 import {
 	type Ruling,
@@ -29,46 +28,6 @@ import {
 	ruleLine,
 	rulingFailures,
 } from "./ruling.ts";
-
-export function recordHead(
-	type: "call" | "session" | "yolo" | "auto",
-	ctx: ExtensionContext,
-): object {
-	return {
-		v: 1,
-		type,
-		time: new Date().toISOString(),
-		sessionId: ctx.sessionManager.getSessionId(),
-		sessionFile: ctx.sessionManager.getSessionFile() ?? null,
-		cwd: ctx.cwd,
-	};
-}
-
-// Logging never changes a decision: a failure is caught and warns once.
-export function createLogging(logDir: string): {
-	write(ctx: ExtensionContext, writes: () => void): void;
-	restart(): void;
-} {
-	let warned = false;
-	return {
-		write(ctx: ExtensionContext, writes: () => void): void {
-			try {
-				writes();
-			} catch (error) {
-				if (warned || !ctx.hasUI) return;
-				warned = true;
-				const message = errorText(error);
-				ctx.ui.notify(
-					`Bouncer could not write its log ${logFile(logDir)}: ${message}`,
-					"warning",
-				);
-			}
-		},
-		restart(): void {
-			warned = false;
-		},
-	};
-}
 
 const STATUS_KEY = "bouncer";
 const YOLO_ON =
@@ -148,8 +107,6 @@ function notifyMode(
 	} else ctx.ui.notify(AUTO_OFF, "info");
 }
 
-export type How = "command" | "dialog" | "flag" | "config";
-
 function requestedOn(args: string, current: boolean): boolean | undefined {
 	const arg = args.trim();
 	if (arg === "") return !current;
@@ -157,8 +114,6 @@ function requestedOn(args: string, current: boolean): boolean | undefined {
 	if (arg === "off") return false;
 	return undefined;
 }
-
-export type Logging = ReturnType<typeof createLogging>;
 
 export type ModeSwitch = (
 	mode: GateMode,

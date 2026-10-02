@@ -11,7 +11,14 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { agentDir } from "./agent-dir.ts";
+import type { AskAnswer } from "./ask.ts";
+import type { ConfigRecord, GateConfig } from "./config.ts";
+import { errorText } from "./error-text.ts";
+import type { AutoTrace, Decision, WithoutYolo } from "./gate.ts";
+import type { JudgeSent } from "./history.ts";
+import type { Match } from "./rank.ts";
 
 const MIB = 1024 * 1024;
 const DAY = 24 * 60 * 60 * 1000;
@@ -31,7 +38,123 @@ export function logFile(dir: string): string {
 	return join(dir, "log.jsonl");
 }
 
-export function appendRecord(dir: string, record: object): void {
+export type How = "command" | "dialog" | "flag" | "config";
+
+type RecordHead<T extends "call" | "session" | "yolo" | "auto"> = {
+	readonly v: 1;
+	readonly type: T;
+	readonly time: string;
+	readonly sessionId: string;
+	readonly sessionFile: string | null;
+	readonly cwd: string;
+};
+
+export type SessionRecord = RecordHead<"session"> & {
+	readonly reason: string;
+	readonly parser: boolean;
+	readonly config: ConfigRecord;
+	readonly yolo?: boolean;
+	readonly auto?: boolean;
+};
+
+export type CallRecord = RecordHead<"call"> & {
+	readonly command: string;
+	readonly ui: boolean;
+	readonly outcome: "allowed" | "blocked" | "stopped";
+	readonly matches: readonly Match[];
+	readonly asks: readonly AskAnswer[];
+	readonly reason?: string;
+	readonly agent?: string;
+	readonly profile?: string;
+	readonly yolo?: true;
+	readonly withoutYolo?: WithoutYolo;
+	readonly auto?: AutoTrace & { readonly sent?: JudgeSent };
+	readonly withoutAuto?: WithoutYolo;
+};
+
+export type ModeRecord = RecordHead<"yolo" | "auto"> & {
+	readonly on: boolean;
+	readonly how: How;
+};
+
+export type LogRecord = SessionRecord | CallRecord | ModeRecord;
+
+export function recordHead<T extends "call" | "session" | "yolo" | "auto">(
+	type: T,
+	ctx: ExtensionContext,
+): RecordHead<T> {
+	return {
+		v: 1,
+		type,
+		time: new Date().toISOString(),
+		sessionId: ctx.sessionManager.getSessionId(),
+		sessionFile: ctx.sessionManager.getSessionFile() ?? null,
+		cwd: ctx.cwd,
+	};
+}
+
+// Logging never changes a decision: a failure is caught and warns once.
+export function createLogging(logDir: string): {
+	write(ctx: ExtensionContext, writes: () => void): void;
+	restart(): void;
+} {
+	let warned = false;
+	return {
+		write(ctx: ExtensionContext, writes: () => void): void {
+			try {
+				writes();
+			} catch (error) {
+				if (warned || !ctx.hasUI) return;
+				warned = true;
+				const message = errorText(error);
+				ctx.ui.notify(
+					`Bouncer could not write its log ${logFile(logDir)}: ${message}`,
+					"warning",
+				);
+			}
+		},
+		restart(): void {
+			warned = false;
+		},
+	};
+}
+
+export type Logging = ReturnType<typeof createLogging>;
+
+export function callRecord(
+	command: string,
+	decision: Decision,
+	ctx: ExtensionContext,
+	sent: JudgeSent | undefined,
+	profile: GateConfig["profile"],
+): CallRecord | undefined {
+	const { trace } = decision;
+	if (!trace) return undefined;
+	const who =
+		profile?.state === "profile"
+			? { agent: profile.agent.name, profile: profile.name }
+			: {};
+	const head = { ...recordHead("call", ctx), command, ui: trace.ui, ...who };
+	const { matches, asks } = trace;
+	// Only a decision YOLO or auto mode made carries its fields; only a call
+	// a judge was asked about carries the counts of what it was sent.
+	const mode = {
+		...(trace.yolo && {
+			yolo: true as const,
+			withoutYolo: trace.yolo.withoutYolo,
+		}),
+		...(trace.auto && { auto: { ...trace.auto, ...(sent && { sent }) } }),
+		...(trace.withoutAuto && { withoutAuto: trace.withoutAuto }),
+	};
+	if (decision.kind === "allow") {
+		return { ...head, outcome: "allowed", matches, asks, ...mode };
+	}
+	const outcome = decision.stop ? "stopped" : "blocked";
+	const { reason } = decision;
+	return { ...head, outcome, reason, matches, asks, ...mode };
+}
+
+export function appendRecord(dir: string, record: LogRecord): void {
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	appendFileSync(logFile(dir), `${JSON.stringify(record)}\n`, { mode: 0o600 });
 }

@@ -33,20 +33,21 @@ import {
 } from "./history.ts";
 import {
 	appendRecord,
+	callRecord,
+	createLogging,
 	defaultLogDir,
+	type Logging,
 	pruneByAge,
+	recordHead,
 	rotateIfNeeded,
 } from "./log.ts";
 import { type GateMode, type ModeHolder, processModeHolder } from "./mode.ts";
 import {
 	applyStartFlags,
 	autoRefusal,
-	createLogging,
 	createModeSwitch,
 	judgeFor,
-	type Logging,
 	type ModeSwitch,
-	recordHead,
 	registerAuto,
 	registerYolo,
 	resetPause,
@@ -93,36 +94,6 @@ function callFrom(
 	return ctx.signal
 		? { ...where, ui: ctx.ui, signal: ctx.signal }
 		: { ...where, ui: ctx.ui };
-}
-
-function callRecord(
-	command: string,
-	decision: Decision,
-	ctx: ExtensionContext,
-	sent: JudgeSent | undefined,
-	profile: GateConfig["profile"],
-): object | undefined {
-	const { trace } = decision;
-	if (!trace) return undefined;
-	const who =
-		profile?.state === "profile"
-			? { agent: profile.agent.name, profile: profile.name }
-			: {};
-	const head = { ...recordHead("call", ctx), command, ui: trace.ui, ...who };
-	const { matches, asks } = trace;
-	// Only a decision YOLO or auto mode made carries its fields; only a call
-	// a judge was asked about carries the counts of what it was sent.
-	const mode = {
-		...(trace.yolo && { yolo: true, withoutYolo: trace.yolo.withoutYolo }),
-		...(trace.auto && { auto: { ...trace.auto, ...(sent && { sent }) } }),
-		...(trace.withoutAuto && { withoutAuto: trace.withoutAuto }),
-	};
-	if (decision.kind === "allow") {
-		return { ...head, outcome: "allowed", matches, asks, ...mode };
-	}
-	const outcome = decision.stop ? "stopped" : "blocked";
-	const { reason } = decision;
-	return { ...head, outcome, reason, matches, asks, ...mode };
 }
 
 // Pi records a call aborted after `tool_call` as "Operation aborted" and drops
