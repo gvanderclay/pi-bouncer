@@ -64,11 +64,12 @@ folder, or one made since then elsewhere and moved in. So can files a
 background command is still moving in when the `rm` runs. A `mkdir` that
 failed on a line that still succeeded (`mkdir /tmp/x; true`) counts as having
 made the folder, and on a filesystem that reuses inode numbers, a folder
-deleted and remade between two of the agent's commands can still count. When an ask on a recursive `rm` blocks
-because no one can answer, the reason tells the agent to retry with the
-folder's full path written out. `"trustAgentMade": false` turns all this off,
-the system prompt section included
-(see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
+deleted and remade between two of the agent's commands can still count.
+
+When an ask on a recursive `rm` blocks because no one can answer, the reason
+tells the agent to retry with the folder's full path written out.
+`"trustAgentMade": false` turns all this off, the system prompt section
+included (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
 and `bouncer-debug` replays do not know which folders the agent made.
 
 ## Which decision wins
