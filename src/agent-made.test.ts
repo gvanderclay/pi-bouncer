@@ -24,6 +24,7 @@ import {
 	tempProjectDir,
 	writeProjectConfig,
 } from "../test/harness.ts";
+import { AGENT_MADE_NOTE } from "./agent-made.ts";
 import { AGENT_MADE_HINT } from "./gate.ts";
 
 async function session(userConfig: object = {}): Promise<LoadedGate> {
@@ -252,4 +253,12 @@ test("a folder replaced between the agent's calls is not the agent's", async () 
 	rmSync(dir, { recursive: true });
 	mkdirSync(dir);
 	await asks(gate, `rm -rf ${dir}`);
+});
+
+test("each run tells the agent how to delete what it made, while trusted and bash is on", async () => {
+	const gate = await session();
+	assert.deepEqual(await gate.startAgent(), { bouncer: AGENT_MADE_NOTE });
+	assert.deepEqual(await gate.startAgent(["read"]), {});
+	const off = await session({ trustAgentMade: false });
+	assert.deepEqual(await off.startAgent(), {});
 });

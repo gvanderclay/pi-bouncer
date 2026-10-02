@@ -19,6 +19,10 @@ type Made = {
 	readonly ino: number;
 };
 
+/** Told to the agent at the start of every run, so it deletes the way that needs no ask. */
+export const AGENT_MADE_NOTE =
+	"A recursive rm of a folder you made in this session (with mkdir of a new path, or mktemp -d), or of something inside it, runs without asking the user when you write the folder's full path from / with no $VARIABLES, ~ or wildcards, and run it as its own tool call with nothing else on the line. Every other recursive rm needs the user's approval.";
+
 // Room for filesystems that store times to the second (or two, on FAT).
 const CLOCK_SLACK_MS = 2_000;
 

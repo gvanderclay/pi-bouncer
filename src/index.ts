@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import type {
 	BashToolCallEvent,
+	BeforeAgentStartEvent,
 	ExtensionAPI,
 	ExtensionContext,
 	MessageEndEvent,
@@ -13,6 +14,7 @@ import type {
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { agentFrom } from "./agent-env.ts";
 import {
+	AGENT_MADE_NOTE,
 	forgetGone,
 	mkdirTargets,
 	mktempTarget,
@@ -123,6 +125,15 @@ function noteLoneCall(rt: Runtime, { message }: MessageEndEvent): void {
 	const [only] = calls;
 	if (only && calls.length === 1) rt.lone.id = only.id;
 	else delete rt.lone.id;
+}
+
+// A prompt section, not a guideline: a custom system prompt drops Pi's rules.
+function noteAgentMade(rt: Runtime, event: BeforeAgentStartEvent): undefined {
+	const { selectedTools, sections } = event.systemPromptOptions;
+	if (!selectedTools.includes("bash")) return undefined;
+	if (rt.session.config?.trustAgentMade === false) return undefined;
+	sections["bouncer"] = AGENT_MADE_NOTE;
+	return undefined;
 }
 
 function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
@@ -429,6 +440,9 @@ export default async function bouncer(
 			noteLoneCall(rt, event);
 			return restoreStopReason(rt.stopped, event);
 		},
+	);
+	pi.on("before_agent_start", (event: BeforeAgentStartEvent) =>
+		noteAgentMade(rt, event),
 	);
 	pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext) =>
 		decideCall(rt, event, ctx),

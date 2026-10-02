@@ -50,6 +50,10 @@ Even then, the `rm` still asks unless all of these hold:
   an archive or copying with dates kept (`cp -p`, `rsync -a`) asks for the
   same reason, and so does a tree of more than 10,000 items.
 
+At the start of each run with the `bash` tool on, the bouncer adds a short
+`<bouncer>` section to the system prompt that tells the agent these
+conditions, so it deletes what it made in the way that needs no ask.
+
 `rm-root` and every other rule still apply. The bouncer forgets a folder
 once it is deleted or replaced, and forgets them all at every session start.
 
@@ -62,7 +66,8 @@ failed on a line that still succeeded (`mkdir /tmp/x; true`) counts as having
 made the folder, and on a filesystem that reuses inode numbers, a folder
 deleted and remade between two of the agent's commands can still count. When an ask on a recursive `rm` blocks
 because no one can answer, the reason tells the agent to retry with the
-folder's full path written out. `"trustAgentMade": false` turns all this off
+folder's full path written out. `"trustAgentMade": false` turns all this off,
+the system prompt section included
 (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
 and `bouncer-debug` replays do not know which folders the agent made.
 
