@@ -3,7 +3,7 @@
 import { posix } from "node:path";
 import type { Protect } from "./rules/filesystem.ts";
 
-export const NO_PROTECT: Protect = { home: [], paths: [] };
+const NO_PROTECT: Protect = { home: [], paths: [] };
 
 function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

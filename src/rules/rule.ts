@@ -13,7 +13,7 @@ export type Rule = {
 	readonly matches: (invocation: Invocation, where: Where) => boolean;
 };
 
-export type UnreadableDeny = {
+type UnreadableDeny = {
 	readonly kind: "unreadable";
 	readonly name: "parser-unavailable" | "unparseable" | "inline-too-deep";
 	readonly level: "deny";

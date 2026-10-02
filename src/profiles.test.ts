@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agentFrom } from "./agent-env.ts";
+import { chooseProfile, profiledAgents } from "./profile-resolve.ts";
 import {
-	chooseProfile,
 	type ParsedProfile,
 	type Profile,
-	profiledAgents,
 	validAgents,
 	validProfiles,
 	withProfile,

@@ -24,7 +24,7 @@ const FLAG: Record<Exclude<GateMode, "off">, string> = {
 };
 
 // A malformed payload is ignored: a bad hook never becomes a launch failure.
-export function contributeMode(holder: ModeHolder, payload: unknown): void {
+function contributeMode(holder: ModeHolder, payload: unknown): void {
 	if (typeof payload !== "object" || payload === null) return;
 	const { args } = payload as LaunchPayload;
 	if (!Array.isArray(args)) return;
@@ -35,7 +35,7 @@ export function contributeMode(holder: ModeHolder, payload: unknown): void {
 // The child gets its own agent's profile, else the parent's. A non-blank
 // PI_BOUNCER_AGENT already in the launch env is kept; a blank one counts as
 // unset. Never throws: a malformed or hostile payload adds nothing.
-export function contributeAgent(
+function contributeAgent(
 	config: GateConfig | undefined,
 	payload: unknown,
 ): void {
