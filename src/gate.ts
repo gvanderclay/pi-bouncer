@@ -1,3 +1,4 @@
+import { type AgentMade, onlyRemoves } from "./agent-made.ts";
 import { ALWAYS_ASK } from "./always-ask.ts";
 import {
 	type Ask,
@@ -82,6 +83,9 @@ export type Judge = (asks: readonly Ask[]) => Promise<Ruling>;
 export type Call = {
 	readonly cwd: string;
 	readonly home: string;
+	readonly agentMade?: AgentMade;
+	/** The only tool call in its assistant message: no sibling runs beside it. */
+	readonly lone?: true;
 	readonly mode: GateMode;
 	/** Auto mode's judge; without one, auto mode hands every ask to the user. */
 	readonly judge?: Judge;
@@ -117,6 +121,24 @@ function denied(ranking: Ranking & { readonly kind: "deny" }): Outcome {
 	return { kind: "block", reason: ranking.verdict.reason, stop: false };
 }
 
+export const AGENT_MADE_HINT =
+	" Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
+
+// No one can answer: the ask's block, which says how a recursive rm of a
+// folder the agent made gets through.
+function unanswered(
+	ranking: Ranking & { readonly kind: "ask" },
+	call: Call,
+): Outcome {
+	const { fallback } = ranking;
+	const rm = ranking.asks.some((ask) => ask.rule === "recursive-rm");
+	if (!(call.agentMade && rm)) return blocked(fallback);
+	return blocked({
+		...fallback,
+		reason: `${fallback.reason}${AGENT_MADE_HINT}`,
+	});
+}
+
 function askingFor(command: string, call: Call, allowed: Set<string>): Asking {
 	const { cwd, signal, autoChoice } = call;
 	return {
@@ -145,7 +167,7 @@ async function decided(
 	const { matches } = ranking;
 	const trace: Trace = { matches, ui: call.ui !== undefined, asks: [] };
 	if (ranking.kind === "deny") return { ...denied(ranking), trace };
-	if (!call.ui) return { ...blocked(ranking.fallback), trace };
+	if (!call.ui) return { ...unanswered(ranking, call), trace };
 	const asking = askingFor(command, call, allowed);
 	const asked = await askUser(ranking.asks, call.ui, asking);
 	return {
@@ -282,7 +304,7 @@ async function dialogDecided(
 	trace: Trace,
 	note?: string,
 ): Promise<Decision> {
-	if (!call.ui) return { ...blocked(ranking.fallback), trace };
+	if (!call.ui) return { ...unanswered(ranking, call), trace };
 	const asking = askingFor(command, call, allowed);
 	const noted = note === undefined ? asking : { ...asking, note };
 	const asked = await askUser(ranking.asks, call.ui, noted);
@@ -296,8 +318,12 @@ export function createGate(parse: ParseFn | undefined, policy: Policy): Gate {
 	let current = policy;
 	return {
 		decide(command: string, call: Call): Promise<Decision> {
-			const where = { cwd: call.cwd, home: call.home };
 			const given = read(parse, command);
+			const { cwd, home, agentMade } = call;
+			const removes =
+				given.kind === "ok" && onlyRemoves(command, given.invocations);
+			const trusted = agentMade && call.lone && removes ? { agentMade } : {};
+			const where = { cwd, home, ...trusted };
 			const ranking = rank(given, current, where);
 			if (call.mode === "auto") {
 				const prefixes = call.alwaysAsk ?? [];

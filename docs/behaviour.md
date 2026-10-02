@@ -20,6 +20,59 @@ the package.
 and expands `~` and `$HOME`. It reads nothing from the filesystem and
 follows no symlink.
 
+## Folders the agent made
+
+A recursive `rm` runs without an ask, in every mode and with or without a
+UI, when everything it deletes is a folder the agent made earlier in the same
+session, or something inside one. A folder counts as made by the agent when:
+
+- a `mkdir` that finished without error created it, and nothing was at that
+  path just before the command ran (for `mkdir -p`, the highest folder that
+  was missing counts);
+- or a command that was only `mktemp -d` printed its path.
+
+Even then, the `rm` still asks unless all of these hold:
+
+- it is plain `rm`, not run through a wrapper such as `xargs`, `timeout` or
+  `bash -c`;
+- nothing else on the line could add to the folder: every other command is
+  `rm`, `cd`, `echo`, `printf`, `true`, `ls` or `pwd`, and the line has no
+  `$` or backtick at all (an expansion can run a hidden command), so
+  `mv x /tmp/made/ && rm -rf /tmp/made` asks;
+- it is the only tool call in the agent's message, because Pi checks every
+  call in a message before running any of them;
+- every path is written out in full from `/`, with no variable, `~`,
+  wildcard or brace;
+- every path, with symlinks followed, lies inside the folder, so
+  `rm -rf /tmp/x/link/` of a link out of it asks;
+- nothing inside is dated before the folder was made, so a file moved in
+  from elsewhere makes it ask again (moving keeps a file's dates). Unpacking
+  an archive or copying with dates kept (`cp -p`, `rsync -a`) asks for the
+  same reason, and so does a tree of more than 10,000 items.
+
+At the start of each run with the `bash` tool on, the bouncer adds a short
+`<bouncer>` section to the system prompt that tells the agent these
+conditions, so it deletes what it made in the way that needs no ask.
+
+`rm-root` and every other rule still apply. The bouncer forgets a folder
+once it is deleted or replaced, and forgets them all at every session start.
+
+The check cannot tell who put a file in the folder, only when. Any file
+created or changed after the folder was made, whoever made it, can be
+deleted without an ask, including one you or another program put in the
+folder, or one made since then elsewhere and moved in. So can files a
+background command is still moving in when the `rm` runs. A `mkdir` that
+failed on a line that still succeeded (`mkdir /tmp/x; true`) counts as having
+made the folder, and on a filesystem that reuses inode numbers and records
+no creation time, a folder deleted and remade between two of the agent's
+commands can still count.
+
+When an ask on a recursive `rm` blocks because no one can answer, the reason
+tells the agent to retry with the folder's full path written out.
+`"trustAgentMade": false` turns all this off, the system prompt section
+included (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
+and `bouncer-debug` replays do not know which folders the agent made.
+
 ## Which decision wins
 
 One line can match several rules. A deny anywhere on the line wins over

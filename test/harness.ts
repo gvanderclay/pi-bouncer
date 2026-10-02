@@ -62,6 +62,10 @@ export type LoadedGate = {
 		args?: string,
 		ctx?: ExtensionContext,
 	) => Promise<void>;
+	/** Runs `before_agent_start` and returns the prompt sections it left. */
+	readonly startAgent: (
+		selectedTools?: readonly string[],
+	) => Promise<Record<string, string>>;
 	readonly mode: ModeHolder;
 	// `emit` runs every listener's synchronous code before it returns.
 	readonly events: EventBus;
@@ -90,6 +94,14 @@ type MessageEndHandler = (event: {
 	type: "message_end";
 	message: unknown;
 }) => MessageEndResult | Promise<MessageEndResult>;
+
+type AgentStartHandler = (event: {
+	type: "before_agent_start";
+	systemPromptOptions: {
+		selectedTools: string[];
+		sections: Record<string, string>;
+	};
+}) => unknown;
 
 type ToolResultHandler = (
 	event: ToolResultEvent,
@@ -255,6 +267,7 @@ export async function loadGateSession(
 	let sessionHandler: SessionHandler | undefined;
 	let messageEndHandler: MessageEndHandler | undefined;
 	let resultHandler: ToolResultHandler | undefined;
+	let agentStartHandler: AgentStartHandler | undefined;
 	const commands = new Map<string, CommandHandler>();
 	const registered = new Set<string>();
 	const events = createEventBus();
@@ -262,12 +275,17 @@ export async function loadGateSession(
 		events,
 		on(
 			event: string,
-			fn: Handler & SessionHandler & MessageEndHandler & ToolResultHandler,
+			fn: Handler &
+				SessionHandler &
+				MessageEndHandler &
+				ToolResultHandler &
+				AgentStartHandler,
 		): void {
 			if (event === "tool_call") handler = fn;
 			if (event === "session_start") sessionHandler = fn;
 			if (event === "message_end") messageEndHandler = fn;
 			if (event === "tool_result") resultHandler = fn;
+			if (event === "before_agent_start") agentStartHandler = fn;
 		},
 		registerCommand(name: string, command: { handler: CommandHandler }): void {
 			commands.set(name, command.handler);
@@ -322,6 +340,20 @@ export async function loadGateSession(
 			if (!command)
 				throw new Error(`the bouncer registered no /${name} command`);
 			await command(args, ctx);
+		},
+		startAgent: async (
+			selectedTools: readonly string[] = ["read", "bash", "edit", "write"],
+		): Promise<Record<string, string>> => {
+			const sections: Record<string, string> = {};
+			const systemPromptOptions = {
+				selectedTools: [...selectedTools],
+				sections,
+			};
+			await agentStartHandler?.({
+				type: "before_agent_start",
+				systemPromptOptions,
+			});
+			return sections;
 		},
 		mode,
 		events,

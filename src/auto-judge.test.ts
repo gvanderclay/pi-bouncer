@@ -24,6 +24,7 @@ import {
 	scriptedUI,
 	verdict,
 } from "../test/harness.ts";
+import { AGENT_MADE_HINT } from "./gate.ts";
 
 test("a judge allow runs the line with no dialog and no notice", async () => {
 	const { gate, fake } = await judgedGate(verdict("allow", "build output"));
@@ -82,7 +83,7 @@ test("a judge hand-off without a UI blocks with the no-UI reason", async () => {
 	assert.equal(result?.block, true);
 	assert.equal(
 		result?.reason,
-		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. ${HARD_DENY_TAIL}`,
+		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. ${HARD_DENY_TAIL}${AGENT_MADE_HINT}`,
 	);
 });
 
@@ -421,7 +422,7 @@ test("every model failing without a UI blocks with the no-UI reason", async () =
 	const result = await gate.handler(bashCall("rm -rf dist"), noUI(fake));
 	assert.equal(
 		result?.reason,
-		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. ${HARD_DENY_TAIL}`,
+		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. ${HARD_DENY_TAIL}${AGENT_MADE_HINT}`,
 	);
 	assert.equal(autoVerdict(gate.records().at(-1)), "none");
 });

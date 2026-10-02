@@ -73,6 +73,7 @@ const VALID: readonly unknown[] = [
 	},
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
+	{ trustAgentMade: false },
 	{ protect: { home: ["code", ".secrets/keys"], paths: ["/srv/data"] } },
 	{ protect: {} },
 	{
@@ -148,6 +149,7 @@ const INVALID: readonly unknown[] = [
 	{ log: { maxAgeDays: 0 } },
 	{ log: { other: 1 } },
 	{ startMode: "yolo" },
+	{ trustAgentMade: "no" },
 	{ protect: [] },
 	{ protect: { home: "code" } },
 	{ protect: { home: ["/abs"] } },

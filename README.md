@@ -88,7 +88,7 @@ Each rule has a level: `ask` opens the dialog, `deny` blocks with no dialog.
 | `power` ✱ | deny | shutdown and reboot |
 | `disk-format` ✱ | deny | formatting, erasing or repartitioning a disk |
 | `dd-device` ✱ | deny | `dd` writing to a `/dev` path |
-| `recursive-rm` | ask | any other recursive `rm` |
+| `recursive-rm` | ask | any other recursive `rm`, except of a folder the agent made this session |
 | `find-delete` | ask | `find -delete` |
 | `find-exec` | ask | `find -exec`, `-execdir`, `-ok`, `-okdir` |
 | `fd-exec` | ask | `fd -x`, `fd -X` |

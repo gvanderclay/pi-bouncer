@@ -77,6 +77,18 @@ applies as well.
 This denies a recursive `rm` of `~/code`, of `/srv/data`, and of anything
 directly in `/srv/data`.
 
+## `trustAgentMade`
+
+`true`, the default, lets a recursive `rm` of a folder the agent made earlier
+in the session run without an ask; [How the bouncer decides](behaviour.md#folders-the-agent-made)
+says exactly which folders count. `false` asks for every recursive `rm`, as
+before. Either the user config or a project file can set `false`, and then
+neither can turn it back on.
+
+```json
+{ "trustAgentMade": false }
+```
+
 ## `rules`
 
 `rules` is a list of custom rules. Each one has:

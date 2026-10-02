@@ -56,6 +56,8 @@ export type GateConfig = {
 	/** What both files add to rm-root's protected paths; absent when none. */
 	readonly protect?: Protect;
 	readonly projectTrusted: boolean;
+	/** `false`: a recursive rm of a directory the agent made still asks. */
+	readonly trustAgentMade?: false;
 	readonly log: LogLimits;
 	/** The profile's mode when it sets one, else the user config's. */
 	readonly startMode: StartMode;
@@ -153,6 +155,7 @@ type Parsed = {
 	readonly auto?: AutoSettings;
 	readonly startMode?: StartMode;
 	readonly protect?: Protect;
+	readonly trustAgentMade?: boolean;
 	readonly rules?: readonly CustomRule[];
 	readonly profiles?: Profiles;
 	readonly agents?: Agents;
@@ -186,7 +189,9 @@ function parseKey(
 	else if (key === "log") assign(parts, "log", validLog(value, problems));
 	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
 	else if (key === "protect") parts.protect = validProtect(value, problems);
-	else if (key === "startMode") {
+	else if (key === "trustAgentMade") {
+		assign(parts, key, validTrust(value, problems));
+	} else if (key === "startMode") {
 		assign(parts, "startMode", validStartMode(value, '"startMode"', problems));
 	} else if (key === "profiles") {
 		parts.profiles = validProfiles(value, problems);
@@ -198,8 +203,14 @@ function parseKey(
 	else problems.push(`unknown key "${key}"`);
 }
 
+function validTrust(value: unknown, problems: string[]): boolean | undefined {
+	if (typeof value === "boolean") return value;
+	problems.push('"trustAgentMade" must be true or false');
+	return undefined;
+}
+
 /** Sets `parts[key]` only when `value` is defined, so an invalid part is absent. */
-function assign<K extends "log" | "auto" | "startMode">(
+function assign<K extends "log" | "auto" | "startMode" | "trustAgentMade">(
 	parts: Mutable<Omit<Parsed, "file">>,
 	key: K,
 	value: Parsed[K],
@@ -288,6 +299,9 @@ export function loadConfig(
 		policy,
 		...(off.length > 0 && { off }),
 		...(protect && { protect }),
+		// Either file can turn it off; neither can turn the other's off back on.
+		...((routeFile.trustAgentMade === false ||
+			projectFile.trustAgentMade === false) && { trustAgentMade: false }),
 		projectTrusted: project.trusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
 		startMode: applied.startMode,
@@ -348,6 +362,8 @@ export type ConfigRecord = {
 	readonly profile?: ProfileRecord;
 	/** Only when a file adds protected paths. */
 	readonly protect?: Protect;
+	/** Only when a file turns it off. */
+	readonly trustAgentMade?: false;
 	/** The route's auto settings, with only a count of environment facts. */
 	readonly auto?: {
 		readonly models: readonly string[];
@@ -369,6 +385,7 @@ export function configRecord(config: GateConfig): ConfigRecord {
 		log,
 		...(config.profile && { profile: profileRecord(config.profile) }),
 		...(protect && { protect }),
+		...(config.trustAgentMade === false && { trustAgentMade: false as const }),
 	};
 	if (!auto) return base;
 	const { models, alwaysAsk, environment, firstByProvider, jev } = auto;

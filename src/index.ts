@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import type {
 	BashToolCallEvent,
+	BeforeAgentStartEvent,
 	ExtensionAPI,
 	ExtensionContext,
 	MessageEndEvent,
@@ -12,6 +13,13 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { agentFrom } from "./agent-env.ts";
+import {
+	AGENT_MADE_NOTE,
+	forgetGone,
+	mkdirTargets,
+	mktempTarget,
+	recordMade,
+} from "./agent-made.ts";
 import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
 import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
@@ -55,7 +63,9 @@ import {
 	showMode,
 	trackPause,
 } from "./mode-switch.ts";
+import { read } from "./rank.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
+import type { Invocation } from "./scan/walk.ts";
 import { registerSessionLaunch } from "./session-launch.ts";
 
 export type ParserLoader = () => Promise<ParseFn>;
@@ -109,6 +119,23 @@ function restoreStopReason(
 	return { message: { ...message, content: [{ type: "text", text: reason }] } };
 }
 
+function noteLoneCall(rt: Runtime, { message }: MessageEndEvent): void {
+	if (message.role !== "assistant") return;
+	const calls = message.content.filter((part) => part.type === "toolCall");
+	const [only] = calls;
+	if (only && calls.length === 1) rt.lone.id = only.id;
+	else delete rt.lone.id;
+}
+
+// A prompt section, not a guideline: a custom system prompt drops Pi's rules.
+function noteAgentMade(rt: Runtime, event: BeforeAgentStartEvent): undefined {
+	const { selectedTools, sections } = event.systemPromptOptions;
+	if (!selectedTools.includes("bash")) return undefined;
+	if (rt.session.config?.trustAgentMade === false) return undefined;
+	sections["bouncer"] = AGENT_MADE_NOTE;
+	return undefined;
+}
+
 function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	if (!ctx.hasUI) return;
 	const { profile } = config;
@@ -155,6 +182,8 @@ function trustedIfKnown(ctx: ExtensionContext): boolean {
 	return false;
 }
 
+type Making = { readonly since: number; readonly targets: string[] };
+
 type Runtime = {
 	readonly pi: ExtensionAPI;
 	readonly gate: ReturnType<typeof createGate>;
@@ -167,6 +196,10 @@ type Runtime = {
 	readonly env: Readonly<Record<string, string | undefined>>;
 	readonly switchMode: ModeSwitch;
 	readonly stopped: Map<string, string>;
+	/** Per allowed bash call that may make directories: when it ran, and what its `mkdir`s would newly make. */
+	readonly making: Map<string, Making>;
+	/** The tool call id of the latest assistant message, when it made exactly one. */
+	readonly lone: { id?: string };
 };
 
 // Nothing outlives a session but the bouncer mode. A reloaded runtime starts
@@ -188,6 +221,9 @@ function startSession(
 	rt.session.reported.clear();
 	rt.session.lastFailure.clear();
 	clearHistory(rt.session.history);
+	rt.session.agentMade.clear();
+	rt.making.clear();
+	delete rt.lone.id;
 	if (config.auto) rt.session.remotes = readRemotes(ctx.cwd);
 	else delete rt.session.remotes;
 	rt.gate.reset(config.policy);
@@ -219,10 +255,14 @@ function autoChoiceFor(
 	return mode === "auto" ? RESUME_AUTO_CHOICE : AUTO_CHOICE;
 }
 
+// `lone`: the call is the only one its assistant message made. Pi checks every
+// call of a message before running any, so a sibling could fill a folder
+// the check already passed.
 function callIn(
 	rt: Runtime,
 	command: string,
 	ctx: ExtensionContext,
+	lone: boolean,
 	onSent?: (sent: JudgeSent) => void,
 ): Call {
 	const { mode } = rt.holder;
@@ -233,12 +273,15 @@ function callIn(
 	const alwaysAsk = rt.session.config?.auto?.alwaysAsk ?? [];
 	const { paused } = rt.session.pause;
 	const autoChoice = autoChoiceFor(mode, paused, rt.session, ctx);
+	const trusted = rt.session.config?.trustAgentMade !== false;
 	const redecide = (): Promise<Decision> | undefined =>
 		rt.holder.mode === mode
 			? undefined
-			: rt.gate.decide(command, callIn(rt, command, ctx, onSent));
+			: rt.gate.decide(command, callIn(rt, command, ctx, lone, onSent));
 	return {
 		...callFrom(ctx, mode, judge),
+		...(trusted && { agentMade: rt.session.agentMade }),
+		...(lone && { lone }),
 		alwaysAsk,
 		paused,
 		redecide,
@@ -257,7 +300,8 @@ async function decideCall(
 	const onSent = (counts: JudgeSent): void => {
 		sent = counts;
 	};
-	const call = callIn(rt, command, ctx, onSent);
+	const lone = event.toolCallId === rt.lone.id;
+	const call = callIn(rt, command, ctx, lone, onSent);
 	const outcome = await rt.gate.decide(command, call);
 	rt.logging.write(ctx, () => {
 		const record = callRecord(
@@ -274,7 +318,10 @@ async function decideCall(
 	if (outcome.autoOn && rt.holder.mode !== "auto") {
 		rt.switchMode("auto", "dialog", "auto", ctx);
 	}
-	if (outcome.kind === "allow") return undefined;
+	if (outcome.kind === "allow") {
+		noteMaking(rt, event.toolCallId, command);
+		return undefined;
+	}
 	if (outcome.stop) {
 		rt.stopped.set(event.toolCallId, outcome.reason);
 		// Never awaited: abort() waits for idle, which cannot come while this
@@ -285,7 +332,40 @@ async function decideCall(
 	return { block: true, reason: outcome.reason };
 }
 
-// Reads only the command and path, never output or content.
+function invocationsOf(rt: Runtime, command: string): readonly Invocation[] {
+	const given = read(rt.parser, command);
+	return given.kind === "ok" ? given.invocations : [];
+}
+
+// Checked just before the command runs: a directory that exists now is not
+// one the agent makes.
+function noteMaking(rt: Runtime, toolCallId: string, command: string): void {
+	if (!/mkdir|mktemp/.test(command)) return;
+	const targets = mkdirTargets(invocationsOf(rt, command));
+	rt.making.set(toolCallId, { since: Date.now(), targets });
+}
+
+// Only a call that finished without error made anything; a detached one may
+// still be running. The output is read only for a lone `mktemp -d`.
+function recordMadeBy(
+	rt: Runtime,
+	event: ToolResultEvent,
+	command: string,
+): void {
+	forgetGone(rt.session.agentMade);
+	const making = rt.making.get(event.toolCallId);
+	rt.making.delete(event.toolCallId);
+	if (!making || event.isError || event.input["background"] === true) return;
+	const { since, targets } = making;
+	if (command.includes("mktemp")) {
+		const output = event.content.map((c) => (c.type === "text" ? c.text : ""));
+		const made = mktempTarget(invocationsOf(rt, command), output.join(""));
+		if (made) targets.push(made);
+	}
+	recordMade(rt.session.agentMade, targets, since);
+}
+
+// History reads only the command and path, never output or content.
 function recordResult(
 	rt: Runtime,
 	event: ToolResultEvent,
@@ -303,6 +383,7 @@ function recordResult(
 	if (toolName === "bash" && typeof command === "string") {
 		const detached = background === true && { background: true as const };
 		entry = { tool: "bash", text: command, cwd, ...marks, ...detached };
+		recordMadeBy(rt, event, command);
 	} else if (
 		(toolName === "write" || toolName === "edit") &&
 		typeof path === "string"
@@ -328,6 +409,7 @@ export default async function bouncer(
 		reported: new Set(),
 		lastFailure: new Map(),
 		history: createHistory(),
+		agentMade: new Map(),
 		pause: { paused: false, inRow: 0, total: 0 },
 	};
 	const rt: Runtime = {
@@ -342,6 +424,8 @@ export default async function bouncer(
 		env,
 		switchMode: createModeSwitch(holder, session, logging, logDir),
 		stopped: new Map<string, string>(),
+		making: new Map<string, Making>(),
+		lone: {},
 	};
 	registerYolo(pi, holder, rt.switchMode);
 	registerAuto(pi, holder, rt.switchMode, rt.session);
@@ -352,8 +436,13 @@ export default async function bouncer(
 	);
 	pi.on(
 		"message_end",
-		(event: MessageEndEvent): MessageEndEventResult | undefined =>
-			restoreStopReason(rt.stopped, event),
+		(event: MessageEndEvent): MessageEndEventResult | undefined => {
+			noteLoneCall(rt, event);
+			return restoreStopReason(rt.stopped, event);
+		},
+	);
+	pi.on("before_agent_start", (event: BeforeAgentStartEvent) =>
+		noteAgentMade(rt, event),
 	);
 	pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext) =>
 		decideCall(rt, event, ctx),

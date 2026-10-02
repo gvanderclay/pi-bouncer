@@ -6,6 +6,23 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- A recursive `rm` of a folder the agent made earlier in the session (by a
+  `mkdir` of a missing path, or a lone `mktemp -d`), or of something inside
+  it, no longer asks, in any mode and with or without a UI. Only plain `rm`
+  with full paths counts, alone on its line (bar `cd`, `echo` and the like)
+  and alone in the agent's message; a variable, `~`, wildcard, wrapper,
+  symlink out of the folder, or anything inside dated before the folder was
+  made still asks.
+  `"trustAgentMade": false` restores the old behaviour.
+- While that is on, each run's system prompt gets a short `<bouncer>` section
+  telling the agent how to delete a folder it made without an ask. The
+  research behind it is `docs/research/agent-guidance.md`.
+- When no one can answer a `recursive-rm` ask, the block reason now ends with
+  how to delete a folder the agent made without an ask: retry with its full
+  path written out. The tests pinning the old reason text were updated.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
