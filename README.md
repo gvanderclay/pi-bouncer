@@ -117,8 +117,9 @@ at a fixed SystemOne URL with the opencode-go key Pi holds for the route.
 With `auto.jev.model` set it is that classifier model from Pi's catalogue,
 called through Pi with Pi's own credentials and no retries: for example
 `openrouter/typesafe/jev-1.13` (`OPENROUTER_API_KEY` or `/login`),
-`typesafe/jev-latest` (`TYPESAFE_API_KEY`) or `opencode/jev-1.13`
-(`OPENCODE_API_KEY`); Pi's `docs/models.md` lists them all. A provider Pi does
+`typesafe/jev-latest` (`TYPESAFE_API_KEY`) or `opencode/jev-1.13` (the same
+Zen model as the default, with the key Pi holds for `opencode` rather than
+`opencode-go`); Pi's `docs/models.md` lists them all. A provider Pi does
 not know can be added with a Pi extension that registers a classifier model.
 Jev sees exactly what the judge
 sees, under the same budgets, and answers five questions in one call. Two

@@ -640,8 +640,12 @@ limits stay where they are used; revisit together with 3.7.
   scrubbed from errors.
 - The log, notices and `/auto status` name the model when it is set; with
   no `model` everything is as before (`opencode-go/jev-1.13`).
-- Absent `model` keeps the Zen URL with the `opencode-go` key, because
-  Pi's Jev list has no `opencode-go` entry.
+- Absent `model` keeps the Zen URL with the `opencode-go` key. Pi lists the
+  same Zen model as `opencode/jev-1.13`, but resolves its key under
+  `opencode`, where the owner has none (checked 2026-10-02: `opencode`
+  unconfigured, `opencode-go` stored). Setting `OPENCODE_API_KEY` or storing
+  the key for `opencode` would make `"model": "opencode/jev-1.13"` the same
+  call through Pi.
 - Not built: a custom URL-and-key option inside the bouncer (Pi's
   extension route covers it), and limits for the call (3.7).
 - Proof: `src/auto-jev.test.ts` unchanged; `src/jev-pi.test.ts` (allow,
@@ -811,9 +815,9 @@ tests pass unchanged except where a step above says otherwise:
 - Decision (2026-10-02): **an optional `auto.jev.model` (`provider/id`)
   goes through Pi's classifier registry; without it Jev keeps the Zen URL
   and `opencode-go` key.** See 3.8.
-- Reason: no config changes nothing for the owner, whose `opencode-go` key
-  Pi's Jev list does not cover, and Pi handles every other provider and its
-  credentials.
+- Reason: no config changes nothing for the owner, whose key Pi holds under
+  `opencode-go` while Pi's Zen Jev (`opencode/jev-1.13`) looks under
+  `opencode`, and Pi handles every other provider and its credentials.
 - Rejected: a bouncer-side table of provider URLs plus a custom URL and
   key variable. It duplicates Pi; decide at 1.0 whether `model` becomes
   required.

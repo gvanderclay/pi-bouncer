@@ -1,6 +1,6 @@
-// Jev: TypeSafe's SystemOne classifier, through OpenCode Zen with the opencode-go key
-// (which Pi's catalogue lacks), or through Pi's classifier registry when `auto.jev.model`
-// is set. Never retried: a failed call goes to the judge list. Errors never hold the key.
+// Jev: TypeSafe's SystemOne classifier. By default Zen's jev-1.13, called here with
+// the opencode-go key: Pi lists the same model as opencode/jev-1.13 but looks for the key
+// under `opencode`, not `opencode-go`. With `auto.jev.model` set, through Pi's registry. Never retried: a failed call goes to the judge list. Errors never hold the key.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
