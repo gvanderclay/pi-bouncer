@@ -3,7 +3,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentSource } from "./agent-env.ts";
-import { type JevSettings, jevPart } from "./auto-jev-config.ts";
+import {
+	type AutoSettings,
+	type JevSettings,
+	validAuto,
+} from "./auto-config.ts";
 import { errorText } from "./error-text.ts";
 import { isObject, type Json } from "./json.ts";
 import { validLevels } from "./levels.ts";
@@ -39,16 +43,6 @@ export type LogLimits = {
 	readonly generations: number;
 	/** Absent: gzipped generations are never pruned by age. */
 	readonly maxAgeDays?: number;
-};
-
-export type AutoSettings = {
-	/** The judge list: `provider/id` entries, in priority order. */
-	readonly models: readonly string[];
-	readonly alwaysAsk: readonly string[];
-	readonly environment: readonly string[];
-	readonly firstByProvider: Readonly<Record<string, string>>;
-	/** Absent: Jev is off and the judge list rules alone. */
-	readonly jev?: JevSettings;
 };
 
 export type { ConfigFile } from "./project-config.ts";
@@ -150,112 +144,6 @@ function validLog(value: unknown, problems: string[]): LogLimits {
 		else problems.push(`log.${key} must be ${rule}`);
 	}
 	return limits;
-}
-
-function isModelEntry(value: unknown): value is string {
-	return typeof value === "string" && /^[^/\s]+\/\S+$/.test(value);
-}
-
-function isNonEmptyString(value: unknown): value is string {
-	return typeof value === "string" && value.trim() !== "";
-}
-
-function validList(
-	key: keyof AutoSettings,
-	value: unknown,
-	valid: (entry: unknown) => entry is string,
-	rule: string,
-	problems: string[],
-): string[] {
-	if (!Array.isArray(value)) {
-		problems.push(`auto.${key} must be an array of strings`);
-		return [];
-	}
-	return value.filter((entry: unknown, index: number): entry is string => {
-		if (valid(entry)) return true;
-		problems.push(`auto.${key}[${index}] must be ${rule}`);
-		return false;
-	});
-}
-
-// Each value must be an entry of `models`, so the judge list stays the whole set of judges.
-function validFirstByProvider(
-	value: unknown,
-	models: readonly string[],
-	problems: string[],
-): Record<string, string> {
-	const first: Record<string, string> = {};
-	if (!isObject(value)) {
-		problems.push("auto.firstByProvider must be an object");
-		return first;
-	}
-	for (const [provider, entry] of Object.entries(value)) {
-		const at = `auto.firstByProvider.${provider}`;
-		if (!isModelEntry(entry)) {
-			problems.push(`${at} must be a provider/id string`);
-		} else if (!models.includes(entry)) {
-			problems.push(`${at}: ${entry} is not in auto.models`);
-		} else first[provider] = entry;
-	}
-	return first;
-}
-
-const CHECKED_AFTER: ReadonlySet<string> = new Set(["firstByProvider", "jev"]);
-
-function validAuto(
-	value: unknown,
-	problems: string[],
-): AutoSettings | undefined {
-	if (!isObject(value)) {
-		problems.push('"auto" is not an object');
-		return undefined;
-	}
-	const auto: Mutable<AutoSettings> = {
-		models: [],
-		alwaysAsk: [],
-		environment: [],
-		firstByProvider: {},
-	};
-	for (const [key, entries] of Object.entries(value)) {
-		if (key === "models") {
-			const rule = "a provider/id string";
-			auto.models = validList(key, entries, isModelEntry, rule, problems);
-			if (Array.isArray(entries) && entries.length === 0) {
-				problems.push("auto.models is empty");
-			}
-		} else if (key === "alwaysAsk" || key === "environment") {
-			const rule = "a non-empty string";
-			auto[key] = validList(key, entries, isNonEmptyString, rule, problems);
-		} else if (!CHECKED_AFTER.has(key)) {
-			problems.push(`auto: unknown key "${key}"`);
-		}
-	}
-	if (!Object.hasOwn(value, "models")) problems.push("auto.models is required");
-	// After the loop: its values are checked against the valid `models`.
-	if (Object.hasOwn(value, "firstByProvider")) {
-		const { firstByProvider } = value;
-		auto.firstByProvider = validFirstByProvider(
-			firstByProvider,
-			auto.models,
-			problems,
-		);
-	}
-	return { ...auto, ...jevPart(value, problems) };
-}
-
-export function judgeOrder(
-	auto: AutoSettings | undefined,
-	provider: string | undefined,
-): readonly string[] {
-	const models = auto?.models ?? [];
-	const first =
-		provider !== undefined &&
-		auto &&
-		Object.hasOwn(auto.firstByProvider, provider)
-			? auto.firstByProvider[provider]
-			: undefined;
-	if (first === undefined) return models;
-	return [first, ...models.filter((entry) => entry !== first)];
 }
 
 type Parsed = {
