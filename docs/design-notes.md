@@ -116,8 +116,8 @@ the rules are these.
 - **The user config** keeps full power over rule levels, because the user owns
   it; only the unreadable-command denies and the steer rules have fixed levels.
 - **Keys only the user config sets.** A project file cannot set `log`, `auto`
-  or `startMode`. That keeps a repository from turning on auto mode, changing Jev's cutoffs, or
-  moving where requests go.
+  or `startMode`. That keeps a repository from turning on auto mode, changing
+  Jev's cutoffs, or moving where requests go.
 
 The code agrees with these rules (`src/project-config.ts`, `refusal()` and
 `projectLevels()`, applied in `src/config.ts`). Two details are worth knowing.
