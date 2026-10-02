@@ -181,7 +181,10 @@ How a profile applies:
   `--yolo`. A session whose parent runs in YOLO or auto mode gets that flag
   from the bouncer's launch listener and so starts in that mode. A launcher
   that does not emit `session:launch` passes no flag, so its child starts in
-  its profile's `mode` whatever its parent's mode is. With `"auto"` and no
+  its profile's `mode` whatever its parent's mode is. The same listener sets
+  the child's agent name (`PI_BOUNCER_AGENT`): the child's own agent when it
+  has a working profile, else the parent's when the parent runs a profile. A
+  blank existing `PI_BOUNCER_AGENT` counts as unset. With `"auto"` and no
   resolvable judge-list entry the session stays off with the usual notice.
 
 A project file may define profiles too, and its definition of a name is laid
