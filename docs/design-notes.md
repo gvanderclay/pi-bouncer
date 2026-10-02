@@ -27,6 +27,11 @@ never. Both must be above 0.5 and at most 1. A call that reaches neither
 cutoff, or both, goes to the judge list, so a cutoff only decides how many
 calls Jev settles on its own; everything else costs one judge-list call.
 
+The cutoffs were measured through OpenCode Zen's `jev-1.13` only. Another
+provider serving the same model (OpenRouter's `typesafe/jev-1.13`) should
+answer alike, but `typesafe/jev-latest` may be a newer model; re-measure with
+`bench.ts jev --model <provider/id>` before trusting the defaults there.
+
 The cutoffs were measured with the bench in `skills/auto-judge-list/`:
 `bench.ts` is the entry point, `jev-bench.ts` runs Jev's part, and
 `heldout-cases.ts` holds the held-out set. The bench has 37 cases, each with

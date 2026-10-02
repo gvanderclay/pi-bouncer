@@ -5,6 +5,8 @@ repository and copied here. Decided as recommended: D-2, D-4, D-5, D-6, D-8,
 D-9. D-10: keep the short history. D-1 and D-3 were decided together (2026-10-02): the grep steer rule moves
 out of the code into a custom rule, so custom rules ship in 0.1.0 with the
 steer form. D-7 is done (`github.com/gvanderclay/pi-bouncer`). License: MIT.
+Phase 1 and 2.1 are done. Decided 2026-10-02: 2.2 is skipped and 3.7 is
+deferred until someone asks; 2.3 and 3.8 are done together as one change (D-9).
 
 Paths starting with `~/workspace/dotfiles/` point into the owner's dotfiles
 repository, where the bouncer used to live; they are evidence for the plan and
@@ -388,7 +390,8 @@ says "decision". All work happens in `~/workspace/pi-bouncer`.
   The cost is that a process that upgrades mid-flight and then reloads loses
   its mode once. This is acceptable and noted in CHANGELOG.
 
-**2.2 Collect the tunables into one module.**
+**2.2 Collect the tunables into one module.** Skipped (2026-10-02): the
+limits stay where they are used; revisit together with 3.7.
 - Files: a new `limits.ts` that exports `DEFAULT_LIMITS` with `modelMs`,
   `lineMs`, `jevMs`, `pauseInRow`, `pauseTotal`, `earlierChars`,
   `historyChars`, `historyMax` and `gitTimeoutMs`. `judge.ts:244-245`,
@@ -399,17 +402,13 @@ says "decision". All work happens in `~/workspace/pi-bouncer`.
 - Proof: the existing suite unchanged, especially `auto-judge.test.ts`,
   `auto-pause.test.ts`, `auto-jev.test.ts` and `judge-request.test.ts`.
 
-**2.3 Add a Jev transport seam.**
-- Files: `jev.ts`. Split `post` and `askJev` (`jev.ts:79-136`) behind a
-  `JevTransport = (body, signal) => Promise<JevCall>`. Today's code becomes
-  `zenTransport(key)`, still built from `JEV_URL` and `JEV_PROVIDER`.
-  `ruling.ts:43-56` (`callJev`) picks the transport. Only one exists for
-  now.
+**2.3 Let Jev's call vary.** Done with 3.8.
+- Files: `jev.ts`. `jevAsker(registry, model?)` returns how to ask Jev, or
+  why it cannot be asked; `ruling.ts` (`callJev`) and the bench use it. The
+  5 s budget, abort handling and key redaction are shared by both paths.
 - Preserved: the URL, the model, the key provider, "no opencode-go key",
   key redaction in errors, the 5 s budget, and the abort behaviour.
-- Proof: `test/auto-jev.test.ts` (1099 lines, which mocks `fetch` and checks
-  the URL, body and key) and the Jev part of `test/auto-bench.test.ts`, both
-  unchanged.
+- Proof: `src/auto-jev.test.ts` unchanged and passing.
 
 **2.4 Resolve Pi's package for the CLIs.**
 - Files: a new `pi-package.ts` that exports `importPi()`. It tries a bare
@@ -614,7 +613,8 @@ says "decision". All work happens in `~/workspace/pi-bouncer`.
   - `test/config.test.ts`: the level table at line 21 drops `grep`, and the
     old "not supported yet" assertion goes. No other expectation changes.
 
-**3.7 (F8) Configurable budgets and brakes.** [feature]
+**3.7 (F8) Configurable budgets and brakes.** [feature] Deferred
+(2026-10-02) until someone asks.
 - Files: `config.ts` adds `auto.limits` (`modelMs`, `lineMs`, `jevMs`,
   `pauseInRow`, `pauseTotal`), validated as positive integers within sane
   bounds and user-file only; the modules from 2.2 read limits from the
@@ -624,26 +624,32 @@ says "decision". All work happens in `~/workspace/pi-bouncer`.
 - Proof: the existing auto tests unchanged, plus new tests with small
   limits.
 
-**3.8 (F7) Jev through Pi's classifier registry.** [feature]
+**3.8 (F7) Jev through Pi's classifier registry.** [feature] Done.
 - Decision D-9.
-- Files: `auto-jev-config.ts` adds an optional `model: "provider/id"`;
-  `jev.ts` adds `registryTransport(model)`, which calls
-  `ctx.modelRegistry.getModelOfType("classifier", provider, id)` and
-  `classify(model, {state, questions}, {signal})`, then maps the result
-  (`answers`, or `stopReason: "error"` with `errorMessage`) into `JevCall`;
-  `mode-switch.ts`, `/auto status`, shows the model and "auth resolves" or
-  "no configured auth" via `hasConfiguredAuth`. When `model` is set, the
-  log and notices name that model instead of `opencode-go/jev-1.13`
-  (`jev.ts:209`).
-- Absent `model` keeps today's Zen transport with the `opencode-go` key.
-- This also makes local llama.cpp classifiers possible (Pi
-  `docs/llama-cpp.md:91`).
-- Preserved: everything about Jev when `model` is absent, plus cutoffs,
-  the deny score and the budget.
-- Proof: `test/auto-jev.test.ts` unchanged, plus a new
-  `test/auto-jev-registry.test.ts` with a fake registry `classify`
-  (allow, deny, unsure, error, abort, no auth). The `jev` bench subcommand
-  (`skills/auto-judge-list/jev-bench.ts`) takes `--model provider/id`.
+- Config: optional `auto.jev.model`, a Pi classifier model as
+  `provider/id`. Pi's catalogue serves Jev from TypeSafe
+  (`typesafe/jev-latest`), OpenRouter (`openrouter/typesafe/jev-1.13`),
+  Cloudflare, Vercel's AI Gateway and pay-as-you-go OpenCode; llama.cpp
+  models and extension-registered classifiers work too. A provider Pi does
+  not know needs a Pi extension that registers it (Pi's `models.json` cannot
+  define classifier models).
+- `jev.ts` resolves the model with `getModelOfType("classifier", …)`,
+  checks `hasConfiguredAuth`, and calls `classify` with `maxRetries: 0` and
+  the bouncer's own signal. Pi's `bool` questions and answers map to and
+  from SystemOne's `noul`. The provider's key (when Pi has one) is still
+  scrubbed from errors.
+- The log, notices and `/auto status` name the model when it is set; with
+  no `model` everything is as before (`opencode-go/jev-1.13`).
+- Absent `model` keeps the Zen URL with the `opencode-go` key, because
+  Pi's Jev list has no `opencode-go` entry.
+- Not built: a custom URL-and-key option inside the bouncer (Pi's
+  extension route covers it), and limits for the call (3.7).
+- Proof: `src/auto-jev.test.ts` unchanged; `src/jev-pi.test.ts` (allow,
+  unsure, error with the key hidden, unknown model, no auth, abort,
+  status); config tests for a valid and an invalid `model`. Checked once
+  against Pi 1.0's real registry with a stubbed network: both OpenRouter
+  and TypeSafe resolve, get the right URL and key, and answer readably.
+  The `jev` bench subcommand takes `--model provider/id`.
 
 **3.9 (F9, optional) Gate other shell tools.** [feature]
 - Files: `config.ts` adds `tools: ["bash"]` (user file only), and
@@ -801,14 +807,16 @@ tests pass unchanged except where a step above says otherwise:
   authentication, then add the tag-triggered `release.yml` with provenance
   for later versions.
 
-**D-9. Jev's default transport.**
-- Recommendation: **keep today's Zen and `opencode-go` path when
-  `auto.jev.model` is absent**, add `model` as the documented way, and
-  decide at 1.0 whether `model` becomes required.
-- Reason: this changes nothing for the user, and gives strangers every
-  provider Pi supports.
-- Alternative: default to `opencode/jev-1.13`. That breaks the user's setup,
-  which has an `opencode-go` key and not an `opencode` key.
+**D-9. Jev's provider.**
+- Decision (2026-10-02): **an optional `auto.jev.model` (`provider/id`)
+  goes through Pi's classifier registry; without it Jev keeps the Zen URL
+  and `opencode-go` key.** See 3.8.
+- Reason: no config changes nothing for the owner, whose `opencode-go` key
+  Pi's Jev list does not cover, and Pi handles every other provider and its
+  credentials.
+- Rejected: a bouncer-side table of provider URLs plus a custom URL and
+  key variable. It duplicates Pi; decide at 1.0 whether `model` becomes
+  required.
 
 **D-10. Git history depth.**
 - `~/workspace/pi-bouncer` starts at the rename commit `72c3840`. The

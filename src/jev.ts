@@ -1,5 +1,6 @@
-// Jev: OpenCode Zen's SystemOne classifier. Follows TypeSafe's SystemOne wire
-// format, without retries: a failed call goes to the judge list. Errors never hold the key.
+// Jev: TypeSafe's SystemOne classifier, through OpenCode Zen with the opencode-go key
+// (which Pi's catalogue lacks), or through Pi's classifier registry when `auto.jev.model`
+// is set. Never retried: a failed call goes to the judge list. Errors never hold the key.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
@@ -37,8 +38,40 @@ const CRITERIA = {
 	unsafe: 'Your verdict would be "ask" or "deny".',
 };
 
+const QUESTIONS: Readonly<
+	Record<string, { readonly type: string; readonly [field: string]: unknown }>
+> = {
+	[QUESTION]: {
+		type: "choice",
+		instructions: INSTRUCTIONS,
+		criteria: CRITERIA,
+	},
+	...DENY_QUESTIONS,
+};
+
+// Pi's public name for SystemOne's wire-level `noul` question.
+const PI_QUESTIONS = Object.fromEntries(
+	Object.entries(QUESTIONS).map(([id, question]) => [
+		id,
+		question.type === "noul" ? { ...question, type: "bool" } : question,
+	]),
+);
+
+type PiResult = {
+	readonly answers: Readonly<Record<string, object>>;
+	readonly stopReason: string;
+	readonly errorMessage?: string;
+};
+
 export type JevKeyLookup = {
 	getApiKeyForProvider?(provider: string): Promise<string | undefined>;
+	getModelOfType?(type: "classifier", provider: string, id: string): unknown;
+	hasConfiguredAuth?(model: never): boolean;
+	classify?(
+		model: never,
+		context: { state: object; questions: object },
+		options: { signal: AbortSignal; maxRetries: number },
+	): Promise<PiResult>;
 };
 
 // A registry that fails to look up the key throws.
@@ -52,8 +85,8 @@ export type JevCall =
 	| { readonly reply: unknown; readonly ms: number }
 	| { readonly error: string; readonly ms: number };
 
-function hidden(text: string, key: string): string {
-	return text.replaceAll(key, "<key>");
+function hidden(text: string, key: string | undefined): string {
+	return key ? text.replaceAll(key, "<key>") : text;
 }
 
 function shown(text: string, key: string): string {
@@ -74,14 +107,7 @@ async function post(
 		body: JSON.stringify({
 			model: JEV_MODEL,
 			state: jevState(request),
-			questions: {
-				[QUESTION]: {
-					type: "choice",
-					instructions: INSTRUCTIONS,
-					criteria: CRITERIA,
-				},
-				...DENY_QUESTIONS,
-			},
+			questions: QUESTIONS,
 		}),
 		signal,
 	});
@@ -96,9 +122,17 @@ async function post(
 	}
 }
 
-export async function askJev(
+export function askJev(
 	request: JudgeRequest,
 	key: string,
+	signal?: AbortSignal,
+): Promise<JevCall> {
+	return timed((both) => post(request, key, both), key, signal);
+}
+
+async function timed(
+	send: (signal: AbortSignal) => Promise<unknown>,
+	key: string | undefined,
 	signal?: AbortSignal,
 ): Promise<JevCall> {
 	const start = Date.now();
@@ -106,7 +140,7 @@ export async function askJev(
 	const timer = setTimeout(() => own.abort(), JEV_MS);
 	const signals = signal ? [own.signal, signal] : [own.signal];
 	try {
-		const reply = await post(request, key, AbortSignal.any(signals));
+		const reply = await send(AbortSignal.any(signals));
 		return { reply, ms: Date.now() - start };
 	} catch (error) {
 		let text = hidden(errorText(error), key);
@@ -116,6 +150,70 @@ export async function askJev(
 	} finally {
 		clearTimeout(timer);
 	}
+}
+
+// Pi answers a `bool` question with `probability`; readReply reads SystemOne's `noul`.
+function wireAnswers(answers: PiResult["answers"]): Record<string, object> {
+	return Object.fromEntries(
+		Object.entries(answers).map(([id, answer]) => [
+			id,
+			"probability" in answer
+				? { ...answer, noul: answer.probability }
+				: answer,
+		]),
+	);
+}
+
+export type JevAsk = (
+	request: JudgeRequest,
+	signal?: AbortSignal,
+) => Promise<JevCall>;
+
+/**
+ * How to ask Jev, or why it cannot be asked. Without `model`, OpenCode Zen with the
+ * opencode-go key; with it, that Pi classifier model. A registry that fails to look
+ * up the key throws.
+ */
+export async function jevAsker(
+	registry: JevKeyLookup,
+	model?: string,
+): Promise<JevAsk | string> {
+	if (!model) {
+		const key = await jevKey(registry);
+		return key
+			? (request: JudgeRequest, signal?: AbortSignal): Promise<JevCall> =>
+					askJev(request, key, signal)
+			: NO_KEY;
+	}
+	const slash = model.indexOf("/");
+	const provider = model.slice(0, slash);
+	const found = registry.getModelOfType?.(
+		"classifier",
+		provider,
+		model.slice(slash + 1),
+	) as never;
+	const { classify } = registry;
+	if (!(found && classify)) return "not a classifier model in Pi's catalogue";
+	if (!registry.hasConfiguredAuth?.(found)) return "no configured auth";
+	// Only to keep the key out of error text; Pi resolves its own at request time.
+	const key = await registry.getApiKeyForProvider?.(provider);
+	return (request: JudgeRequest, signal?: AbortSignal): Promise<JevCall> =>
+		timed(
+			async (both: AbortSignal): Promise<unknown> => {
+				const result = await classify.call(
+					registry,
+					found,
+					{ state: jevState(request), questions: PI_QUESTIONS },
+					{ signal: both, maxRetries: 0 },
+				);
+				if (result.stopReason !== "stop") {
+					throw new Error(result.errorMessage ?? result.stopReason);
+				}
+				return { answers: wireAnswers(result.answers) };
+			},
+			key,
+			signal,
+		);
 }
 
 export type JevReading = DenyAnswers & {
@@ -180,23 +278,31 @@ export type JevVerdict = Omit<
 	"tried"
 >;
 
-export function jevVerdict(answer: JevAnswer): JevVerdict | undefined {
+export function jevName(model: string | undefined): string {
+	return model ?? JEV_NAME;
+}
+
+export function jevVerdict(
+	answer: JevAnswer,
+	model = JEV_NAME,
+): JevVerdict | undefined {
 	if (answer.answer === "unsure") return undefined;
 	const decided =
 		answer.answer === "safe"
 			? ({ verdict: "allow", reason: JEV_ALLOW_REASON } as const)
 			: ({ verdict: "deny", reason: UNSAFE_REASON } as const);
-	return { kind: "verdict", ...decided, model: JEV_NAME, ms: answer.ms };
+	return { kind: "verdict", ...decided, model, ms: answer.ms };
 }
 
 export function jevFailure(
 	record: JevRecord | undefined,
 ): JudgeFailure | undefined {
 	if (!record || !("error" in record)) return undefined;
-	return { model: JEV_NAME, error: record.error };
+	return { model: record.model ?? JEV_NAME, error: record.error };
 }
 
-export type JevRecord =
+// `model` only when `auto.jev.model` is set, so default records stay as they were.
+export type JevRecord = { readonly model?: string } & (
 	| (DenyAnswers & {
 			readonly answer: "safe" | "unsafe" | "unsure";
 			readonly safe: number;
@@ -204,13 +310,17 @@ export type JevRecord =
 			readonly confidence: number;
 			readonly ms: number;
 	  })
-	| { readonly error: string; readonly ms: number };
+	| { readonly error: string; readonly ms: number }
+);
 
-export function jevRecord(answer: JevAnswer): JevRecord {
-	if ("error" in answer) return { error: answer.error, ms: answer.ms };
+export function jevRecord(answer: JevAnswer, model?: string): JevRecord {
+	const named = model ? { model } : {};
+	if ("error" in answer)
+		return { ...named, error: answer.error, ms: answer.ms };
 	const { safe, unsafe, confidence, ms } = answer;
 	const { effect, created, user_intent, risky_target } = answer;
 	return {
+		...named,
 		answer: answer.answer,
 		safe,
 		unsafe,
@@ -236,7 +346,11 @@ export async function jevStatus(
 	const cutoffs = `allowAt ${cutoffText(allowAt)}, denyAt ${cutoffText(denyAt)}`;
 	let key: string;
 	try {
-		key = (await jevKey(registry)) ? `${JEV_PROVIDER} key resolves` : NO_KEY;
+		const asker = await jevAsker(registry, settings.model);
+		if (!settings.model)
+			key = typeof asker === "string" ? asker : `${JEV_PROVIDER} key resolves`;
+		else
+			key = `${settings.model}: ${typeof asker === "string" ? asker : "resolves"}`;
 	} catch (error) {
 		key = errorText(error);
 	}

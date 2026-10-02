@@ -126,18 +126,21 @@ whether each entry resolves, without calling a model.
 ## Measuring Jev's cutoffs (live; needs the go-ahead)
 
 Only when the user asks to measure Jev (`jev-1.13`, the classifier on
-OpenCode Zen's SystemOne endpoint). **This spends real quota** on the route's
-opencode-go key: one call per case per sample. With the 37 bench cases and the
+OpenCode Zen's SystemOne endpoint, or the Pi classifier model the route's
+`auto.jev.model` names). **This spends real quota** on the route's key for
+that provider: one call per case per sample. With the 37 bench cases and the
 123 held-out cases in `heldout-cases.ts`, that is 480 calls at the default 3
 samples. Tell the user the count and wait for their go-ahead.
 
 ```bash
-node <skill dir>/bench.ts jev --agent-dir "$ROUTE" [--samples N]
+node <skill dir>/bench.ts jev --agent-dir "$ROUTE" [--samples N] [--model provider/id]
 ```
 
 It asks Jev about every bench and held-out case `N` times (default 3) through the
 bouncer's own Jev client, with the same fields the judge sees and Pi's
-opencode-go key for the route. Without that key it stops before any call;
+opencode-go key for the route, or, with `--model` (pass the route's
+`auto.jev.model`), through that Pi classifier model. Without a key it stops
+before any call;
 `--help` prints usage and calls nothing. Progress goes to stderr; stdout
 shows:
 

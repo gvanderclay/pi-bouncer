@@ -249,6 +249,21 @@ test("auto.jev with denyAt null and allowAt 1 is valid", async () => {
 	});
 });
 
+test("auto.jev.model takes a Pi classifier model as provider/id", async () => {
+	const config = await sessionConfig({
+		auto: {
+			models: ["a/b"],
+			jev: { model: "openrouter/typesafe/jev-1.13" },
+		},
+	});
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual((config.auto as { jev?: unknown }).jev, {
+		allowAt: 0.75,
+		denyAt: null,
+		model: "openrouter/typesafe/jev-1.13",
+	});
+});
+
 const badJev: readonly (readonly [
 	label: string,
 	jev: unknown,
@@ -283,8 +298,13 @@ const badJev: readonly (readonly [
 	],
 	[
 		"an unknown key under auto.jev",
+		{ allowAt: 0.9, url: "https://example.com" },
+		['auto.jev: unknown key "url"'],
+	],
+	[
+		"a model without a provider",
 		{ allowAt: 0.9, model: "jev-2" },
-		['auto.jev: unknown key "model"'],
+		['auto.jev.model must be "provider/id"'],
 	],
 ];
 

@@ -112,8 +112,15 @@ dialog unless the line holds a grep. A grep block never counts toward the
 pause.
 
 With `auto.jev` in the route's `bouncer.json`, auto mode asks Jev first:
-OpenCode Zen's `jev-1.13` classifier, reached at a fixed SystemOne URL with
-the opencode-go key Pi holds for the route. Jev sees exactly what the judge
+TypeSafe's classifier. By default that is OpenCode Zen's `jev-1.13`, reached
+at a fixed SystemOne URL with the opencode-go key Pi holds for the route.
+With `auto.jev.model` set it is that classifier model from Pi's catalogue,
+called through Pi with Pi's own credentials and no retries: for example
+`openrouter/typesafe/jev-1.13` (`OPENROUTER_API_KEY` or `/login`),
+`typesafe/jev-latest` (`TYPESAFE_API_KEY`) or `opencode/jev-1.13`
+(`OPENCODE_API_KEY`); Pi's `docs/models.md` lists them all. A provider Pi does
+not know can be added with a Pi extension that registers a classifier model.
+Jev sees exactly what the judge
 sees, under the same budgets, and answers five questions in one call. Two
 numbers come out of them. The `safety` question, built from the judge's own
 criteria, gives a safe probability, used only to allow. Four short questions
@@ -127,13 +134,13 @@ score at or above `denyAt`, when `denyAt` is not `null`, blocks it with no
 judge-list call, in the ordinary hard-deny form with a fixed reason that
 names no judge; it counts toward the pause like a judge deny, and a Jev
 allow ends a run of denies. Either is recorded with the model
-`opencode-go/jev-1.13`. Anything else (below both cutoffs, both reached, a
+`opencode-go/jev-1.13`, or `auto.jev.model` when set. Anything else (below both cutoffs, both reached, a
 change Jev calls `other` at 0.5 or more, no key, an HTTP error, a reply
 missing any of the five answers or no reply within 5 s) goes to the judge
 list as usual. Jev's 5 s come out of the line's 20 s, and
 aborting the turn aborts it. A failure is reported once per session, like a
-judge-list model's, and `/auto status` shows whether Jev is on, its cutoffs
-and whether the key resolves. Every Jev answer is in the call's log record.
+judge-list model's, and `/auto status` shows whether Jev is on, its cutoffs,
+and which provider it uses and whether its key resolves. Every Jev answer is in the call's log record.
 Jev never sees anything the judge list would not: rule-level denies, the
 always-deny set, unparseable commands, the `grep` steer rule,
 `auto.alwaysAsk` hits, a paused auto mode and lines session allows cover are
@@ -179,7 +186,8 @@ log's rotation size, generations kept and age pruning), `auto` (the judge list
 `jev`) and `startMode` (`off` or `auto`, see Modes).
 `auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
 and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
-`null`. An absent `allowAt` defaults to 0.75, set from the Jev bench and
+`null`. Its optional `model` is a Pi classifier model as `provider/id`; absent,
+Jev goes through OpenCode Zen with the opencode-go key. An absent `allowAt` defaults to 0.75, set from the Jev bench and
 held-out run of 2026-10-01, and an absent `denyAt` defaults to `null`, so
 `"jev": {}` lets Jev allow at a safe probability of 0.75 or more and never
 deny. `allowAt` applies to the safe probability and `denyAt` to the deny

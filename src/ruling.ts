@@ -3,16 +3,15 @@
 import { type AutoSettings, judgeOrder } from "./config.ts";
 import { errorText } from "./error-text.ts";
 import {
-	askJev,
 	classify,
 	type JevCall,
 	type JevKeyLookup,
 	type JevRecord,
+	jevAsker,
 	jevFailure,
-	jevKey,
+	jevName,
 	jevRecord,
 	jevVerdict,
-	NO_KEY,
 } from "./jev.ts";
 import {
 	type JudgeFailure,
@@ -36,12 +35,13 @@ async function callJev(
 	request: JudgeRequest,
 	run: RulingRun,
 	start: number,
+	model: string | undefined,
 ): Promise<JevCall> {
 	try {
-		const key = await jevKey(run.registry);
-		return key
-			? await askJev(request, key, run.signal)
-			: { error: NO_KEY, ms: 0 };
+		const ask = await jevAsker(run.registry, model);
+		return typeof ask === "string"
+			? { error: ask, ms: 0 }
+			: await ask(request, run.signal);
 	} catch (error) {
 		return { error: errorText(error), ms: Date.now() - start };
 	}
@@ -61,9 +61,11 @@ export async function ruleLine(
 	const models = judgeOrder(auto, provider);
 	if (!auto?.jev) return runJudge(models, request, run);
 	const start = Date.now();
-	const answer = classify(await callJev(request, run, start), auto.jev);
-	const jev = jevRecord(answer);
-	const decided = jevVerdict(answer);
+	const { model } = auto.jev;
+	const call = await callJev(request, run, start, model);
+	const answer = classify(call, auto.jev);
+	const jev = jevRecord(answer, model);
+	const decided = jevVerdict(answer, jevName(model));
 	if (decided) return { ...decided, tried: [], jev };
 	const lineMs = LINE_MS - (Date.now() - start);
 	return { ...(await runJudge(models, request, { ...run, lineMs })), jev };

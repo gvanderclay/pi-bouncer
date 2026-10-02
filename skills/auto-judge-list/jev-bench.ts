@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
 import { errorText } from "../../src/error-text.ts";
-import { askJev, jevKey, NO_KEY, readReply } from "../../src/jev.ts";
+import { jevAsker, readReply } from "../../src/jev.ts";
 import type { RulingRegistry } from "../../src/ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
@@ -18,21 +18,24 @@ export type JevSample = {
 	readonly ms: number;
 };
 
-// Without a key it throws before any call.
+// Without a key it throws before any call. `model` is a Pi classifier model, as in
+// `auto.jev.model`; absent is OpenCode Zen with the opencode-go key.
 export async function runJevBench(
 	cases: readonly BenchCase[],
 	registry: RulingRegistry,
 	build: typeof requestFor,
 	samples = 3,
 	onSample: (sample: JevSample) => void = () => {},
+	model?: string,
 ): Promise<JevSample[]> {
-	const key = await jevKey(registry);
-	if (!key) throw new Error(NO_KEY);
+	const ask = await jevAsker(registry, model);
+	if (typeof ask === "string")
+		throw new Error(model ? `${model}: ${ask}` : ask);
 	const results: JevSample[] = [];
 	for (const c of cases) {
 		const request = build(c);
 		for (let sample = 1; sample <= samples; sample += 1) {
-			const call = await askJev(request, key);
+			const call = await ask(request);
 			const reading = "error" in call ? call.error : readReply(call.reply);
 			const result: JevSample =
 				typeof reading === "string"
@@ -292,10 +295,15 @@ export function jevReport(
 }
 
 const USAGE =
-	"usage: node bench.ts jev [--agent-dir <route>] [--samples N]\n" +
-	"Asks Jev about every bench and held-out case N times (default 3); spends real opencode-go quota.\n";
+	"usage: node bench.ts jev [--agent-dir <route>] [--samples N] [--model provider/id]\n" +
+	"Asks Jev about every bench and held-out case N times (default 3); spends real quota.\n" +
+	"--model is a Pi classifier model, as in auto.jev.model; without it, OpenCode Zen with the opencode-go key.\n";
 
-type JevArgs = { readonly route: string; readonly samples: number };
+type JevArgs = {
+	readonly route: string;
+	readonly samples: number;
+	readonly model?: string;
+};
 
 function jevArgs(args: readonly string[]): JevArgs | number {
 	let parsed: ReturnType<typeof parse>;
@@ -316,11 +324,17 @@ function jevArgs(args: readonly string[]): JevArgs | number {
 		return 2;
 	}
 	const route = resolve(values["agent-dir"] ?? defaultAgentDir());
-	return { route, samples };
+	const { model } = values;
+	return model ? { route, samples, model } : { route, samples };
 }
 
 function parse(args: readonly string[]): {
-	values: { "agent-dir"?: string; samples?: string; help?: boolean };
+	values: {
+		"agent-dir"?: string;
+		samples?: string;
+		model?: string;
+		help?: boolean;
+	};
 	positionals: string[];
 } {
 	return parseArgs({
@@ -329,6 +343,7 @@ function parse(args: readonly string[]): {
 		options: {
 			"agent-dir": { type: "string" },
 			samples: { type: "string" },
+			model: { type: "string" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
@@ -359,6 +374,7 @@ export async function jevMain(
 					s.error ?? `safe ${s.safe}, deny score ${s.unsafe?.toFixed(2)}`;
 				process.stderr.write(`${s.id} #${s.sample}: ${answer} (${s.ms} ms)\n`);
 			},
+			parsed.model,
 		);
 	} catch (error) {
 		process.stderr.write(
