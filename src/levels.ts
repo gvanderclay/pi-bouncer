@@ -1,10 +1,7 @@
+import { isObject } from "./json.ts";
 import type { Levels } from "./project-config.ts";
 import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
 import type { ConfigLevel, RuleName } from "./verdict.ts";
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 // Which levels a config may give a rule, and the problem when it gives another.
 function allowedLevels(rule: string): readonly [ConfigLevel[], string] {

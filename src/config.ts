@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { AgentSource } from "./agent-env.ts";
 import { type JevSettings, jevPart } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
+import { isObject, type Json } from "./json.ts";
 import { validLevels } from "./levels.ts";
 import { effectivePolicy, ruleLevels } from "./policy.ts";
 import { chooseProfile, profiledAgents } from "./profile-resolve.ts";
@@ -16,6 +17,7 @@ import {
 	type StartMode,
 	validAgents,
 	validProfiles,
+	validStartMode,
 	withProfile,
 } from "./profiles.ts";
 import {
@@ -77,12 +79,6 @@ export const BUILT_IN_LOG_LIMITS: LogLimits = {
 	rotateAboveMiB: 5,
 	generations: 5,
 };
-
-type Json = Readonly<Record<string, unknown>>;
-
-function isObject(value: unknown): value is Json {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 type FileRead =
 	| { readonly kind: "missing" }
@@ -276,19 +272,6 @@ type Parsed = {
 	readonly rawAgents?: unknown;
 };
 
-function validStartMode(
-	value: unknown,
-	problems: string[],
-): StartMode | undefined {
-	if (value === "off" || value === "auto") return value;
-	problems.push(
-		value === "yolo"
-			? '"startMode": "yolo" is not allowed: YOLO mode starts only with pi --yolo or /yolo'
-			: '"startMode" must be "off" or "auto"',
-	);
-	return undefined;
-}
-
 function parseKeys(
 	json: Json,
 	scope: "route" | "project",
@@ -316,7 +299,7 @@ function parseKey(
 	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
 	else if (key === "protect") parts.protect = validProtect(value, problems);
 	else if (key === "startMode") {
-		assign(parts, "startMode", validStartMode(value, problems));
+		assign(parts, "startMode", validStartMode(value, '"startMode"', problems));
 	} else if (key === "profiles") {
 		parts.profiles = validProfiles(value, problems);
 	} else if (key === "agents") parts.rawAgents = value;
