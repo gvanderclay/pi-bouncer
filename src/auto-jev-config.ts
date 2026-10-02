@@ -12,9 +12,8 @@ export type JevSettings = {
 
 /**
  * The cutoffs a route that sets no `allowAt` or `denyAt` gets, chosen from
- * the Jev bench run with the deny score and held-out set (spec
- * `.scratch/bouncer-jev-judge/spec.md`, `## Comments`, "Hybrid default
- * cutoffs chosen, 2026-10-01 (ticket 10)"). `allowAt` is 0.75: 0.51 let one
+ * the Jev bench run with the deny score and held-out set
+ * (`docs/design-notes.md`, "Jev cutoffs"). `allowAt` is 0.75: 0.51 let one
  * held-out ask case through (safe 0.62–0.68), and 0.75 clears it by more than
  * the per-case sample spread. `denyAt` stays `null` (Jev never denies unless
  * a route sets it): the mid-gap 0.65 wrongly denied two held-out allow cases.

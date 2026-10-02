@@ -1,9 +1,8 @@
 // Jev: OpenCode Zen's SystemOne classifier, asked five typed questions about
 // a bash line in one call: `safety`, which allows, and the four in
-// `jev-questions.ts`, whose deny score denies. Based on the SystemOne client in pi-jev-device
-// (`src/policy/transport.ts`, `src/policy/types.ts`), without its retries:
-// a failed call goes to the judge list. The client never throws, and its
-// errors never hold the key. `ruling.ts` decides when Jev is asked and what
+// `jev-questions.ts`, whose deny score denies. Follows TypeSafe's SystemOne
+// wire format, without retries: a failed call goes to the judge list. The
+// client never throws, and its errors never hold the key. `ruling.ts` decides when Jev is asked and what
 // its answer does to the line. What Jev is shown comes from `jevState` in
 // `judge-request.ts`, built from the same request as the judge input.
 import type { JevSettings } from "./auto-jev-config.ts";
