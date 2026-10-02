@@ -10,7 +10,7 @@ export type ModeHolder = {
 	flagsApplied: boolean;
 };
 
-const KEY = Symbol.for("dotfiles.bouncer.mode");
+const KEY = Symbol.for("pi-bouncer.mode");
 
 export function createModeHolder(): ModeHolder {
 	return { mode: "off", flagsApplied: false };

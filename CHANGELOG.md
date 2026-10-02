@@ -16,6 +16,9 @@ bouncer lived in its author's dotfiles.
 
 ### Changed
 
+- The process-wide key that keeps the bouncer mode across `/reload` is now
+  `Symbol.for("pi-bouncer.mode")`. A Pi process that updates the bouncer and
+  then runs `/reload` drops back to normal mode once.
 - The source moved under `src/`; Pi now loads `src/index.ts`. A checkout loaded
   with `pi -e <path to the checkout>` is unaffected; anything that pointed at
   `index.ts` directly must point at `src/index.ts`.
