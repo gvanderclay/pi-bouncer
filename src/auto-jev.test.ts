@@ -63,7 +63,7 @@ function stubJev(t: TestContext, reply: () => Scripted): Sent[] {
 		(url: string, init: RequestInit): Promise<Response> => {
 			const signal = init.signal ?? undefined;
 			sent.push({
-				url,
+				url: String(url),
 				headers: init.headers as Record<string, string>,
 				body: JSON.parse(String(init.body)),
 				signal,
@@ -128,7 +128,7 @@ test("a safe answer at allowAt runs the line with no dialog and no judge-list ca
 	assert.deepEqual(fake.requests, []);
 	assert.equal(sent.length, 1);
 	assert.equal(sent[0]?.url, ZEN);
-	assert.equal(sent[0]?.headers["Authorization"], `Bearer ${KEY}`);
+	assert.equal(sent[0]?.headers["authorization"], `Bearer ${KEY}`);
 	assert.equal(sent[0]?.body.model, "jev-1.13");
 	const record = gate.records().at(-1);
 	assert.equal(record?.outcome, "allowed");
@@ -476,7 +476,10 @@ for (const missing of [
 		assert.equal(fake.requests.length, 1);
 		const auto = autoOf(gate);
 		assert.equal(auto.model, "fake/judge");
-		assert.equal(auto.jev?.error, `reply has no ${missing} answer`);
+		assert.equal(
+			auto.jev?.error,
+			`System One API did not return an answer for ${missing}`,
+		);
 	});
 }
 
@@ -490,19 +493,19 @@ const FAILURES: readonly (readonly [
 		"an HTTP 500",
 		{ status: 500, body: "upstream exploded" },
 		KEYS,
-		"HTTP 500: upstream exploded",
+		"System One API error (500): upstream exploded",
 	],
 	[
 		"a non-JSON reply",
 		"<html>oops</html>",
 		KEYS,
-		"reply was not JSON: <html>oops</html>",
+		`Unexpected token '<', "<html>oops</html>" is not valid JSON`,
 	],
 	[
 		"a reply without the question's answer",
 		JSON.stringify({ model: "jev-1.13", answers: {} }),
 		KEYS,
-		"reply has no safety answer",
+		"System One API did not return an answer for safety",
 	],
 	["a missing opencode-go key", jevReply(0.99, 0.01), {}, "no opencode-go key"],
 ];
@@ -579,7 +582,7 @@ test("a Jev failure with no judge available is listed in the no-judge notice", a
 	await gate.handler(bashCall("rm -rf dist"), ui.ctx);
 	assert.deepEqual(ui.notices, [
 		{
-			message: `Auto: no judge available (${JEV}: HTTP 500: down; fake/judge: no parseable verdict). The auto-judge-list skill can fix the list.`,
+			message: `Auto: no judge available (${JEV}: System One API error (500): down; fake/judge: no parseable verdict). The auto-judge-list skill can fix the list.`,
 			level: "warning",
 		},
 	]);
@@ -592,7 +595,10 @@ test("Jev's key never appears in a logged error", async (t) => {
 		verdict("allow", "ok"),
 	);
 	await gate.handler(bashCall("rm -rf dist"), noUI(fake));
-	assert.equal(autoOf(gate).jev?.error, "HTTP 401: bad key <key>");
+	assert.equal(
+		autoOf(gate).jev?.error,
+		"System One API error (401): bad key <key>",
+	);
 	assert.ok(!JSON.stringify(gate.records()).includes(KEY));
 });
 
@@ -1079,6 +1085,6 @@ test("/auto status lists Jev's last failure with the judge list's", async (t) =>
 	await gate.handler(bashCall("rm -rf dist"), noUI(fake));
 	assert.match(
 		await statusText(gate, fake),
-		/\nLast failures this session:\n- opencode-go\/jev-1\.13: HTTP 500: down\n/,
+		/\nLast failures this session:\n- opencode-go\/jev-1\.13: System One API error \(500\): down\n/,
 	);
 });

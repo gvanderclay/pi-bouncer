@@ -137,8 +137,8 @@ node <skill dir>/bench.ts jev --agent-dir "$ROUTE" [--samples N] [--model provid
 ```
 
 It asks Jev about every bench and held-out case `N` times (default 3) through the
-bouncer's own Jev client, with the same fields the judge sees and Pi's
-opencode-go key for the route, or, with `--model` (pass the route's
+bouncer's own Jev client (through Pi), with the same fields the judge sees and
+Pi's opencode-go key for the route, or, with `--model` (pass the route's
 `auto.jev.model`), through that Pi classifier model. Without a key it stops
 before any call;
 `--help` prints usage and calls nothing. Progress goes to stderr; stdout

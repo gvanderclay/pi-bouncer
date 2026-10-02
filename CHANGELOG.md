@@ -15,13 +15,21 @@ bouncer lived in its author's dotfiles.
 - CI on Node 22.19 and 24, and a check of the published file list.
 - `auto.jev.model` picks Jev's provider: any classifier model in Pi's
   catalogue as `provider/id`, such as `openrouter/typesafe/jev-1.13` or
-  `typesafe/jev-latest`, called through Pi with no retries. Without it Jev
-  still uses OpenCode Zen and the opencode-go key. `/auto status`, the log and
+  `typesafe/jev-latest`. Without it Jev still uses OpenCode Zen's
+  `jev-1.13` with the opencode-go key. `/auto status`, the log and
   the notices name the model. The Jev bench takes `--model`. The cutoffs were
   measured through Zen only.
 
 ### Changed
 
+- Jev is now always called through Pi's classifier support (Pi's
+  `opencode/jev-1.13`, handed the opencode-go key, when `auto.jev.model` is
+  absent), still with no retries and a 5 s budget. The address, model and key
+  are unchanged, but a failed call's error now uses Pi's wording, for example
+  `System One API error (500): …` instead of `HTTP 500: …`, and `System One
+  API did not return an answer for safety` instead of `reply has no safety
+  answer`. The Jev tests in `src/auto-jev.test.ts` and the bench tests were
+  updated to match, deliberately.
 - `auto.jev.model` is no longer an unknown key; a value that is not
   `provider/id` is a config problem and leaves Jev off.
 

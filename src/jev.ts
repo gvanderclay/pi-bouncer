@@ -1,6 +1,7 @@
-// Jev: TypeSafe's SystemOne classifier. By default Zen's jev-1.13, called here with
-// the opencode-go key: Pi lists the same model as opencode/jev-1.13 but looks for the key
-// under `opencode`, not `opencode-go`. With `auto.jev.model` set, through Pi's registry. Never retried: a failed call goes to the judge list. Errors never hold the key.
+// Jev: TypeSafe's SystemOne classifier, always called through Pi's classifier registry.
+// By default Zen's jev-1.13 (Pi's opencode/jev-1.13) with the opencode-go key, since Pi
+// looks for that model's key under `opencode`; with `auto.jev.model`, that model and Pi's
+// own credentials. Never retried: a failed call goes to the judge list. Errors never hold the key.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
@@ -19,7 +20,7 @@ import {
 } from "./judge.ts";
 import { type JudgeRequest, jevState } from "./judge-request.ts";
 
-export const JEV_URL = "https://opencode.ai/zen/v1/systemone";
+const ZEN_PROVIDER = "opencode";
 export const JEV_MODEL = "jev-1.13";
 
 export const JEV_PROVIDER = "opencode-go";
@@ -70,7 +71,7 @@ export type JevKeyLookup = {
 	classify?(
 		model: never,
 		context: { state: object; questions: object },
-		options: { signal: AbortSignal; maxRetries: number },
+		options: { signal: AbortSignal; maxRetries: number; apiKey?: string },
 	): Promise<PiResult>;
 };
 
@@ -85,49 +86,9 @@ export type JevCall =
 	| { readonly reply: unknown; readonly ms: number }
 	| { readonly error: string; readonly ms: number };
 
-function hidden(text: string, key: string | undefined): string {
-	return key ? text.replaceAll(key, "<key>") : text;
-}
-
-function shown(text: string, key: string): string {
-	return hidden(text, key).slice(0, 200);
-}
-
-async function post(
-	request: JudgeRequest,
-	key: string,
-	signal: AbortSignal,
-): Promise<unknown> {
-	const response = await fetch(JEV_URL, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${key}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			model: JEV_MODEL,
-			state: jevState(request),
-			questions: QUESTIONS,
-		}),
-		signal,
-	});
-	const text = await response.text();
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status}: ${shown(text, key)}`);
-	}
-	try {
-		return JSON.parse(text);
-	} catch {
-		throw new Error(`reply was not JSON: ${shown(text, key)}`);
-	}
-}
-
-export function askJev(
-	request: JudgeRequest,
-	key: string,
-	signal?: AbortSignal,
-): Promise<JevCall> {
-	return timed((both) => post(request, key, both), key, signal);
+// Capped: a provider's error can carry a whole reply body.
+function shown(text: string, key: string | undefined): string {
+	return (key ? text.replaceAll(key, "<key>") : text).slice(0, 200);
 }
 
 async function timed(
@@ -143,7 +104,7 @@ async function timed(
 		const reply = await send(AbortSignal.any(signals));
 		return { reply, ms: Date.now() - start };
 	} catch (error) {
-		let text = hidden(errorText(error), key);
+		let text = shown(errorText(error), key);
 		if (own.signal.aborted) text = `no reply within ${JEV_MS / 1000} s`;
 		else if (signal?.aborted) text = "the call was aborted";
 		return { error: text, ms: Date.now() - start };
@@ -169,34 +130,48 @@ export type JevAsk = (
 	signal?: AbortSignal,
 ) => Promise<JevCall>;
 
+type Target = {
+	readonly provider: string;
+	readonly id: string;
+	/** Handed to Pi in place of the provider's own key. */
+	readonly apiKey?: string;
+};
+
+async function target(
+	registry: JevKeyLookup,
+	model: string | undefined,
+): Promise<Target | string> {
+	if (!model) {
+		const apiKey = await jevKey(registry);
+		return apiKey ? { provider: ZEN_PROVIDER, id: JEV_MODEL, apiKey } : NO_KEY;
+	}
+	const slash = model.indexOf("/");
+	return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
+}
+
 /**
- * How to ask Jev, or why it cannot be asked. Without `model`, OpenCode Zen with the
- * opencode-go key; with it, that Pi classifier model. A registry that fails to look
- * up the key throws.
+ * How to ask Jev, or why it cannot be asked. A registry that fails to look up the
+ * key throws.
  */
 export async function jevAsker(
 	registry: JevKeyLookup,
 	model?: string,
 ): Promise<JevAsk | string> {
-	if (!model) {
-		const key = await jevKey(registry);
-		return key
-			? (request: JudgeRequest, signal?: AbortSignal): Promise<JevCall> =>
-					askJev(request, key, signal)
-			: NO_KEY;
-	}
-	const slash = model.indexOf("/");
-	const provider = model.slice(0, slash);
+	const to = await target(registry, model);
+	if (typeof to === "string") return to;
 	const found = registry.getModelOfType?.(
 		"classifier",
-		provider,
-		model.slice(slash + 1),
+		to.provider,
+		to.id,
 	) as never;
 	const { classify } = registry;
 	if (!(found && classify)) return "not a classifier model in Pi's catalogue";
-	if (!registry.hasConfiguredAuth?.(found)) return "no configured auth";
-	// Only to keep the key out of error text; Pi resolves its own at request time.
-	const key = await registry.getApiKeyForProvider?.(provider);
+	if (!(to.apiKey || registry.hasConfiguredAuth?.(found))) {
+		return "no configured auth";
+	}
+	// Pi resolves its own key at request time; this one only keeps it out of errors.
+	const key = to.apiKey ?? (await registry.getApiKeyForProvider?.(to.provider));
+	const options = to.apiKey ? { apiKey: to.apiKey } : {};
 	return (request: JudgeRequest, signal?: AbortSignal): Promise<JevCall> =>
 		timed(
 			async (both: AbortSignal): Promise<unknown> => {
@@ -204,7 +179,7 @@ export async function jevAsker(
 					registry,
 					found,
 					{ state: jevState(request), questions: PI_QUESTIONS },
-					{ signal: both, maxRetries: 0 },
+					{ ...options, signal: both, maxRetries: 0 },
 				);
 				if (result.stopReason !== "stop") {
 					throw new Error(result.errorMessage ?? result.stopReason);

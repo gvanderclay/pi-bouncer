@@ -13,6 +13,8 @@ import {
 	type EventBus,
 	type ExtensionAPI,
 	type ExtensionContext,
+	ModelRegistry,
+	ModelRuntime,
 	type ToolCallEvent,
 	type ToolCallEventResult,
 	type ToolResultEvent,
@@ -603,7 +605,20 @@ function settle(reply: ModelReply, signal?: AbortSignal): Promise<FakeMessage> {
 	});
 }
 
-// A model absent from `models` is missing from `find`. Never touches a network or `auth.json`.
+// Pi's real catalogue and classifier clients, with an empty auth file of its own and no
+// catalogue refresh: Jev calls reach whatever `fetch` a test mocks.
+const PI_DIR = mkdtempSync(join(tmpdir(), "bouncer-pi-"));
+const pi = new ModelRegistry(
+	await ModelRuntime.create({
+		authPath: join(PI_DIR, "auth.json"),
+		modelsPath: null,
+		modelsStorePath: join(PI_DIR, "models-store.json"),
+		refreshOnCreate: false,
+	}),
+);
+
+// A model absent from `models` is missing from `find`. Never touches a network or `auth.json`;
+// classifier models and `classify` are Pi's own.
 export function fakeRegistry(
 	models: Readonly<Record<string, ModelScript>> = {},
 	keys: Readonly<Record<string, string>> = {},
@@ -626,6 +641,8 @@ export function fakeRegistry(
 		getApiKeyForProvider(provider: string): Promise<string | undefined> {
 			return Promise.resolve(keys[provider]);
 		},
+		getModelOfType: pi.getModelOfType.bind(pi),
+		classify: pi.classify.bind(pi),
 		streamSimple(
 			model: FakeModel,
 			context: { systemPrompt: string; messages: { content: string }[] },

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
-import { askJev, classify, type JevAnswer } from "../../src/jev.ts";
+import {
+	classify,
+	type JevAnswer,
+	type JevAsk,
+	jevAsker,
+} from "../../src/jev.ts";
 import {
 	JUDGE_CRITERIA,
 	JUDGE_PROMPT,
@@ -388,7 +393,7 @@ function stubFetch(
 		async (url: string, init: RequestInit): Promise<Response> => {
 			const body = JSON.parse(String(init.body)) as SentRequest["body"];
 			sent.push({
-				url,
+				url: String(url),
 				method: init.method,
 				headers: init.headers as Record<string, string>,
 				body,
@@ -406,6 +411,12 @@ function keyed(): JudgeRegistry {
 	return fakeRegistry({}, { "opencode-go": KEY }).registry as JudgeRegistry;
 }
 
+async function zenAsker(): Promise<JevAsk> {
+	const ask = await jevAsker(keyed());
+	if (typeof ask === "string") assert.fail(ask);
+	return ask;
+}
+
 test("the Jev bench sends one request per case per sample to the Zen URL, with model jev-1.13 and the registry's Bearer key", async (t) => {
 	const sent = stubFetch(t, () => jevReply(0.9, 0.1));
 	await runJevBench(TWO, keyed(), requestFor, 2);
@@ -413,7 +424,7 @@ test("the Jev bench sends one request per case per sample to the Zen URL, with m
 	for (const request of sent) {
 		assert.equal(request.url, ZEN);
 		assert.equal(request.method, "POST");
-		assert.equal(request.headers["Authorization"], `Bearer ${KEY}`);
+		assert.equal(request.headers["authorization"], `Bearer ${KEY}`);
 		assert.equal(request.body.model, "jev-1.13");
 		assert.deepEqual(Object.keys(request.body.questions), [
 			"safety",
@@ -561,7 +572,7 @@ test("scripted probabilities give the expected cutoff table", async (t) => {
 			["b", 0.6],
 			["c", 0.05],
 			["c", 0.1],
-			["d", "HTTP 503: overloaded"],
+			["d", "System One API error (503): overloaded"],
 			["d", 0.99],
 		],
 	);
@@ -659,7 +670,7 @@ async function answered(
 ): Promise<JevAnswer> {
 	t.mock.timers.enable({ apis: ["Date"] });
 	stubFetch(t, () => reply);
-	return classify(await askJev(BENCH_REQUEST(), KEY), cutoffs);
+	return classify(await (await zenAsker())(BENCH_REQUEST()), cutoffs);
 }
 
 const unsureRows: readonly (readonly [
@@ -670,17 +681,17 @@ const unsureRows: readonly (readonly [
 	[
 		"a non-JSON reply",
 		`<html>bad gateway for ${KEY}</html>`,
-		"reply was not JSON: <html>bad gateway for <key></html>",
+		`Unexpected token '<', "<html>bad "... is not valid JSON`,
 	],
 	[
 		"an HTTP error",
 		{ status: 401, body: `invalid key ${KEY} ${"x".repeat(300)}` },
-		`HTTP 401: invalid key <key> ${"x".repeat(182)}`,
+		`System One API error (401): invalid key <key> ${"x".repeat(154)}`,
 	],
 	[
 		"a reply missing the question",
 		JSON.stringify({ model: "jev-1.13", answers: {} }),
-		"reply has no safety answer",
+		"System One API did not return an answer for safety",
 	],
 	[
 		"a probability outside 0–1",
@@ -702,7 +713,7 @@ test("a failed request is unsure, and its error never holds the key", async (t) 
 	t.mock.method(globalThis, "fetch", () =>
 		Promise.reject(new Error(`connect refused (Bearer ${KEY})`)),
 	);
-	const answer = classify(await askJev(BENCH_REQUEST(), KEY), CUTOFFS);
+	const answer = classify(await (await zenAsker())(BENCH_REQUEST()), CUTOFFS);
 	assert.deepEqual(answer, {
 		answer: "unsure",
 		error: "connect refused (Bearer <key>)",
@@ -713,11 +724,16 @@ test("a failed request is unsure, and its error never holds the key", async (t) 
 test("Jev gets 5 s, then the call is unsure with the budget as its error", async (t) => {
 	t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
 	let signal: AbortSignal | undefined;
+	let fetched = (): void => {};
+	const reached = new Promise<void>((resolve) => {
+		fetched = resolve;
+	});
 	t.mock.method(
 		globalThis,
 		"fetch",
 		(_url: string, init: RequestInit): Promise<Response> => {
 			signal = init.signal ?? undefined;
+			fetched();
 			return new Promise((_resolve, reject) => {
 				init.signal?.addEventListener("abort", () =>
 					reject(new Error("This operation was aborted")),
@@ -725,7 +741,8 @@ test("Jev gets 5 s, then the call is unsure with the budget as its error", async
 			});
 		},
 	);
-	const pending = askJev(BENCH_REQUEST(), KEY);
+	const pending = (await zenAsker())(BENCH_REQUEST());
+	await reached;
 	t.mock.timers.tick(4_999);
 	assert.equal(signal?.aborted, false);
 	t.mock.timers.tick(1);
@@ -749,7 +766,7 @@ test("aborting the caller's signal aborts the call", async (t) => {
 			}),
 	);
 	const turn = new AbortController();
-	const pending = askJev(BENCH_REQUEST(), KEY, turn.signal);
+	const pending = (await zenAsker())(BENCH_REQUEST(), turn.signal);
 	turn.abort();
 	assert.deepEqual(await pending, { error: "the call was aborted", ms: 0 });
 });

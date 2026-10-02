@@ -112,10 +112,11 @@ dialog unless the line holds a grep. A grep block never counts toward the
 pause.
 
 With `auto.jev` in the route's `bouncer.json`, auto mode asks Jev first:
-TypeSafe's classifier. By default that is OpenCode Zen's `jev-1.13`, reached
-at a fixed SystemOne URL with the opencode-go key Pi holds for the route.
-With `auto.jev.model` set it is that classifier model from Pi's catalogue,
-called through Pi with Pi's own credentials and no retries: for example
+TypeSafe's classifier, always called through Pi's classifier support with
+no retries. By default that is OpenCode Zen's `jev-1.13` (Pi's
+`opencode/jev-1.13`) with the opencode-go key Pi holds for the route. With
+`auto.jev.model` set it is that classifier model, with Pi's own credentials:
+for example
 `openrouter/typesafe/jev-1.13` (`OPENROUTER_API_KEY` or `/login`),
 `typesafe/jev-latest` (`TYPESAFE_API_KEY`) or `opencode/jev-1.13` (the same
 Zen model as the default, with the key Pi holds for `opencode` rather than
