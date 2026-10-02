@@ -4,11 +4,15 @@ description: Choose or refresh the bouncer's judge list (auto.models) for auto m
 ---
 
 The bouncer's auto mode sends every ask to a **judge**: the first
-model on the route's **judge list** that answers. The list is `auto.models`
-in the route's bouncer config, `<agent dir>/bouncer.json`, as
+model on the **judge list** that answers. The list is `auto.models`
+in the user config, `<agent dir>/bouncer.json`, as
 `provider/id` entries in priority order. There is no default list in code;
 this skill keeps the list current. The agent dir is `$PI_CODING_AGENT_DIR`,
-or `~/.pi/agent` when unset; call it `$ROUTE` below.
+or `~/.pi/agent` when unset; set it once for the commands below:
+
+```bash
+AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+```
 
 Rules for the whole run:
 
@@ -16,30 +20,30 @@ Rules for the whole run:
   models. Before it, tell the user how many calls it makes (candidates ×
   cases) and wait for their go-ahead.
 - **No report file.** Show every result in chat. The only file you write is
-  the route's `bouncer.json`, in step 7, and only with changes the
+  the user config, `$AGENT_DIR/bouncer.json`, in step 7, and only with changes the
   user accepted.
 - **Credentials stay with Pi.** Models are called through Pi's model
-  registry, which reads the route's credentials itself. Never open, print or
+  registry, which reads the credentials in the agent dir itself. Never open, print or
   copy a credentials file.
 
 ## 1. Refresh Pi's model catalogue
 
 ```bash
-PI_CODING_AGENT_DIR="$ROUTE" pi update --models
+PI_CODING_AGENT_DIR="$AGENT_DIR" pi update --models
 ```
 
 ## 2. List the models Pi knows
 
 ```bash
-PI_CODING_AGENT_DIR="$ROUTE" pi --list-models
+PI_CODING_AGENT_DIR="$AGENT_DIR" pi --list-models
 ```
 
 This reads Pi's runtime catalogue. Do not use pi-ai's bundled static model
-list: it lags the catalogue and lacks models the route can call.
+list: it lags the catalogue and lacks models you can call.
 
 ## 3. Pick the candidates
 
-Read the current list from `$ROUTE/bouncer.json` (`auto.models`),
+Read the current list from `$AGENT_DIR/bouncer.json` (`auto.models`),
 if there is one. Candidates are:
 
 - every current entry;
@@ -52,8 +56,8 @@ any; take whatever they add, even past the cap.
 ## 4. Research each candidate
 
 If you have a web search tool, use it; otherwise fetch primary sources:
-the OpenCode Go and Zen docs, `https://pi.dev/models`, the provider's own
-model pages, and OpenRouter's model list. For each candidate note:
+`https://pi.dev/models`, and each candidate provider's own model, pricing
+and data-use pages. For each candidate note:
 
 - whether it is still offered, and its price;
 - rate limits or free-tier limits;
@@ -91,7 +95,7 @@ parser, lowest reasoning level, session id and 10 s budget as a live judge
 call.
 
 ```bash
-node <skill dir>/../../dist/skills/auto-judge-list/bench.js run --agent-dir "$ROUTE" provider/id provider/id …
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js run --agent-dir "$AGENT_DIR" provider/id provider/id …
 ```
 
 With no entries it benchmarks the current list. Progress goes to stderr and
@@ -110,7 +114,7 @@ not leave auto mode without a judge. With an existing list, show the
 change as a diff:
 
 ```bash
-node <skill dir>/../../dist/skills/auto-judge-list/bench.js diff --agent-dir "$ROUTE" provider/id provider/id …
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js diff --agent-dir "$AGENT_DIR" provider/id provider/id …
 ```
 
 (`+` added, `-` removed, `~` moved.) Ask the user which changes to accept;
@@ -118,8 +122,9 @@ they may accept some and not others.
 
 ## 7. Write only the accepted changes
 
-Edit `$ROUTE/bouncer.json`, changing only `auto.models` and only as
-accepted, and keep every other key as it was. Every `auto.firstByProvider`
+Edit `$AGENT_DIR/bouncer.json`, changing only `auto.models` and only as
+accepted, and keep every other key as it was. If the file does not exist,
+create it holding only `auto.models`. Every `auto.firstByProvider`
 value must stay in `auto.models`: if an accepted change drops one, say so
 and ask the user which entry that provider should ask first instead, or
 whether to remove it. If the file is a symlink,
@@ -129,19 +134,19 @@ whether each entry resolves, without calling a model.
 ## Measuring Jev's cutoffs (live; needs the go-ahead)
 
 Only when the user asks to measure Jev (`jev-1.13`, the classifier on
-OpenCode Zen's SystemOne endpoint, or the Pi classifier model the route's
-`auto.jev.model` names). **This spends real quota** on the route's key for
+OpenCode Zen's SystemOne endpoint, or the Pi classifier model the user config's
+`auto.jev.model` names). **This spends real quota** on the agent dir's key for
 that provider: one call per case per sample. With the 37 bench cases and the
 123 held-out cases in `heldout-cases.ts`, that is 480 calls at the default 3
 samples. Tell the user the count and wait for their go-ahead.
 
 ```bash
-node <skill dir>/../../dist/skills/auto-judge-list/bench.js jev --agent-dir "$ROUTE" [--samples N] [--model provider/id]
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js jev --agent-dir "$AGENT_DIR" [--samples N] [--model provider/id]
 ```
 
 It asks Jev about every bench and held-out case `N` times (default 3) through the
 bouncer's own Jev client (through Pi), with the same fields the judge sees and
-Pi's opencode-go key for the route, or, with `--model` (pass the route's
+Pi's opencode-go key, or, with `--model` (pass the user config's
 `auto.jev.model`), through that Pi classifier model. Without a key it stops
 before any call;
 `--help` prints usage and calls nothing. Progress goes to stderr; stdout

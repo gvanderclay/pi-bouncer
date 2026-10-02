@@ -19,6 +19,9 @@ rules live in `src/rules/custom.ts`, the effective policy in `src/policy.ts`
 `hiddenArgvs` (`src/rules/hidden-exec.ts`), and the grep recipe, which the
 tests load as `PREFER_RG`, in `examples/prefer-rg.json`. `RuleName` is now
 `string`.
+4.1–4.3 are done (2026-10-02): `src/schema.test.ts` loads every
+`examples/*.json`, and GitHub private vulnerability reporting is on for
+`SECURITY.md`.
 Auto mode's refusal does not point at `/bouncer init`, because `init` writes
 no judge list.
 

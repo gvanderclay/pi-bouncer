@@ -10,15 +10,15 @@ replay the command only when the log has no record of it.
 
 ## Where the log is
 
-Each Pi route keeps its own log, in its agent dir:
+Each Pi agent dir keeps its own log:
 
 - `<agent dir>/bouncer/log.jsonl`: the current log, shared by every
-  session of that route. The agent dir is `$PI_CODING_AGENT_DIR`, or
+  session that uses that agent dir. The agent dir is `$PI_CODING_AGENT_DIR`, or
   `~/.pi/agent` when unset. `$PI_BOUNCER_LOG_DIR`, when set,
   replaces the whole directory (live checks use it).
 - `log.1.jsonl.gz`, `log.2.jsonl.gz`, … beside it: older generations, newest
   first. The log rotates at a session start once it passes its size limit
-  (5 MiB and five generations unless the route's bouncer config says
+  (5 MiB and five generations unless the user config's bouncer config says
   otherwise), so one session's records are never split across files. With
   `log.maxAgeDays` set, generations older than that are deleted at session
   start.
@@ -32,9 +32,9 @@ BOUNCER_LOG="${PI_BOUNCER_LOG_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/bounc
 ## The bouncer config
 
 A rule's level can differ from the built-in one. At every session start the
-bouncer reads the route's `<agent dir>/bouncer.json` and the project's
+bouncer reads the user config, `<agent dir>/bouncer.json`, and the project's
 `<cwd>/.pi/extensions/bouncer/config.json` (the session's working
-directory only; the project overrides the route entry by entry). A project
+directory only; the project overrides the user config entry by entry). A project
 file never loosens the always-deny set, and when Pi did not trust the
 project at session start it only makes rules stricter; each ignored entry is
 a problem in the record's `files`, and the record's `config.projectTrusted`
@@ -48,7 +48,7 @@ rule does not take is a config problem. `rules` defines custom rules
 (name, command, optional args in order, summary, level, and `instead` for a
 steer rule); `config.levels` lists them too. `protect` adds paths to
 `rm-root` (`config.protect`). An invalid part falls back to its built-in value. Edits apply
-from the next session start, never mid-session. The route file alone may
+from the next session start, never mid-session. The user config alone may
 also set `auto` (auto mode's `models`, `alwaysAsk`, `environment`,
 `firstByProvider` and `jev`); a project file's `auto`, `jev` included, is
 ignored with a warning, trusted or not. Don't read the files to
@@ -76,8 +76,8 @@ still answers its ask first.
 
 The bouncer has one process-wide **bouncer mode**: off, auto or YOLO; turning one
 on leaves the other. While **auto mode** is on, every ask that no session
-allow covers goes to a **judge**: the first model on the route's **judge
-list** (`auto.models` in the route's bouncer config, `provider/id` entries)
+allow covers goes to a **judge**: the first model on the **judge
+list** (`auto.models` in the user config's bouncer config, `provider/id` entries)
 that answers. `auto.firstByProvider` maps the session model's provider to
 one of those entries, which is then asked first; the rest follow in list
 order. One judge call covers the whole line. The user turns it on
@@ -94,7 +94,7 @@ model registry. Its lifetime is YOLO mode's.
   `deny`), the always-deny set whatever its level, the
   unreadable-command denies, and steer rules, which also win over
   an `auto.alwaysAsk` prefix and never counts toward the pause.
-- Never judged: a command matching one of the route's `auto.alwaysAsk`
+- Never judged: a command matching one of the user config's `auto.alwaysAsk`
   prefixes gets the pseudo-rule `always-ask` and always opens the dialog.
 - Each model has 10 s and the line 20 s; any failure (not in Pi's catalogue,
   no auth, quota, timeout, network, an unparseable reply) moves to the next
@@ -110,9 +110,11 @@ model registry. Its lifetime is YOLO mode's.
   write no record of their own; the call records' `paused` verdicts show it.
 - A mode switch while a judge call is out drops the judge's verdict, and the
   new mode decides the call.
-- **Jev**: when the route's `auto` has `jev`, the judge list is asked only
-  after Jev, OpenCode Zen's `jev-1.13` classifier (called with the route's
-  opencode-go key). Jev sees what the judge sees and answers five questions
+- **Jev**: when the user config's `auto` has `jev`, the judge list is asked only
+  after Jev, a classifier: the Pi classifier model `auto.jev.model` names,
+  or without it OpenCode Zen's `jev-1.13` called with Pi's opencode-go key.
+  Jev's name below, `<jev>`, is `auto.jev.model` when set and
+  `opencode-go/jev-1.13` otherwise. Jev sees what the judge sees and answers five questions
   in one call: `safety` gives the safe probability, used only to allow, and
   four short questions (`effect`, `created`, `user_intent`,
   `risky_target`) give the deny score, used only to deny:
@@ -121,10 +123,10 @@ model registry. Its lifetime is YOLO mode's.
   `auto.jev.allowAt` and `auto.jev.denyAt` are optional
   numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
   `allowAt` is 0.75, an absent `denyAt` is `null` (Jev denies only when
-  the route sets it), and an invalid `auto.jev` is a config problem that
+  the user config sets it), and an invalid `auto.jev` is a config problem that
   leaves Jev off. A safe
   probability at or above `allowAt` allows the line with no judge-list call,
-  and `auto.model` is `opencode-go/jev-1.13`. A deny score at or
+  and `auto.model` is `<jev>`. A deny score at or
   above `denyAt`, unless `denyAt` is `null`, denies it the same way, in the
   ordinary hard-deny form with the fixed reason "It was rated as likely
   unsafe." (no judge named); it counts toward the pause like a judge deny,
@@ -133,14 +135,14 @@ model registry. Its lifetime is YOLO mode's.
   more, and a failure (no key, HTTP error, unreadable reply or one missing
   any of the five answers, no reply within 5 s, aborted turn), goes to the judge
   list with what is left of the line's 20 s. A Jev failure is reported once
-  per session under `opencode-go/jev-1.13`. Everything denied or never
+  per session under `<jev>`. Everything denied or never
   judged above never reaches Jev either.
 - The judge sees the command, each uncovered ask's rule and summary, the
   working directory, the git branch and dirty state, the git remotes (those
   added or changed since the session started flagged), the user's last
   message in full, up to 10 earlier user messages (each cut to 1,000
   characters, 4,000 in all, newest kept), the session history and the
-  route's `auto.environment` facts. Never tool output, file contents, edit
+  user config's `auto.environment` facts. Never tool output, file contents, edit
   text, the agent's own messages or `AGENTS.md`.
 - The session history is the bouncer's own record, taken at `tool_result` in
   every mode since the session started: each executed bash command with its
@@ -153,7 +155,7 @@ model registry. Its lifetime is YOLO mode's.
   deleting what the agent visibly created this session, unless the user
   asked to keep it.
 - `/auto status` shows the mode, the pause, Jev (off, or on with its
-  cutoffs and whether the opencode-go key resolves), each list entry and whether it
+  cutoffs, its model and whether its key resolves), each list entry and whether it
   resolves, the `firstByProvider` entries with this session's provider
   marked, each model's last failure this session, the `alwaysAsk`
   prefixes and how many environment facts there are, without calling a
@@ -171,12 +173,12 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
   started (after `--yolo` was applied), and `auto` whether auto mode was
 (after `--auto`). `config` is what the session ran
   under:
-  - `files`: the route file, then the project file, each
+  - `files`: the user config, then the project file, each
     `{path, loaded, problems}`. A missing file is `loaded: false` with no
     problems; a broken one lists what was wrong.
   - `levels`: every rule with its effective level for the session.
   - `log`: the effective `rotateAboveMiB`, `generations` and `maxAgeDays`.
-  - `auto`, only when the route sets it: the judge list `models`, the
+  - `auto`, only when the user config sets it: the judge list `models`, the
     `alwaysAsk` prefixes, `environment` as a count of facts (their text
     is not logged), `firstByProvider` when it is set, and `jev` (its
     `allowAt` and `denyAt`, `null` for never) when Jev is on.
@@ -208,11 +210,12 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       `always-ask` (an `alwaysAsk` prefix hit). The last two mean no judge
       was called.
     - `reason`, `model` (the `provider/id` that answered, or
-      `opencode-go/jev-1.13` when Jev decided) and `ms`, when a judge
+      `<jev>` when Jev decided) and `ms`, when a judge
       answered.
     - `tried`: every `{model, error}` given up on before the answer, in
       list order. Empty when Jev decided; a Jev failure is in `jev`, not here.
-    - `jev`, only when the route has `auto.jev` and Jev was asked: `answer`
+    - `jev`, only when the user config has `auto.jev` and Jev was asked: `model`
+      (only when `auto.jev.model` is set), `answer`
       (`safe`, `unsafe`, or `unsure` when the judge list was asked next), `safe` (the
       safe probability), `unsafe` (the deny score), `confidence` (the
       `safety` answer's), the four answers behind the deny score (`effect`
@@ -232,7 +235,7 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
   state it is already in writes nothing.
 - `type: "auto"`: the same for auto mode: `on`, and `how` is `command`
   (`/auto`), `dialog` ("🤖 Auto mode"), `flag` (`pi --auto`) or `config`
-  (the route's `"startMode": "auto"`, at the process's first session start
+  (the user config's `"startMode": "auto"`, at the process's first session start
   when neither `--auto` nor `--yolo` was given). Switching
   from one mode to the other writes the `off` record of the mode left, then
   the `on` record of the mode entered. A refused `/auto` writes nothing.
@@ -266,6 +269,22 @@ holds it.
    zcat "$BOUNCER_LOG"/log.*.jsonl.gz | jq -c --arg id "$ID" 'select(.sessionId == $id)'
    ```
 
+   Without `jq` or `zcat`, Node reads every generation at once:
+
+   ```bash
+   node -e '
+   const fs = require("node:fs"), zlib = require("node:zlib");
+   const [dir, id] = process.argv.slice(1);
+   for (const name of fs.readdirSync(dir).filter((n) => /^log(\.\d+)?\.jsonl(\.gz)?$/.test(n))) {
+     const raw = fs.readFileSync(`${dir}/${name}`);
+     const text = name.endsWith(".gz") ? zlib.gunzipSync(raw).toString() : raw.toString();
+     for (const line of text.split("\n")) if (line && JSON.parse(line).sessionId === id) console.log(line);
+   }' "$BOUNCER_LOG" "$ID"
+   ```
+
+   The read tool can also open `log.jsonl` directly. The recipes at the end
+   use `jq` and `rg`; without them, adapt the script above.
+
 3. **Find the call** by its command, and read `outcome`, `matches`, `asks`
    and `reason`: they say which rule caught what, what the user answered,
    and what the model was told. A level that differs from the built-in one
@@ -291,8 +310,8 @@ holds it.
    `discarded: true` means that verdict was not acted on. Calls with
    `auto.verdict` `none`, and the models in `tried`, point at a judge list
    that needs fixing (`/auto status`).
-   **Did Jev decide?** `auto.model` `opencode-go/jev-1.13` means Jev decided
-   the call: with `auto.verdict` `allow`, `auto.jev.safe` reached the route's
+   **Did Jev decide?** `auto.model` `<jev>` (see Auto mode) means Jev decided
+   the call: with `auto.verdict` `allow`, `auto.jev.safe` reached the
    `allowAt`; with `deny` (`auto.jev.answer` `unsafe`), `auto.jev.unsafe`,
    the deny score, reached its `denyAt` (both in the session record's
    `config.auto.jev`), and the four answers beside it show which veto or
@@ -303,7 +322,9 @@ holds it.
    None at all means the bouncer wasn't loaded in that session. `parser: false`
    means every bash call was denied. A live bouncer with a working parser and
    no call record means the command matched no rule.
-5. **Replay it** to see which rule, if any, would catch it now. The script
+5. **Replay it** to see which rule, if any, would catch it now. The user can
+   do the same inside Pi with `/bouncer explain <command>`, under the
+   running session's config. The script
    sits two directories up from this skill, in the bouncer's own package. In a
    git checkout with no `dist/`, run `pnpm build` there once, or run
    `src/explain.ts` instead of `dist/src/explain.js`:
@@ -323,13 +344,13 @@ holds it.
    that stops it before any judge; it never calls a model or reads git), then
    a `config:` line naming the bouncer config files it read and their
    problems, then a `trust:` line with the project trust state it used and
-   where that came from. It applies the same config as the live bouncer: the route from
+   where that came from. It applies the same config as the live bouncer: the user config from
    `$PI_CODING_AGENT_DIR` (or `~/.pi/agent`) and the project from the current
    directory. To replay a session that ran elsewhere, pass `--agent-dir` and
    `--cwd` (the record's `cwd`). The project's trust state decides which
    project levels apply: `--trusted` or `--untrusted` sets it, and to match a
    past session pass the one its record's `config.projectTrusted` says.
-   Without either it uses Pi's saved decision in the route's `trust.json`
+   Without either it uses Pi's saved decision in the agent dir's `trust.json`
    (a project with no saved decision counts as
    untrusted, though the session may have been trusted for that session
    only), and it exits with an error asking for a flag if it cannot load
