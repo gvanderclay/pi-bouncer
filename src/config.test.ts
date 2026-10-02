@@ -40,6 +40,7 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["remote-script", "ask"],
 	["publish", "ask"],
 	["gh-delete", "ask"],
+	["bouncer-escape", "deny"],
 ];
 
 function rows(policy: Policy): (readonly [string, string])[] {

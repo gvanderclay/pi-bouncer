@@ -1,6 +1,7 @@
 // Every built-in entry in evaluation order, at its shipped level.
 
 import type { RuleName } from "../verdict.ts";
+import { bouncerEscape } from "./bouncer-escape.ts";
 import { findDelete, recursiveRm, rmRoot } from "./filesystem.ts";
 import {
 	gitCheckoutDiscard,
@@ -42,6 +43,7 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: remoteScript, level: "ask" },
 	{ kind: "rule", rule: publish, level: "ask" },
 	{ kind: "rule", rule: ghDelete, level: "ask" },
+	{ kind: "rule", rule: bouncerEscape, level: "deny" },
 ];
 
 export const builtInEntries: ReadonlyMap<string, PolicyEntry> = new Map(

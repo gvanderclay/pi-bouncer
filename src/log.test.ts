@@ -383,6 +383,7 @@ const BUILT_IN_LEVELS = {
 	"remote-script": "ask",
 	publish: "ask",
 	"gh-delete": "ask",
+	"bouncer-escape": "deny",
 } as const;
 
 test("with no config files, the session record lists built-in config", async () => {

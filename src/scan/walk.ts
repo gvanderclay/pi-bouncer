@@ -23,6 +23,8 @@ export type Invocation = {
 	readonly name: string;
 	readonly args: readonly string[];
 	readonly source: string;
+	/** Names of the variables this command's own `NAME=value` prefix sets. */
+	readonly assignments: readonly string[];
 	/** Every invocation in earlier stages of every enclosing pipeline. */
 	readonly upstream: readonly Invocation[];
 	/** Every invocation nested, recursively, in this command's words and redirects. */
@@ -246,6 +248,7 @@ function visitCommand(command: Command, frame: Frame): void {
 		name: commandName(command.name?.value ?? ""),
 		args: command.suffix.map((word) => word.value),
 		source: frame.origin ?? frame.source.slice(command.pos, command.end),
+		assignments: command.prefix.flatMap((a) => (a.name ? [a.name] : [])),
 		upstream: frame.upstream,
 		substitutions,
 	};

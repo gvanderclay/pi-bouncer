@@ -163,6 +163,7 @@ const deniedUnjudged: readonly (readonly [
 ])[] = [
 	["sudo ls", "privilege"],
 	["rm -rf ~", "rm-root"],
+	["pi --yolo", "bouncer-escape"],
 	['echo "unterminated', "unparseable"],
 	["rm -rf dist", "recursive-rm", { "recursive-rm": "deny" }],
 	["sudo ls", "privilege", { privilege: "ask" }],
