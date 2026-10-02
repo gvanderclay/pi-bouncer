@@ -19,6 +19,7 @@
 		"rules": {
 			"preset": "recommended",
 			"complexity": {
+				"useLiteralKeys": "off",
 				"noExcessiveLinesPerFunction": {
 					"level": "error",
 					"options": { "maxLines": 60 }
