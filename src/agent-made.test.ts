@@ -212,6 +212,18 @@ test("anything that could fill the folder earlier on the line makes it ask", asy
 	await asks(gate, `mv ${outside} ${dir}/x && rm -rf ${dir}`);
 	await asks(gate, `cp -al ${outside} ${dir}/x; rm -rf ${dir}`);
 	await asks(gate, `rm -rf $(mv ${outside} ${dir}/x) ${dir}`);
+	// The scan cannot see a command an expansion runs, or which `rm` runs.
+	await asks(
+		gate,
+		`x='a[$(mv ${outside} ${dir}/x)]'; echo $((x)); rm -rf ${dir}`,
+	);
+	await asks(
+		gate,
+		`y='$(mv ${outside} ${dir}/x)'; echo \${y@P}; rm -rf ${dir}`,
+	);
+	await asks(gate, `PATH=${dir}/bin:/usr/bin; rm -rf ${dir}`);
+	// Any expansion at all: the value could be crafted where the scan cannot see.
+	await asks(gate, `echo $((HOME)) && rm -rf ${dir}`);
 	assert.equal(
 		await run(gate, `cd /work && ls ${dir} && rm -rf ${dir}`),
 		undefined,

@@ -36,8 +36,9 @@ Even then, the `rm` still asks unless all of these hold:
 - it is plain `rm`, not run through a wrapper such as `xargs`, `timeout` or
   `bash -c`;
 - nothing else on the line could add to the folder: every other command is
-  `rm`, `cd`, `echo`, `printf`, `true`, `ls`, `pwd` or a plain variable
-  assignment, so `mv x /tmp/made/ && rm -rf /tmp/made` asks;
+  `rm`, `cd`, `echo`, `printf`, `true`, `ls` or `pwd`, and the line has no
+  `$` or backtick at all (an expansion can run a hidden command), so
+  `mv x /tmp/made/ && rm -rf /tmp/made` asks;
 - it is the only tool call in the agent's message, because Pi checks every
   call in a message before running any of them;
 - every path is written out in full from `/`, with no variable, `~`,
@@ -52,10 +53,14 @@ Even then, the `rm` still asks unless all of these hold:
 `rm-root` and every other rule still apply. The bouncer forgets a folder
 once it is deleted or replaced, and forgets them all at every session start.
 
-The check cannot tell who put a file in the folder, only when. A file you
-add to the folder yourself after the agent made it, a file changed in the
-last two seconds and then moved in, or a move still running in a background
-command can still be deleted without an ask. When an ask on a recursive `rm` blocks
+The check cannot tell who put a file in the folder, only when. Any file
+created or changed after the folder was made, whoever made it, can be
+deleted without an ask, including one you or another program put in the
+folder, or one made since then elsewhere and moved in. So can files a
+background command is still moving in when the `rm` runs. A `mkdir` that
+failed on a line that still succeeded (`mkdir /tmp/x; true`) counts as having
+made the folder, and on a filesystem that reuses inode numbers, a folder
+deleted and remade between two of the agent's commands can still count. When an ask on a recursive `rm` blocks
 because no one can answer, the reason tells the agent to retry with the
 folder's full path written out. `"trustAgentMade": false` turns all this off
 (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands

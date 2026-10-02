@@ -320,7 +320,8 @@ export function createGate(parse: ParseFn | undefined, policy: Policy): Gate {
 		decide(command: string, call: Call): Promise<Decision> {
 			const given = read(parse, command);
 			const { cwd, home, agentMade } = call;
-			const removes = given.kind === "ok" && onlyRemoves(given.invocations);
+			const removes =
+				given.kind === "ok" && onlyRemoves(command, given.invocations);
 			const trusted = agentMade && call.lone && removes ? { agentMade } : {};
 			const where = { cwd, home, ...trusted };
 			const ranking = rank(given, current, where);

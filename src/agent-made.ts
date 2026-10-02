@@ -164,6 +164,7 @@ function isMade(
 
 // Commands that add nothing to a directory tree. The trees are read before any
 // of the line runs, so a `mv` or `cp` earlier on it could fill them unseen.
+// No assignment: `PATH=…` could swap the `rm` that runs.
 const HARMLESS = new Set([
 	"rm",
 	"grm",
@@ -173,11 +174,18 @@ const HARMLESS = new Set([
 	"true",
 	"ls",
 	"pwd",
-	"",
 ]);
 
-/** True when nothing on the line but removing could change what `rm` deletes. */
-export function onlyRemoves(invocations: readonly Invocation[]): boolean {
+/**
+ * True when nothing on the line but removing could change what `rm` deletes.
+ * No `$` or backtick anywhere: an expansion can run a command the scan never
+ * sees (`echo $((x))` with `x='a[$(mv …)]'`).
+ */
+export function onlyRemoves(
+	command: string,
+	invocations: readonly Invocation[],
+): boolean {
+	if (/[$`]/.test(command)) return false;
 	return invocations.every((invocation) => HARMLESS.has(invocation.name));
 }
 
