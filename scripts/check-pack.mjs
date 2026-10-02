@@ -28,7 +28,7 @@ for (const path of REQUIRED) {
 	if (!files.has(path)) problems.push(`missing: ${path}`);
 }
 
-const FORBIDDEN = /^(test|docs|scripts|node_modules|\.github)\/|^\.|\.tgz$/;
+const FORBIDDEN = /^(test|docs|scripts|node_modules|\.github)\/|^\.|\.tgz$|\.test\.ts$/;
 for (const path of packed) {
 	if (FORBIDDEN.test(path)) problems.push(`should not be packed: ${path}`);
 }

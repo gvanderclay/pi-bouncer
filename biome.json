@@ -64,7 +64,7 @@
 			"linter": { "rules": { "style": { "noDefaultExport": "off" } } }
 		},
 		{
-			"includes": ["test/**"],
+			"includes": ["test/**", "**/*.test.ts"],
 			"linter": {
 				"rules": {
 					"complexity": {

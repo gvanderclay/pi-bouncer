@@ -27,7 +27,7 @@ jobs:
         run: |
           export HOME="$(mktemp -d)"
           unset PI_CODING_AGENT_DIR PI_BOUNCER_LOG_DIR
-          node --test test/*.test.ts
+          pnpm test
 
   pack:
     runs-on: ubuntu-latest

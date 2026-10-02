@@ -36,14 +36,16 @@
 	},
 	"files": [
 		"src",
+		"!src/**/*.test.ts",
 		"skills",
+		"!skills/**/*.test.ts",
 		"README.md",
 		"LICENSE"
 	],
 	"scripts": {
 		"lint": "biome ci .",
 		"typecheck": "tsc -p .",
-		"test": "node --test test/*.test.ts",
+		"test": "node --test 'src/**/*.test.ts' 'skills/**/*.test.ts'",
 		"check": "pnpm lint && pnpm typecheck && pnpm test"
 	},
 	"publishConfig": {
