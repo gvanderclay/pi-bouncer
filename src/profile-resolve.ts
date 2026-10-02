@@ -135,6 +135,7 @@ export function profiledAgents(
 	project: ProfileFile,
 	trusted: boolean,
 ): ReadonlySet<string> {
+	// Placeholders: only `choice.state` is read, so `variable` and `normal` are unused.
 	const normal: Normal = { levels: {}, rules: [], startMode: "off" };
 	const names = new Set([
 		...Object.keys(user.agents ?? {}),

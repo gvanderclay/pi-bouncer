@@ -40,9 +40,43 @@ function validMode(value: unknown, problems: string[]): StartMode | undefined {
 	return undefined;
 }
 
-function parseProfile(value: unknown, problems: string[]): Profile {
+// Validates one key into `profile`, pushing unprefixed problems to `own`, and
+// returns the separator that joins them to the profile's path.
+function parseKey(
+	profile: { -readonly [K in keyof Profile]: Profile[K] },
+	key: string,
+	part: unknown,
+	own: string[],
+): string {
+	if (key === "levels") {
+		profile.levels = validLevels(part, own);
+		return isObject(part) ? "." : ": ";
+	}
+	if (key === "rules") {
+		profile.rules = validRules(part, own);
+		return Array.isArray(part) ? "." : ": ";
+	}
+	if (key === "protect") {
+		profile.protect = validProtect(part, own);
+		return ": ";
+	}
+	if (key === "mode") {
+		const mode = validMode(part, own);
+		if (mode) profile.mode = mode;
+		return ".";
+	}
+	own.push(`unknown key "${key}"`);
+	return ": ";
+}
+
+// Pushes each problem to `problems` already prefixed with `at` (the profile's
+// path) and the key it came from. The key text is part of a validator's
+// message for a bad entry (`levels: "x" ...`, `rules[0]: ...`, `mode ...`) but
+// not for a wrongly shaped value (`"levels" is not an object`), so a "." joins
+// the first kind and ": " the second, decided by the value's shape.
+function parseProfile(value: unknown, at: string, problems: string[]): Profile {
 	if (!isObject(value)) {
-		problems.push("is not an object");
+		problems.push(`${at}: is not an object`);
 		return { levels: {}, rules: [] };
 	}
 	const profile: { -readonly [K in keyof Profile]: Profile[K] } = {
@@ -50,19 +84,15 @@ function parseProfile(value: unknown, problems: string[]): Profile {
 		rules: [],
 	};
 	for (const [key, part] of Object.entries(value)) {
-		if (key === "levels") profile.levels = validLevels(part, problems);
-		else if (key === "rules") profile.rules = validRules(part, problems);
-		else if (key === "protect") profile.protect = validProtect(part, problems);
-		else if (key === "mode") {
-			const mode = validMode(part, problems);
-			if (mode) profile.mode = mode;
-		} else problems.push(`unknown key "${key}"`);
+		const own: string[] = [];
+		const sep = parseKey(profile, key, part, own);
+		problems.push(...own.map((problem) => `${at}${sep}${problem}`));
 	}
 	return profile;
 }
 
-// Each profile has its own problem list, copied to the file's with a
-// `profiles.<name>` prefix; any problem makes the profile broken.
+// Each profile has its own problem list, already prefixed with
+// `profiles.<name>`, copied to the file's; any problem makes it broken.
 export function validProfiles(value: unknown, problems: string[]): Profiles {
 	if (!isObject(value)) {
 		problems.push('"profiles" is not an object');
@@ -70,21 +100,17 @@ export function validProfiles(value: unknown, problems: string[]): Profiles {
 	}
 	const parsed: [string, ParsedProfile][] = [];
 	for (const [name, definition] of Object.entries(value)) {
+		const at = `profiles.${name}`;
 		const own: string[] = [];
 		if (!NAME.test(name)) {
-			own.push("the name must be lowercase letters, digits and dashes");
+			own.push(`${at}: the name must be lowercase letters, digits and dashes`);
 		}
-		const profile = parseProfile(definition, own);
-		const at = `profiles.${name}`;
-		const prefixed = own.map((problem) => {
-			const keyed = /^(mode|levels|rules)[.[:\s]/.test(problem);
-			return `${at}${keyed ? "." : ": "}${problem}`;
-		});
-		problems.push(...prefixed);
+		const profile = parseProfile(definition, at, own);
+		problems.push(...own);
 		parsed.push([
 			name,
 			own.length > 0
-				? { kind: "broken", problems: prefixed }
+				? { kind: "broken", problems: own }
 				: { kind: "ok", profile },
 		]);
 	}

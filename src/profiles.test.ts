@@ -329,6 +329,62 @@ test("chooseProfile: an untrusted project's entry stands when the user has neith
 	assert.deepEqual(result.problems, []);
 });
 
+test("chooseProfile: an untrusted project's broken profile, with no user definition, is broken", () => {
+	const result = choose(
+		{ agents: { scout: "p" } },
+		{ profiles: { p: BROKEN } },
+	);
+	assert.deepEqual(result, {
+		choice: {
+			state: "broken",
+			agent: "scout",
+			from: "PI_SUBAGENT_AGENT",
+			name: "p",
+		},
+		problems: [],
+	});
+});
+
+test("chooseProfile: an untrusted project's profile the user maps but does not define only tightens", () => {
+	const result = choose(
+		{ agents: { scout: "p" } },
+		{ profiles: { p: ok({ levels: { "recursive-rm": "deny" } }) } },
+	);
+	assert.deepEqual(result, {
+		choice: {
+			state: "profile",
+			agent: "scout",
+			from: "PI_SUBAGENT_AGENT",
+			name: "p",
+		},
+		layer: { levels: { "recursive-rm": "deny" }, rules: [] },
+		problems: [],
+	});
+});
+
+test("chooseProfile: an untrusted project's profile the user maps but does not define cannot lower a level", () => {
+	const result = choose(
+		{ agents: { scout: "p" } },
+		{
+			profiles: {
+				p: ok({ levels: { "recursive-rm": "off", publish: "deny" } }),
+			},
+		},
+	);
+	assert.deepEqual(result, {
+		choice: {
+			state: "profile",
+			agent: "scout",
+			from: "PI_SUBAGENT_AGENT",
+			name: "p",
+		},
+		layer: { levels: { publish: "deny" }, rules: [] },
+		problems: [
+			'profiles.p.levels: "recursive-rm" would loosen the rule, and the project is not trusted',
+		],
+	});
+});
+
 const P = "profiles.r.";
 const USER = { agents: { scout: "r" }, profiles: { r: ok() } };
 
