@@ -17,6 +17,7 @@ import {
 	runJudge,
 } from "../../src/judge.ts";
 import { type JudgeRequest, judgeRequest } from "../../src/judge-request.ts";
+import { importPi } from "../../src/pi-package.ts";
 import { rankAuto, read } from "../../src/rank.ts";
 import { builtInPolicy } from "../../src/rules/built-in-policy.ts";
 import { historyCases } from "./history-cases.ts";
@@ -390,14 +391,7 @@ function currentList(route: string): readonly string[] {
 // Loaded only for a live run so the tests never need Pi at runtime.
 async function piRegistry(route: string): Promise<JudgeRegistry> {
 	Object.assign(process.env, { PI_CODING_AGENT_DIR: route });
-	const pi = await import("@earendil-works/pi-coding-agent").catch(
-		(error: unknown) => {
-			throw new Error(
-				"cannot import @earendil-works/pi-coding-agent: link the installed pi package into a node_modules above this script",
-				{ cause: error },
-			);
-		},
-	);
+	const pi = await importPi();
 	const runtime = await pi.ModelRuntime.create();
 	return new pi.ModelRegistry(runtime) as unknown as JudgeRegistry;
 }

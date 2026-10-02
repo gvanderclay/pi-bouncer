@@ -1,6 +1,7 @@
-// Checks the file list `npm pack` would publish: the extension, skills and
-// license are in it, nothing from tests, docs or tooling is, and every
-// relative import in a packed .ts file points at another packed file.
+// Checks the file list `npm pack` would publish: the extension, skills,
+// license and built CLIs (run `pnpm build` first) are in it, nothing from
+// tests, docs or tooling is, and every relative import in a packed .ts file
+// points at another packed file.
 // Run from the package root: node scripts/check-pack.mjs
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -22,6 +23,8 @@ const REQUIRED = [
 	"CHANGELOG.md",
 	"src/index.ts",
 	"src/explain.ts",
+	"dist/src/explain.js",
+	"dist/skills/auto-judge-list/bench.js",
 	"skills/bouncer-debug/SKILL.md",
 	"skills/auto-judge-list/SKILL.md",
 ];

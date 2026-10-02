@@ -19,6 +19,11 @@ bouncer lived in its author's dotfiles.
   `jev-1.13` with the opencode-go key. `/auto status`, the log and
   the notices name the model. The Jev bench takes `--model`. The cutoffs were
   measured through Zen only.
+- The skills' scripts (`explain`, the judge bench) now run from an npm
+  install: the package ships them built to `dist/` (`pnpm build`, run on
+  pack), and they find Pi's package through the `pi` on `PATH` or
+  `$PI_PACKAGE_DIR` when it is not installed beside them. The skills call the
+  built files; a git checkout can run `pnpm build` once or the `.ts` files.
 
 ### Changed
 

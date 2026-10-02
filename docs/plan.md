@@ -405,7 +405,8 @@ limits stay where they are used; revisit together with 3.7.
 **2.3 Let Jev's call vary.** Done with 3.8, and superseded by it: the
 bouncer's own HTTP client for Jev is gone; every Jev call goes through Pi.
 
-**2.4 Resolve Pi's package for the CLIs.**
+**2.4 Resolve Pi's package for the CLIs.** Done: `src/pi-package.ts`,
+tested in `src/pi-package.test.ts`.
 - Files: a new `pi-package.ts` that exports `importPi()`. It tries a bare
   `import("@earendil-works/pi-coding-agent")`, then `$PI_PACKAGE_DIR`, then
   the realpath of `pi` on `PATH`, walking up to the nearest `package.json`
@@ -419,7 +420,9 @@ bouncer's own HTTP client for Jev is gone; every Jev call goes through Pi.
   temporary fake package exporting a stub, and checks the error text when
   nothing resolves.
 
-**2.5 Make the CLIs run from an npm install (fixes A3).**
+**2.5 Make the CLIs run from an npm install (fixes A3).** Done with tsc (no
+esbuild). The build keeps the source layout, so the CLIs are
+`dist/src/explain.js` and `dist/skills/auto-judge-list/bench.js`.
 - Decision D-5.
 - Files: `tsconfig.build.json` (extends `tsconfig.json`, `noEmit: false`,
   `outDir: dist`, `rewriteRelativeImportExtensions: true`, excludes `test/`);

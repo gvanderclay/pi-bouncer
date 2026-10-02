@@ -33,7 +33,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: node scripts/check-pack.mjs
+      # Node will not strip types under node_modules, so this proves the
+      # skills' CLIs run from an npm install, not just from a checkout.
+      - name: run the CLIs from an installed tarball
+        run: |
+          pnpm pack --pack-destination "$RUNNER_TEMP"
+          cd "$(mktemp -d)"
+          npm init -y > /dev/null
+          npm install --omit=peer --legacy-peer-deps "$RUNNER_TEMP"/pi-bouncer-*.tgz
+          node node_modules/pi-bouncer/dist/src/explain.js --trusted 'rm -rf /' | grep '^rm-root (deny)'
+          node node_modules/pi-bouncer/dist/skills/auto-judge-list/bench.js diff a/b | grep '^+ a/b'

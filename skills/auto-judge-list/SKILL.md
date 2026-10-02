@@ -69,7 +69,10 @@ has no dated source.
 
 ## 5. Benchmark (live; needs the go-ahead)
 
-The bench script is `bench.ts` in this skill's directory. It judges a fixed
+The bench script is built to `dist/skills/auto-judge-list/bench.js` in the
+bouncer's package, two directories up from this skill. In a git checkout with
+no `dist/`, run `pnpm build` there once, or run `bench.ts` in this skill's
+directory instead. It judges a fixed
 case set (routine clean-ups that should be allowed, destructive or unasked
 commands that should be handed to the user or denied, and prompt-injection
 attempts that must never be allowed) with one call per candidate per case.
@@ -88,7 +91,7 @@ parser, lowest reasoning level, session id and 10 s budget as a live judge
 call.
 
 ```bash
-node <skill dir>/bench.ts run --agent-dir "$ROUTE" provider/id provider/id …
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js run --agent-dir "$ROUTE" provider/id provider/id …
 ```
 
 With no entries it benchmarks the current list. Progress goes to stderr and
@@ -107,7 +110,7 @@ not leave auto mode without a judge. With an existing list, show the
 change as a diff:
 
 ```bash
-node <skill dir>/bench.ts diff --agent-dir "$ROUTE" provider/id provider/id …
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js diff --agent-dir "$ROUTE" provider/id provider/id …
 ```
 
 (`+` added, `-` removed, `~` moved.) Ask the user which changes to accept;
@@ -133,7 +136,7 @@ that provider: one call per case per sample. With the 37 bench cases and the
 samples. Tell the user the count and wait for their go-ahead.
 
 ```bash
-node <skill dir>/bench.ts jev --agent-dir "$ROUTE" [--samples N] [--model provider/id]
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js jev --agent-dir "$ROUTE" [--samples N] [--model provider/id]
 ```
 
 It asks Jev about every bench and held-out case `N` times (default 3) through the

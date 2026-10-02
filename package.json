@@ -39,6 +39,7 @@
 		"!src/**/*.test.ts",
 		"skills",
 		"!skills/**/*.test.ts",
+		"dist",
 		"README.md",
 		"LICENSE",
 		"CHANGELOG.md"
@@ -47,7 +48,9 @@
 		"lint": "biome ci .",
 		"typecheck": "tsc -p .",
 		"test": "node --test 'src/**/*.test.ts' 'skills/**/*.test.ts'",
-		"check": "pnpm lint && pnpm typecheck && pnpm test"
+		"check": "pnpm lint && pnpm typecheck && pnpm test",
+		"build": "rm -rf dist && tsc -p tsconfig.build.json",
+		"prepack": "pnpm build"
 	},
 	"publishConfig": {
 		"access": "public"

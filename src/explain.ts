@@ -31,6 +31,7 @@ import {
 	type ParseFn,
 	type Would,
 } from "./gate.ts";
+import { importPi } from "./pi-package.ts";
 
 export type Explanation = {
 	readonly inspection: Inspection;
@@ -101,9 +102,9 @@ async function loadParser(): Promise<ParseFn | undefined> {
 // A project with a bouncer config needs trust, so this is what Pi reported at
 // startup unless the user trusted the project for that session only.
 async function savedTrust(agentDir: string, cwd: string): Promise<Trust> {
-	let pi: typeof import("@earendil-works/pi-coding-agent");
+	let pi: Awaited<ReturnType<typeof importPi>>;
 	try {
-		pi = await import("@earendil-works/pi-coding-agent");
+		pi = await importPi();
 	} catch (error) {
 		throw new Error(
 			`cannot read Pi's trust decisions (${String(error)}); pass --trusted or --untrusted`,

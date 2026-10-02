@@ -298,14 +298,16 @@ holds it.
    means every bash call was denied. A live bouncer with a working parser and
    no call record means the command matched no rule.
 5. **Replay it** to see which rule, if any, would catch it now. The script
-   sits two directories up from this skill, in the bouncer's own package:
+   sits two directories up from this skill, in the bouncer's own package. In a
+   git checkout with no `dist/`, run `pnpm build` there once, or run
+   `src/explain.ts` instead of `dist/src/explain.js`:
 
    ```bash
-   node <this skill's directory>/../../src/explain.ts '<command>'
-   jq -r .command record.json | node <this skill's directory>/../../src/explain.ts -
-   node <this skill's directory>/../../src/explain.ts --json '<command>'
-   node <this skill's directory>/../../src/explain.ts --agent-dir <agent dir> --cwd <session cwd> '<command>'
-   node <this skill's directory>/../../src/explain.ts --untrusted '<command>'
+   node <this skill's directory>/../../dist/src/explain.js '<command>'
+   jq -r .command record.json | node <this skill's directory>/../../dist/src/explain.js -
+   node <this skill's directory>/../../dist/src/explain.js --json '<command>'
+   node <this skill's directory>/../../dist/src/explain.js --agent-dir <agent dir> --cwd <session cwd> '<command>'
+   node <this skill's directory>/../../dist/src/explain.js --untrusted '<command>'
    ```
 
    It prints every match with its rule, level and source, then what the bouncer
