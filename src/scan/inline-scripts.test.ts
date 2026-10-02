@@ -57,6 +57,9 @@ const denied = [
 	// env -S splices its words into env's argv, so env options may follow.
 	"env -S '-i rm' -rf x",
 	"env -S '' rm -rf x",
+	// Leading NAME=value words of the string are env's assignments.
+	"env -S 'FOO=1 rm -rf x'",
+	"env -S 'FOO=1 BAR=2 rm' -rf x",
 	"trap 'rm -rf x' EXIT",
 	"trap -- 'rm -rf x' EXIT INT",
 	'trap "rm -rf x" ERR',
