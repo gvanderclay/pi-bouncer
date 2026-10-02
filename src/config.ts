@@ -12,9 +12,17 @@ import {
 	projectLevels,
 	routeOnlyProblem,
 } from "./project-config.ts";
-import { builtInEntries, builtInPolicy } from "./rules/built-in-policy.ts";
-import { type Policy, policyEntryName } from "./rules/rule.ts";
-import type { RuleName, VerdictLevel } from "./verdict.ts";
+import {
+	alwaysDenySet,
+	builtInEntries,
+	builtInPolicy,
+} from "./rules/built-in-policy.ts";
+import {
+	type Policy,
+	type PolicyEntry,
+	policyEntryName,
+} from "./rules/rule.ts";
+import type { ConfigLevel, RuleName } from "./verdict.ts";
 
 export type LogLimits = {
 	readonly rotateAboveMiB: number;
@@ -89,23 +97,37 @@ function readFile(path: string): Read {
 	return { kind: "object", json: parsed };
 }
 
+// Which levels a config may give a rule, and the problem when it gives another.
+function allowedLevels(rule: string): readonly [ConfigLevel[], string] {
+	const entry = builtInEntries.get(rule);
+	if (!entry) return [[], `levels: unknown rule "${rule}"`];
+	if (entry.kind === "unreadable")
+		return [[], `levels: "${rule}" is always deny`];
+	if (entry.kind === "steer") {
+		return [["deny", "off"], `levels: "${rule}" must be "deny" or "off"`];
+	}
+	if (alwaysDenySet.has(entry.rule.name)) {
+		const why = `levels: "${rule}" must be "ask" or "deny"; it is in the always-deny set, so it cannot be off`;
+		return [["ask", "deny"], why];
+	}
+	return [
+		["ask", "deny", "off"],
+		`levels: "${rule}" must be "ask", "deny" or "off"`,
+	];
+}
+
 function validLevels(value: unknown, problems: string[]): Levels {
 	if (!isObject(value)) {
 		problems.push('"levels" is not an object');
 		return {};
 	}
-	const levels: Partial<Record<RuleName, VerdictLevel>> = {};
+	const levels: Partial<Record<RuleName, ConfigLevel>> = {};
 	for (const [rule, level] of Object.entries(value)) {
-		const entry = builtInEntries.get(rule);
-		// Unreadable-command denies and steer rules have a fixed level.
-		if (entry?.kind === "unreadable" || entry?.kind === "steer") {
-			problems.push(`levels: "${rule}" is always deny`);
-		} else if (!entry) {
-			problems.push(`levels: unknown rule "${rule}"`);
-		} else if (level !== "ask" && level !== "deny") {
-			problems.push(`levels: "${rule}" must be "ask" or "deny"`);
+		const [allowed, problem] = allowedLevels(rule);
+		if (allowed.includes(level as ConfigLevel)) {
+			levels[rule as RuleName] = level as ConfigLevel;
 		} else {
-			levels[rule as RuleName] = level;
+			problems.push(problem);
 		}
 	}
 	return levels;
@@ -343,12 +365,22 @@ export function routeConfigFile(agentDir: string): string {
 	return join(agentDir, "bouncer.json");
 }
 
+// A rule set to "off" leaves the policy.
 function effectivePolicy(levels: Levels): Policy {
-	return builtInPolicy.map((entry) =>
-		entry.kind === "rule"
-			? { ...entry, level: levels[entry.rule.name] ?? entry.level }
-			: entry,
-	);
+	return builtInPolicy.flatMap((entry): PolicyEntry[] => {
+		if (entry.kind === "unreadable") return [entry];
+		const level = levels[entry.rule.name] ?? entry.level;
+		if (level === "off") return [];
+		return entry.kind === "rule" ? [{ ...entry, level }] : [entry];
+	});
+}
+
+// Every built-in entry's level under `policy`: "off" when it left the policy.
+export function ruleLevels(policy: Policy): Record<RuleName, ConfigLevel> {
+	const levels = {} as Record<RuleName, ConfigLevel>;
+	for (const entry of builtInPolicy) levels[policyEntryName(entry)] = "off";
+	for (const entry of policy) levels[policyEntryName(entry)] = entry.level;
+	return levels;
 }
 
 export type Project = { readonly cwd: string; readonly trusted: boolean };
@@ -383,7 +415,7 @@ export function loadConfig(agentDir: string, project: Project): GateConfig {
 export type ConfigRecord = {
 	readonly files: readonly ConfigFile[];
 	readonly projectTrusted: boolean;
-	readonly levels: Readonly<Record<RuleName, VerdictLevel>>;
+	readonly levels: Readonly<Record<RuleName, ConfigLevel>>;
 	readonly log: LogLimits;
 	/** The route's auto settings, with only a count of environment facts. */
 	readonly auto?: {
@@ -398,10 +430,7 @@ export type ConfigRecord = {
 };
 
 export function configRecord(config: GateConfig): ConfigRecord {
-	const levels = {} as Record<RuleName, VerdictLevel>;
-	for (const entry of config.policy) {
-		levels[policyEntryName(entry)] = entry.level;
-	}
+	const levels = ruleLevels(config.policy);
 	const { files, log, auto, projectTrusted } = config;
 	if (!auto) return { files, projectTrusted, levels, log };
 	const { models, alwaysAsk, environment, firstByProvider, jev } = auto;

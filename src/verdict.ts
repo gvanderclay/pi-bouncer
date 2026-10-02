@@ -2,6 +2,9 @@ import { dirname } from "node:path";
 
 export type VerdictLevel = "deny" | "ask";
 
+// A level a config can set: "off" drops the rule from the policy.
+export type ConfigLevel = VerdictLevel | "off";
+
 export type RuleName =
 	| "parser-unavailable"
 	| "unparseable"

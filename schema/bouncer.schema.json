@@ -11,7 +11,7 @@
 		},
 		"levels": {
 			"type": "object",
-			"description": "The level of a built-in rule: ask or deny.",
+			"description": "The level of a built-in rule: ask, deny or off. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege) cannot be off; grep is deny or off.",
 			"additionalProperties": false,
 			"properties": {
 				"rm-root": {
@@ -19,27 +19,27 @@
 					"description": "recursive rm of the filesystem root, a system directory or your home directory. Built-in level: deny."
 				},
 				"recursive-rm": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "recursive rm deletes whole directory trees. Built-in level: ask."
 				},
 				"find-delete": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "find -delete deletes every file it matches. Built-in level: ask."
 				},
 				"find-exec": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "find -exec, -execdir, -ok and -okdir run arbitrary commands. Built-in level: ask."
 				},
 				"fd-exec": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "fd -x and -X run arbitrary commands. Built-in level: ask."
 				},
 				"rg-pre": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "rg --pre runs an arbitrary preprocessor command. Built-in level: ask."
 				},
 				"opaque-exec": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "parallel, rush and rust-parallel run commands built from templates, so what runs cannot be judged. Built-in level: ask."
 				},
 				"disk-format": {
@@ -59,44 +59,48 @@
 					"description": "the agent must not run anything with elevated privileges. Built-in level: deny."
 				},
 				"git-clean": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "git clean deletes untracked files for good. Built-in level: ask."
 				},
 				"git-reset-hard": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "git reset --hard discards uncommitted changes. Built-in level: ask."
 				},
 				"git-checkout-discard": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "checking out paths or forcing a checkout discards working-tree changes. Built-in level: ask."
 				},
 				"git-restore-worktree": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "git restore of the working tree discards uncommitted changes. Built-in level: ask."
 				},
 				"git-stash-destroy": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "git stash drop and clear destroy stashed work. Built-in level: ask."
 				},
 				"git-push-force": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "a force or mirror push overwrites history on the remote. Built-in level: ask."
 				},
 				"git-push-delete": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "deleting or pruning remote refs destroys branches and tags on the remote. Built-in level: ask."
 				},
 				"remote-script": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "a downloaded script fed into a shell or interpreter runs unreviewed code. Built-in level: ask."
 				},
 				"publish": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "publishing releases a package publicly, which cannot be undone. Built-in level: ask."
 				},
 				"gh-delete": {
-					"enum": ["ask", "deny"],
+					"enum": ["ask", "deny", "off"],
 					"description": "deleting a GitHub repository or release destroys it for everyone. Built-in level: ask."
+				},
+				"grep": {
+					"enum": ["deny", "off"],
+					"description": "grep is not allowed here; the deny tells the model to use rg. Built-in level: deny."
 				}
 			}
 		},

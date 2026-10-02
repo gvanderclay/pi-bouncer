@@ -274,3 +274,75 @@ test("a project config's parse problems come before its level refusals", async (
 		].join("\n"),
 	);
 });
+
+test("a trusted project config can turn a rule off", async () => {
+	const gate = await loadGateSession();
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { "git-clean": "off", grep: "off" } });
+	const { ctx, notices } = uiContext(cwd, true);
+	await gate.startSession("startup", ctx);
+	assert.equal(notices.length, 0, JSON.stringify(notices));
+	for (const command of ["git clean -fd", "grep x f"]) {
+		const call = scriptedUI([], cwd);
+		assert.equal(await gate.handler(bashCall(command), call.ctx), undefined);
+		assert.equal(call.dialogs.length, 0, command);
+	}
+});
+
+test("an untrusted project config cannot turn a rule off", async () => {
+	const gate = await loadGateSession();
+	gate.writeRouteConfig({ levels: { "git-reset-hard": "off" } });
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, {
+		levels: { "git-clean": "off", grep: "off", "git-reset-hard": "off" },
+	});
+	const { ctx, notices } = uiContext(cwd, false);
+	await gate.startSession("startup", ctx);
+	const path = projectConfigPath(cwd);
+	assert.equal(
+		notices[0]?.message,
+		[
+			"Bouncer config problems; these parts are ignored:",
+			`- ${path}: levels: "git-clean" would loosen the rule, and the project is not trusted`,
+			`- ${path}: levels: "grep" would loosen the rule, and the project is not trusted`,
+		].join("\n"),
+	);
+	const clean = scriptedUI(["Deny"], cwd);
+	await gate.handler(bashCall("git clean -fd"), clean.ctx);
+	assert.equal(clean.dialogs.length, 1);
+	const grep = await gate.handler(
+		bashCall("grep x f"),
+		scriptedUI([], cwd).ctx,
+	);
+	assert.match(grep?.reason ?? "", /\(rule: grep\)/);
+});
+
+test("an untrusted project config may raise a rule the user turned off", async () => {
+	const gate = await loadGateSession();
+	gate.writeRouteConfig({ levels: { "git-clean": "off" } });
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { "git-clean": "ask" } });
+	const { ctx, notices } = uiContext(cwd, false);
+	await gate.startSession("startup", ctx);
+	assert.equal(notices.length, 0, JSON.stringify(notices));
+	const call = scriptedUI(["Deny"], cwd);
+	await gate.handler(bashCall("git clean -fd"), call.ctx);
+	assert.equal(call.dialogs.length, 1);
+});
+
+test("a trusted project config cannot turn off an always-deny rule", async () => {
+	const gate = await loadGateSession();
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { privilege: "off" } });
+	const { ctx, notices } = uiContext(cwd, true);
+	await gate.startSession("startup", ctx);
+	assert.match(
+		notices[0]?.message ?? "",
+		/"privilege" must be "ask" or "deny"; it is in the always-deny set/,
+	);
+	const result = await gate.handler(
+		bashCall("sudo ls"),
+		scriptedUI([], cwd).ctx,
+	);
+	assert.equal(result?.block, true);
+});

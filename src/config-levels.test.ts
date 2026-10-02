@@ -158,7 +158,9 @@ test("a route config setting levels.grep reports a problem, and grep stays block
 	const path = join(agentDir, "bouncer.json");
 	assert.ok(
 		ui.notices.some((notice) =>
-			notice.message.includes(`${path}: levels: "grep" is always deny`),
+			notice.message.includes(
+				`${path}: levels: "grep" must be "deny" or "off"`,
+			),
 		),
 		JSON.stringify(ui.notices),
 	);
@@ -166,4 +168,37 @@ test("a route config setting levels.grep reports a problem, and grep stays block
 	const result = await handler(bashCall("grep x f"), ctx);
 	assert.equal(dialogs.length, 0);
 	assert.match(result?.reason ?? "", /\(rule: grep\)/);
+});
+
+test("a route config turning a rule off lets its commands run without a dialog", async () => {
+	const { handler, startSession, writeRouteConfig } = await loadGateSession();
+	writeRouteConfig({ levels: { "recursive-rm": "off", grep: "off" } });
+	const ui = uiContext();
+	await startSession("startup", ui.ctx);
+	assert.deepEqual(ui.notices, []);
+	for (const command of ["rm -rf dist", "grep x f"]) {
+		const { ctx, dialogs } = scriptedUI();
+		assert.equal(await handler(bashCall(command), ctx), undefined, command);
+		assert.equal(dialogs.length, 0, command);
+	}
+	// Other rules still apply.
+	const sudo = await handler(bashCall("sudo ls"), scriptedUI().ctx);
+	assert.equal(sudo?.block, true);
+});
+
+test("a route config cannot turn off an always-deny rule or an unreadable deny", async () => {
+	const { handler, startSession, writeRouteConfig } = await loadGateSession();
+	writeRouteConfig({ levels: { "rm-root": "off", unparseable: "off" } });
+	const ui = uiContext();
+	await startSession("startup", ui.ctx);
+	assert.equal(ui.notices.length, 1, JSON.stringify(ui.notices));
+	assert.match(
+		ui.notices[0]?.message ?? "",
+		/"rm-root" must be "ask" or "deny"; it is in the always-deny set/,
+	);
+	assert.match(ui.notices[0]?.message ?? "", /"unparseable" is always deny/);
+	const result = await handler(bashCall("rm -rf /"), scriptedUI().ctx);
+	assert.match(result?.reason ?? "", /\(rule: rm-root\)/);
+	const broken = await handler(bashCall("echo 'x"), scriptedUI().ctx);
+	assert.equal(broken?.block, true);
 });

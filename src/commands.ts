@@ -11,6 +11,7 @@ import {
 	type GateConfig,
 	loadConfig,
 	routeConfigFile,
+	ruleLevels,
 } from "./config.ts";
 import { errorText } from "./error-text.ts";
 import { asText } from "./explain.ts";
@@ -74,10 +75,11 @@ function autoLine(config: GateConfig | undefined): string {
 
 function status(parts: BouncerParts): string {
 	const { config } = parts.session;
+	const levels = Object.entries(ruleLevels(policyOf(parts)));
 	const byLevel = (level: string): string =>
-		policyOf(parts)
-			.filter((entry) => entry.level === level)
-			.map(policyEntryName)
+		levels
+			.filter(([, at]) => at === level)
+			.map(([name]) => name)
 			.join(", ") || "none";
 	return [
 		`Bouncer mode: ${modeText(parts)}`,
@@ -89,6 +91,7 @@ function status(parts: BouncerParts): string {
 		`Project: ${trusted(parts) ? "trusted" : "untrusted"}`,
 		`Deny: ${byLevel("deny")}`,
 		`Ask: ${byLevel("ask")}`,
+		`Off: ${byLevel("off")}`,
 		`Log: ${logFile(parts.logDir)}`,
 		autoLine(config),
 		"/bouncer rules explains each rule.",
@@ -96,13 +99,14 @@ function status(parts: BouncerParts): string {
 }
 
 function rules(parts: BouncerParts): string {
-	return policyOf(parts)
+	const levels = ruleLevels(policyOf(parts));
+	return builtInPolicy
 		.map((entry) => {
 			const name = policyEntryName(entry);
 			const summary =
 				entry.kind === "unreadable" ? UNREADABLE[name] : entry.rule.summary;
 			const steer = entry.kind === "steer" ? `; ${entry.instead}` : "";
-			return `${name} (${entry.level}): ${summary}${steer}`;
+			return `${name} (${levels[name]}): ${summary}${steer}`;
 		})
 		.join("\n");
 }

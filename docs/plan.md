@@ -10,6 +10,8 @@ deferred until someone asks; 3.8 is done and absorbed 2.3 (D-9). Phase 2
 is done. 3.1–3.3 are done (2026-10-02): the schema test is
 `src/schema.test.ts` with a pinned `ajv`, and the command test is
 `src/bouncer-command.test.ts`, which also holds the first-run notice tests.
+3.4 is done: `ConfigLevel` in `verdict.ts`, and `ruleLevels` in `config.ts`
+lists off rules for `/bouncer` and the log.
 Auto mode's refusal does not point at `/bouncer init`, because `init` writes
 no judge list.
 
@@ -530,7 +532,7 @@ paths in the messages ("bouncer.json in the Pi agent dir") and without
   either write a config or tolerate the notice. Prefer having the harness
   write `{}` by default, so that no existing assertion changes.
 
-**3.4 (F4) `"off"` as a level.** [feature]
+**3.4 (F4) `"off"` as a level.** [feature] Done.
 - The grep default is no longer part of this step; D-1 moves grep into a
   custom rule in 3.6.
 - Files: `verdict.ts` (`VerdictLevel` gains `"off"`, or a separate

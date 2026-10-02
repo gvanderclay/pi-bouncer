@@ -130,15 +130,27 @@ const problems: readonly (readonly [
 		{ privilege: "ask" },
 	],
 	[
-		"a steer rule",
+		"a steer rule at ask",
 		{ levels: { grep: "ask", privilege: "ask" } },
-		'levels: "grep" is always deny',
+		'levels: "grep" must be "deny" or "off"',
 		{ privilege: "ask" },
 	],
 	[
-		"a level other than ask or deny",
+		"an always-deny rule turned off",
 		{ levels: { privilege: "off", "git-clean": "deny" } },
-		'levels: "privilege" must be "ask" or "deny"',
+		'levels: "privilege" must be "ask" or "deny"; it is in the always-deny set, so it cannot be off',
+		{ "git-clean": "deny" },
+	],
+	[
+		"a level other than ask, deny or off",
+		{ levels: { "git-clean": "allow", privilege: "ask" } },
+		'levels: "git-clean" must be "ask", "deny" or "off"',
+		{ privilege: "ask" },
+	],
+	[
+		"an unreadable-command deny turned off",
+		{ levels: { "inline-too-deep": "off", "git-clean": "deny" } },
+		'levels: "inline-too-deep" is always deny',
 		{ "git-clean": "deny" },
 	],
 	[

@@ -32,6 +32,13 @@ bouncer lived in its author's dotfiles.
 - A one-time notice, "Bouncer is on: …", at the first session start of a Pi
   process with a UI while no user config exists. `/bouncer init`, or any
   `bouncer.json` in the Pi agent dir, silences it.
+- `"off"` as a level: `levels` can turn any rule off except the always-deny
+  set and the unreadable-command denies, and the `grep` steer rule takes
+  `deny` or `off`. A trusted project may turn rules off; an untrusted one may
+  not lower any level. `/bouncer status` gains an `Off:` line, and the log's
+  `config.levels` shows `off` rules. Setting `grep` to anything other than
+  `deny` or `off` now says so instead of "is always deny"; the tests pinning
+  that message were updated, deliberately.
 
 ### Changed
 

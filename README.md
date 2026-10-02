@@ -181,8 +181,10 @@ may only make a rule stricter, and no project file, trusted or not, may
 loosen the always-deny set; only the route's file can. Each ignored entry is
 named in the session-start warning. The old `.pi/bouncer.json` is no longer
 read: the warning tells you to move it. `levels` sets any built-in
-rule to `ask` or `deny`, except the unreadable-command denies and the `grep`
-steer rule, whose level is fixed; the route's file also carries `log` (the
+rule to `ask`, `deny` or `off`, where `off` removes the rule. The always-deny
+set (`rm-root`, `disk-format`, `dd-device`, `power`, `privilege`) can be `ask`
+or `deny` but never `off`; the `grep` steer rule is `deny` or `off`; the
+unreadable-command denies are fixed; the route's file also carries `log` (the
 log's rotation size, generations kept and age pruning), `auto` (the judge list
 `models`, `alwaysAsk` prefixes, `environment` facts, `firstByProvider` and
 `jev`) and `startMode` (`off` or `auto`, see Modes).

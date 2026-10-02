@@ -75,6 +75,21 @@ test("/bouncer rules lists every entry with its level and summary", async () => 
 	assert.match(lines.at(-1) ?? "", /^grep \(deny\): .*rg/);
 });
 
+test("/bouncer status and rules show rules turned off", async () => {
+	const gate = await started({ levels: { "git-clean": "off", grep: "off" } });
+	const status = (await text(gate, "status")).split("\n");
+	assert.ok(status.includes("Off: git-clean, grep"), status.join("\n"));
+	assert.ok(!status.find((l) => l.startsWith("Ask: "))?.includes("git-clean"));
+	const rules = (await text(gate, "rules")).split("\n");
+	assert.equal(rules.length, 25);
+	assert.ok(
+		rules.includes(
+			"git-clean (off): git clean deletes untracked files for good",
+		),
+	);
+	assert.match(rules.at(-1) ?? "", /^grep \(off\): /);
+});
+
 test("/bouncer explain replays a command under the session's config", async () => {
 	const gate = await started({ levels: { "recursive-rm": "deny" } });
 	const lines = (await text(gate, "explain rm -rf  dist")).split("\n");

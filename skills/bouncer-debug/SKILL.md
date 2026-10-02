@@ -40,9 +40,11 @@ project at session start it only makes rules stricter; each ignored entry is
 a problem in the record's `files`, and the record's `config.projectTrusted`
 says which trust state applied. A `<cwd>/.pi/bouncer.json` is never read;
 it shows up as a problem asking to move it. `levels` maps a built-in rule to
-`ask` or `deny`; `unparseable`, `inline-too-deep`, `parser-unavailable`
-and the `grep` steer rule always deny, and setting one is a config
-problem. An invalid part falls back to its built-in value. Edits apply
+`ask`, `deny` or `off` (`off` drops the rule, and the record's
+`config.levels` shows it as `off`); the always-deny set cannot be `off`,
+the `grep` steer rule is `deny` or `off`, and `unparseable`,
+`inline-too-deep` and `parser-unavailable` always deny. Setting a level a
+rule does not take is a config problem. An invalid part falls back to its built-in value. Edits apply
 from the next session start, never mid-session. The route file alone may
 also set `auto` (auto mode's `models`, `alwaysAsk`, `environment`,
 `firstByProvider` and `jev`); a project file's `auto`, `jev` included, is

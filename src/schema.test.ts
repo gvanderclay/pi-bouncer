@@ -38,6 +38,8 @@ const VALID: readonly unknown[] = [
 	fixture,
 	{ $schema: schema.$id, levels: {} },
 	{ levels: { "recursive-rm": "deny", "rm-root": "ask" } },
+	{ levels: { "recursive-rm": "off", grep: "off", "rm-root": "deny" } },
+	{ levels: { grep: "deny" } },
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
 	{
@@ -58,7 +60,10 @@ const INVALID: readonly unknown[] = [
 	{ rules: [] },
 	{ other: true },
 	{ levels: { grep: "ask" } },
-	{ levels: { unparseable: "ask" } },
+	{ levels: { grep: "off", unparseable: "ask" } },
+	{ levels: { unparseable: "off" } },
+	{ levels: { privilege: "off" } },
+	{ levels: { "rm-root": "off" } },
 	{ levels: { "no-such-rule": "ask" } },
 	{ levels: { "recursive-rm": "allow" } },
 	{ levels: [] },
@@ -97,7 +102,7 @@ test("every config the bouncer reports problems for fails validation", () => {
 
 test("the schema's levels are exactly the rules a config can set", () => {
 	const names = builtInPolicy.flatMap((entry) =>
-		entry.kind === "rule" ? [entry.rule.name] : [],
+		entry.kind === "unreadable" ? [] : [entry.rule.name],
 	);
 	assert.deepEqual(Object.keys(schema.properties.levels.properties), names);
 });
