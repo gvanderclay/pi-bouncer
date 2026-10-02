@@ -25,6 +25,7 @@ follows [Semantic Versioning](https://semver.org/).
   "off"}` restores the old behaviour, and `"ask"` asks instead.
 - A child started through `session:launch` gets its agent's profile, or its
   parent's profile when its agent has none.
+- `bouncer-debug` replays a call under the profile it ran in.
 
 ### Changed
 
