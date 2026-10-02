@@ -15,6 +15,8 @@ dotfiles; the changes below are against that copy.
 
 - MIT license and npm package metadata.
 - CI on Node 22.19 and 24, and a check of the published file list.
+- A release workflow that publishes to npm, with provenance, when a `v*` tag
+  is pushed.
 - `auto.jev.model` picks Jev's provider: any classifier model in Pi's
   catalogue as `provider/id`, such as `openrouter/typesafe/jev-1.13` or
   `typesafe/jev-latest`. Without it Jev still uses OpenCode Zen's
