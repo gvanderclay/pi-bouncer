@@ -6,6 +6,13 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Releases are one workflow run: `gh workflow run release.yml -f bump=patch`
+  bumps the version, moves the changelog entries, tags, publishes to npm by
+  trusted publishing and makes the GitHub release. Pushing a tag no longer
+  publishes.
+
 ## [0.1.0] - 2026-10-02
 
 The first public release. Before it, the bouncer lived in its author's

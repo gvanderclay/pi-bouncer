@@ -23,6 +23,15 @@ The productionizing plan, with its decisions, is `docs/plan.md`.
 - `node scripts/check-pack.mjs` after changing `package.json` `files` or adding
   a top-level path.
 
+## Releases
+
+- Add each user-visible change under `## [Unreleased]` in `CHANGELOG.md` as
+  it lands. Never edit `version` or tag by hand.
+- Release with `gh workflow run release.yml -f bump=patch` (or `minor`,
+  `major`) from `main`: it checks, bumps, moves the CHANGELOG entries, tags,
+  publishes to npm by trusted publishing, and makes the GitHub release. It
+  refuses when `[Unreleased]` is empty.
+
 ## Rules
 
 - The tests pin current behaviour. A change that makes one fail changes
