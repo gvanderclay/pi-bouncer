@@ -106,7 +106,7 @@ function callRecord(
 	if (!trace) return undefined;
 	const who =
 		profile?.state === "profile"
-			? { agent: profile.agent, profile: profile.name }
+			? { agent: profile.agent.name, profile: profile.name }
 			: {};
 	const head = { ...recordHead("call", ctx), command, ui: trace.ui, ...who };
 	const { matches, asks } = trace;
@@ -144,7 +144,7 @@ function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	const broken =
 		profile?.state === "broken"
 			? [
-					`profile "${profile.name}" for agent ${profile.agent} is broken, so this session uses the normal rules`,
+					`profile "${profile.name}" for agent ${profile.agent.name} is broken, so this session uses the normal rules`,
 				]
 			: [];
 	const listed = config.problems.map((problem) => `- ${problem}`);

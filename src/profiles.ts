@@ -2,6 +2,7 @@
 // profile from its agent name, and applying it to the normal rules. Pure; the
 // config loader calls it.
 
+import type { AgentSource } from "./agent-env.ts";
 import { isObject } from "./json.ts";
 import { validLevels } from "./levels.ts";
 import type { Levels } from "./project-config.ts";
@@ -157,19 +158,16 @@ export type Normal = {
 export type ProfileChoice =
 	| {
 			readonly state: "profile";
-			readonly agent: string;
-			readonly from: string;
+			readonly agent: AgentSource;
 			readonly name: string;
 	  }
 	| {
 			readonly state: "unmapped";
-			readonly agent: string;
-			readonly from: string;
+			readonly agent: AgentSource;
 	  }
 	| {
 			readonly state: "broken";
-			readonly agent: string;
-			readonly from: string;
+			readonly agent: AgentSource;
 			readonly name: string;
 	  };
 

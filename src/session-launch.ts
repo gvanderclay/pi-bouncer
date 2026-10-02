@@ -48,7 +48,7 @@ function contributeAgent(
 		if (typeof agent === "string" && config.profiledAgents.has(agent)) {
 			env[key] = agent;
 		} else if (config.profile?.state === "profile") {
-			env[key] = config.profile.agent;
+			env[key] = config.profile.agent.name;
 		}
 	} catch {
 		// A bad hook never becomes a launch failure.
