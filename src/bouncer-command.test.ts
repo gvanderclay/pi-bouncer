@@ -17,9 +17,8 @@ async function run(gate: LoadedGate, args: string): Promise<Notice[]> {
 	return notices;
 }
 
-async function started(config?: unknown): Promise<LoadedGate> {
-	const gate = await loadGateSession();
-	if (config !== undefined) gate.writeRouteConfig(config);
+async function started(userConfig: unknown = {}): Promise<LoadedGate> {
+	const gate = await loadGateSession(undefined, undefined, { userConfig });
 	await gate.startSession("startup");
 	return gate;
 }
@@ -85,7 +84,7 @@ test("/bouncer explain replays a command under the session's config", async () =
 });
 
 test("/bouncer init writes the user config once", async () => {
-	const gate = await started();
+	const gate = await started(null);
 	const path = join(gate.agentDir, "bouncer.json");
 	assert.equal(
 		await text(gate, "init"),
@@ -128,4 +127,43 @@ test("/bouncer with an unknown subcommand shows its usage", async () => {
 			},
 		]);
 	}
+});
+
+const WELCOME = {
+	message:
+		"Bouncer is on: it asks before destructive bash commands. /bouncer shows rules and config.",
+	level: "info",
+};
+
+test("with no user config, the first session start in a process says the bouncer is on", async () => {
+	const gate = await loadGateSession(undefined, undefined, {
+		userConfig: null,
+	});
+	const first = uiContext();
+	await gate.startSession("startup", first.ctx);
+	assert.deepEqual(first.notices, [WELCOME]);
+	const again = uiContext();
+	await gate.startSession("new", again.ctx);
+	assert.deepEqual(again.notices, []);
+	const reloaded = await loadGateSession(undefined, undefined, {
+		userConfig: null,
+		mode: gate.mode,
+	});
+	const afterReload = uiContext();
+	await reloaded.startSession("reload", afterReload.ctx);
+	assert.deepEqual(afterReload.notices, []);
+});
+
+test("no first-run notice with a user config, or without a UI", async () => {
+	const withFile = await loadGateSession();
+	const { ctx, notices } = uiContext();
+	await withFile.startSession("startup", ctx);
+	assert.deepEqual(notices, []);
+	const headless = await loadGateSession(undefined, undefined, {
+		userConfig: null,
+	});
+	await headless.startSession("startup");
+	const later = uiContext();
+	await headless.startSession("new", later.ctx);
+	assert.deepEqual(later.notices, [WELCOME]);
 });

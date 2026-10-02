@@ -387,7 +387,11 @@ const BUILT_IN_LEVELS = {
 } as const;
 
 test("with no config files, the session record lists built-in config", async () => {
-	const { startSession, records, agentDir } = await loadGateSession();
+	const { startSession, records, agentDir } = await loadGateSession(
+		undefined,
+		undefined,
+		{ userConfig: null },
+	);
 	const cwd = tempProjectDir();
 	await startSession("startup", fakeContext(cwd));
 	assert.deepEqual(records()[0]?.config, {

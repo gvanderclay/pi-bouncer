@@ -8,12 +8,14 @@ export type GateMode = "off" | "auto" | "yolo";
 export type ModeHolder = {
 	mode: GateMode;
 	flagsApplied: boolean;
+	/** The first-run notice was shown in this process. */
+	welcomed: boolean;
 };
 
 const KEY = Symbol.for("pi-bouncer.mode");
 
 export function createModeHolder(): ModeHolder {
-	return { mode: "off", flagsApplied: false };
+	return { mode: "off", flagsApplied: false, welcomed: false };
 }
 
 export function processModeHolder(): ModeHolder {

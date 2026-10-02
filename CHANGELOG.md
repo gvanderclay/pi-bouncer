@@ -29,6 +29,9 @@ bouncer lived in its author's dotfiles.
   reported as an unknown key before.
 - The `/bouncer` command: `status` (the default), `rules`, `explain
   <command>`, `init` and `check`.
+- A one-time notice, "Bouncer is on: …", at the first session start of a Pi
+  process with a UI while no user config exists. `/bouncer init`, or any
+  `bouncer.json` in the Pi agent dir, silences it.
 
 ### Changed
 

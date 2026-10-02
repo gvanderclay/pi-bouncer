@@ -75,6 +75,8 @@ export type GateOptions = {
 	readonly mode?: ModeHolder;
 	/** The CLI flags `pi.getFlag` returns, as `pi --yolo` would set them. */
 	readonly flags?: Readonly<Record<string, boolean | string>>;
+	/** The user config written before loading; default `{}`, `null` writes none. */
+	readonly userConfig?: unknown;
 };
 
 type SessionHandler = (
@@ -242,6 +244,10 @@ export async function loadGateSession(
 	options: GateOptions = {},
 ): Promise<LoadedGate> {
 	const agentDir = tempAgentDir();
+	const { userConfig = {} } = options;
+	if (userConfig !== null) {
+		writeConfig(join(agentDir, "bouncer.json"), userConfig);
+	}
 	const mode = options.mode ?? createModeHolder();
 	let handler: Handler | undefined;
 	let sessionHandler: SessionHandler | undefined;

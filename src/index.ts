@@ -141,6 +141,22 @@ function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	);
 }
 
+const WELCOME =
+	"Bouncer is on: it asks before destructive bash commands. /bouncer shows rules and config.";
+
+// Once per process, only while there is no user config: /bouncer init silences it.
+function welcome(
+	holder: ModeHolder,
+	config: GateConfig,
+	ctx: ExtensionContext,
+): void {
+	const [user] = config.files;
+	const absent = user && !user.loaded && user.problems.length === 0;
+	if (holder.welcomed || !ctx.hasUI || !absent) return;
+	holder.welcomed = true;
+	ctx.ui.notify(WELCOME, "info");
+}
+
 // A Pi without project trust gets a strict bouncer, not a crash at startup.
 // A missing model registry needs no check: auto mode then finds no judge.
 function trustedIfKnown(ctx: ExtensionContext): boolean {
@@ -191,6 +207,7 @@ function startSession(
 	else delete rt.session.remotes;
 	rt.gate.reset(config.policy);
 	warnAboutConfig(config, ctx);
+	welcome(holder, config, ctx);
 	rt.stopped.clear();
 	logging.write(ctx, () => {
 		rotateIfNeeded(logDir, config.log);
