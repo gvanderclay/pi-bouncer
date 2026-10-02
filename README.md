@@ -201,7 +201,11 @@ are not logged. Ask the agent why something was blocked and the
 A launcher extension can emit the `session:launch` event as `{ args, env }`
 just before it starts a child Pi process. The bouncer appends `--auto` or
 `--yolo` to `args` when that mode is on, so the child starts in the same
-mode. It changes nothing else and cannot veto the launch.
+mode. When the payload also has an `agent` name that a profile covers, it sets
+`PI_BOUNCER_AGENT` in `env` to that name, so the child runs that agent's
+profile; otherwise, if the parent runs a profile, it passes the parent's agent
+name on. It never overwrites a `PI_BOUNCER_AGENT` already in `env`, changes
+nothing else, and cannot veto the launch.
 
 ## Compatibility and limitations
 
