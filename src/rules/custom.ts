@@ -1,6 +1,7 @@
 // Rules a config file defines under `rules`: a program name, words that must
 // follow it in order, and a level, or an `instead` text for a steer rule.
 import { argvOf } from "../always-ask.ts";
+import { isObject } from "../json.ts";
 import { commandName } from "../scan/normalize.ts";
 import type { Invocation } from "../scan/walk.ts";
 import type { ConfigLevel } from "../verdict.ts";
@@ -91,10 +92,6 @@ function entryProblem(entry: Readonly<Record<string, unknown>>): string {
 		return `"level" must be ${levels.map((l) => `"${l}"`).join(", ")}`;
 	}
 	return "";
-}
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Valid entries; each invalid one is a problem and is skipped whole. */

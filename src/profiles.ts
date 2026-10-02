@@ -2,6 +2,7 @@
 // profile from its agent name, and applying it to the normal rules. Pure; the
 // config loader calls it.
 
+import { isObject } from "./json.ts";
 import { validLevels } from "./levels.ts";
 import type { Levels } from "./project-config.ts";
 import { mergeProtect, validProtect } from "./protect.ts";
@@ -25,18 +26,18 @@ export type ParsedProfile =
 export type Profiles = Readonly<Record<string, ParsedProfile>>;
 export type Agents = Readonly<Record<string, string>>;
 
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 
-function validMode(value: unknown, problems: string[]): StartMode | undefined {
+export function validStartMode(
+	value: unknown,
+	label: string,
+	problems: string[],
+): StartMode | undefined {
 	if (value === "off" || value === "auto") return value;
 	problems.push(
 		value === "yolo"
-			? 'mode: "yolo" is not allowed: YOLO mode starts only with pi --yolo or /yolo'
-			: 'mode must be "off" or "auto"',
+			? `${label}: "yolo" is not allowed: YOLO mode starts only with pi --yolo or /yolo`
+			: `${label} must be "off" or "auto"`,
 	);
 	return undefined;
 }
@@ -62,7 +63,7 @@ function parseKey(
 		return ": ";
 	}
 	if (key === "mode") {
-		const mode = validMode(part, own);
+		const mode = validStartMode(part, "mode", own);
 		if (mode) profile.mode = mode;
 		return ".";
 	}

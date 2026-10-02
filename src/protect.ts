@@ -1,13 +1,10 @@
 // The `protect` key: more paths for rm-root. Add-only, so any config file may
 // set it, an untrusted project's included.
 import { posix } from "node:path";
+import { isObject } from "./json.ts";
 import type { Protect } from "./rules/filesystem.ts";
 
 const NO_PROTECT: Protect = { home: [], paths: [] };
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 const CHECKS = {
 	home: [
