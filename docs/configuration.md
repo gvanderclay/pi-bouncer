@@ -22,8 +22,15 @@ so `/trust` applies after a restart or `/reload`. What a project file may do:
   or add a steer rule, because steer text is sent to the model.
 - A trusted project may also lower levels and turn rules off.
 - No project file, trusted or not, may loosen the always-deny set, or set
-  `log`, `auto` or `startMode`; only the user config can.
+  `log`, `auto` or `startMode`; only the user config can. The one exception
+  is a profile's `mode`: a trusted project's profile may set `"off"` or
+  `"auto"`, an untrusted one only `"off"`.
 - A project rule may not reuse the name of a user rule.
+- A project file's `profiles` and `agents` follow the same rules. An
+  untrusted project's profile only tightens, and its `agents` entry applies
+  only to an agent the user config does not map, naming a profile the user
+  config does not define. A trusted project's `agents` entry overrides the
+  user's. See [`profiles`](#profiles) and [`agents`](#agents).
 
 An entry the bouncer refuses or cannot read falls back to its built-in value.
 One warning at session start lists every problem, and `/bouncer check`
@@ -124,7 +131,103 @@ the config; see [Log](../README.md#log-and-debugging).
 default, starts in normal mode. It applies at the process's first session
 start only, refuses as `/auto` does when no judge-list entry resolves, and
 gives way to `--yolo` or `--auto`. `"yolo"` is not accepted: YOLO mode starts
-only from `pi --yolo` or `/yolo`. Only the user config may set it.
+only from `pi --yolo` or `/yolo`. Only the user config may set it. A
+session's [profile](#profiles) with a `mode` replaces it.
+
+## `profiles`
+
+A profile is a named group of rule changes. It starts from the session's
+normal rules (the user config and the project file with no profile) and
+changes only what it names. Its keys are `levels`, `rules` and `protect`,
+checked exactly like the top-level keys of the same name, and `mode`, which
+is `"off"` or `"auto"`. A profile name is lowercase letters, digits and
+dashes. `"yolo"` is not accepted as a `mode`.
+
+```json
+{
+  "profiles": {
+    "readonly": {
+      "levels": { "recursive-rm": "deny", "publish": "deny" },
+      "rules": [
+        {
+          "name": "no-commit",
+          "command": "git",
+          "args": ["commit"],
+          "level": "deny",
+          "summary": "a read-only agent does not commit"
+        }
+      ],
+      "mode": "off"
+    },
+    "worker": {
+      "levels": { "recursive-rm": "off", "git-clean": "off" },
+      "protect": { "home": ["notes"] },
+      "mode": "auto"
+    }
+  }
+}
+```
+
+How a profile applies:
+
+- `levels` replace the normal level rule by rule. A profile in the user
+  config may loosen as well as tighten, but the always-deny set can be `ask`
+  and never `off`, and YOLO and auto mode deny it whatever its level.
+- A `rules` entry named like a normal custom rule replaces it in place, so a
+  profile can change its level or turn it off. Any other entry is added after
+  the normal custom rules. Steer rules still go last.
+- `protect` adds to the normal paths.
+- `mode` replaces `startMode`, but only when the session has no `--auto` or
+  `--yolo`. A session whose parent runs in YOLO or auto mode gets that flag
+  from the bouncer's launch listener and so starts in that mode. A launcher
+  that does not emit `session:launch` passes no flag, so its child starts in
+  its profile's `mode` whatever its parent's mode is. With `"auto"` and no
+  resolvable judge-list entry the session stays off with the usual notice.
+
+A project file may define profiles too, and its definition of a name is laid
+over the user config's. An untrusted project can only tighten: its levels may
+only be raised, it may not add steer rules, and its `mode` may be only
+`"off"`. A trusted project may also lower levels and set `"off"` or
+`"auto"`. Every problem in either file is reported at session start and by
+`/bouncer check`, whether or not the session uses the profile.
+
+A profile is **broken** when neither file defines it or the user config's
+definition has any problem. A broken profile is ignored whole: the session
+runs the normal rules and the warning names the profile. A project
+definition with a problem is dropped whole, so a project cannot switch off a
+user's profile by writing a broken one.
+
+## `agents`
+
+`agents` maps an agent name to a profile name. The agent name is read once, at
+session start, from the first of these environment variables that is set and
+not blank: `PI_BOUNCER_AGENT`, `PI_SUBAGENT_AGENT`
+(HazAT/pi-interactive-subagents), `PI_DADDY_DEFINITION` (pi-daddy). With no
+agent name the session runs the normal rules, as it always has.
+
+```json
+{ "agents": { "scout": "readonly", "builder": "worker" } }
+```
+
+An entry naming a profile neither file defines is a problem. An agent with no
+entry is unmapped and runs the normal rules. The project file's entry
+overrides the user config's for a trusted project; an untrusted project's
+entry stands only for an agent the user config does not map, to a profile the
+user config does not define, so the profile is wholly the project's and only
+tightens.
+
+`PI_BOUNCER_AGENT=orchestrator pi` starts a top-level session in the
+`orchestrator` agent's profile. `/bouncer status` shows the profile, and the
+log records it. A profile is chosen by the agent name only; the
+`bouncer-escape` rule keeps the model from setting or clearing these
+variables in bash.
+
+Known limit: an inherited `PI_BOUNCER_AGENT` outranks a launcher's own
+variable. When a parent started with `PI_BOUNCER_AGENT=orchestrator` launches
+a child through a launcher that copies its environment and sets
+`PI_SUBAGENT_AGENT=scout`, the child still reads `orchestrator`, because
+`PI_BOUNCER_AGENT` comes first. A later subagent library compatibility pass
+(issue #8) is to fix this.
 
 ## `auto`
 

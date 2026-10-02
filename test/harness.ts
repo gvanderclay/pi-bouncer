@@ -77,6 +77,8 @@ export type GateOptions = {
 	readonly flags?: Readonly<Record<string, boolean | string>>;
 	/** The user config written before loading; default `{}`, `null` writes none. */
 	readonly userConfig?: unknown;
+	/** The environment the bouncer reads agent variables from; default `{}`. */
+	readonly env?: Readonly<Record<string, string | undefined>>;
 };
 
 type SessionHandler = (
@@ -283,6 +285,7 @@ export async function loadGateSession(
 		logDir ?? undefined,
 		agentDir,
 		mode,
+		options.env ?? {},
 	);
 	if (!handler) throw new Error("the bouncer registered no tool_call handler");
 	const dir = logDir ?? "";

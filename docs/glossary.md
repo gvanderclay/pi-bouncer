@@ -47,10 +47,28 @@ _Avoid_: catalog, defaults
 
 **Effective policy**:
 The rules a session's bouncer enforces, in evaluation order, each at its rule
-level: the built-in policy with the bouncer config applied, then the custom
-rules, with custom steer rules last; settled at session start. A rule set to
+level: the built-in policy with the bouncer config and the session's profile
+applied, then the custom rules, with custom steer rules last; settled at
+session start. A rule set to
 off is not in it. The unreadable-command denies are always in it, at deny.
 _Avoid_: session policy, rulebook, levels
+
+**Profile**:
+A named group of rule changes under `profiles` in the bouncer config. It
+starts from the session's normal rules and changes only what it names: rule
+levels, custom rules, `protect` paths and the start mode.
+_Avoid_: permission set, role, preset
+
+**Agent name**:
+The name a launcher gives the session it starts, read from `PI_BOUNCER_AGENT`
+or a launcher's own variable. The `agents` map turns it into a profile.
+_Avoid_: role, subagent type
+
+**Normal rules**:
+The effective policy the user config and the project file give with no
+profile: what a profile starts from, and what a session with no agent name,
+an unmapped agent or a broken profile runs.
+_Avoid_: base rules, default rules
 
 **Unreadable-command deny**:
 A hard deny for a command the bouncer could not read (unparseable, nested too

@@ -11,6 +11,7 @@ import type {
 	ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
+import { agentFrom } from "./agent-env.ts";
 import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
 import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
@@ -99,10 +100,15 @@ function callRecord(
 	decision: Decision,
 	ctx: ExtensionContext,
 	sent: JudgeSent | undefined,
+	profile: GateConfig["profile"],
 ): object | undefined {
 	const { trace } = decision;
 	if (!trace) return undefined;
-	const head = { ...recordHead("call", ctx), command, ui: trace.ui };
+	const who =
+		profile?.state === "profile"
+			? { agent: profile.agent, profile: profile.name }
+			: {};
+	const head = { ...recordHead("call", ctx), command, ui: trace.ui, ...who };
 	const { matches, asks } = trace;
 	// Only a decision YOLO or auto mode made carries its fields; only a call
 	// a judge was asked about carries the counts of what it was sent.
@@ -133,12 +139,21 @@ function restoreStopReason(
 }
 
 function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
-	if (config.problems.length === 0 || !ctx.hasUI) return;
-	const lines = config.problems.map((problem) => `- ${problem}`);
-	ctx.ui.notify(
-		`Bouncer config problems; these parts are ignored:\n${lines.join("\n")}`,
-		"warning",
-	);
+	if (!ctx.hasUI) return;
+	const { profile } = config;
+	const broken =
+		profile?.state === "broken"
+			? [
+					`profile "${profile.name}" for agent ${profile.agent} is broken, so this session uses the normal rules`,
+				]
+			: [];
+	const listed = config.problems.map((problem) => `- ${problem}`);
+	const head =
+		listed.length > 0
+			? ["Bouncer config problems; these parts are ignored:", ...listed]
+			: [];
+	const lines = [...head, ...broken];
+	if (lines.length > 0) ctx.ui.notify(lines.join("\n"), "warning");
 }
 
 const WELCOME =
@@ -178,6 +193,7 @@ type Runtime = {
 	readonly logging: Logging;
 	readonly logDir: string;
 	readonly agentDir: string;
+	readonly env: Readonly<Record<string, string | undefined>>;
 	readonly switchMode: ModeSwitch;
 	readonly stopped: Map<string, string>;
 };
@@ -193,10 +209,8 @@ function startSession(
 	logging.restart();
 	resetPause(rt.session);
 	// The flags need the config: `--auto` checks the judge list.
-	const config = loadConfig(rt.agentDir, {
-		cwd: ctx.cwd,
-		trusted: trustedIfKnown(ctx),
-	});
+	const project = { cwd: ctx.cwd, trusted: trustedIfKnown(ctx) };
+	const config = loadConfig(rt.agentDir, project, agentFrom(rt.env));
 	rt.session.config = config;
 	applyStartFlags(rt.pi, holder, rt.switchMode, config, ctx);
 	showMode(holder, rt.session, ctx);
@@ -275,7 +289,13 @@ async function decideCall(
 	const call = callIn(rt, command, ctx, onSent);
 	const outcome = await rt.gate.decide(command, call);
 	rt.logging.write(ctx, () => {
-		const record = callRecord(command, outcome, ctx, sent);
+		const record = callRecord(
+			command,
+			outcome,
+			ctx,
+			sent,
+			rt.session.config?.profile,
+		);
 		if (record) appendRecord(rt.logDir, record);
 	});
 	trackPause(outcome, rt.holder, rt.session, ctx);
@@ -329,6 +349,7 @@ export default async function bouncer(
 	logDir: string = defaultLogDir(),
 	agentDir: string = defaultAgentDir(),
 	holder: ModeHolder = processModeHolder(),
+	env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
 	const parser = await tryLoad(loadParser);
 	const logging = createLogging(logDir);
@@ -347,6 +368,7 @@ export default async function bouncer(
 		logging,
 		logDir,
 		agentDir,
+		env,
 		switchMode: createModeSwitch(holder, session, logging, logDir),
 		stopped: new Map<string, string>(),
 	};

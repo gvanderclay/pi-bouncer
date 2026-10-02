@@ -70,6 +70,17 @@ YOLO mode allows every ask with no dialog or judge, and every rule set to
 deny as well. The always-deny set, unreadable commands and steer rules still
 deny.
 
+A session's profile may set the mode it starts in. A flag always wins, and
+the flag a parent's launch listener gives a child carries the parent's mode:
+
+| Parent's mode (flag the child gets) | Profile `mode` | Child starts in |
+| --- | --- | --- |
+| YOLO (`--yolo`) | any | YOLO |
+| auto (`--auto`) | any | auto |
+| off (no flag) | `"auto"` | auto, when a judge-list entry resolves; otherwise off with the usual refusal notice |
+| off (no flag) | `"off"` | off, even with `startMode: "auto"` |
+| off (no flag) | absent | `startMode`, as before |
+
 ## Auto mode
 
 In auto mode, every ask that no session allow covers goes to Jev first when
@@ -152,5 +163,8 @@ One JSON line is appended to `<agent dir>/bouncer/log.jsonl` (or
 `$PI_BOUNCER_LOG_DIR/log.jsonl`) for each hard deny, no-UI deny, dialog
 answer, session-allow hit, call YOLO mode allowed, call auto mode decided,
 mode switch and session start. Calls the bouncer lets through untouched are
-not logged. The log rotates into gzipped generations within the `log`
+not logged. The session record's `config` has a `profile` when the session has
+an agent name (its `state`, `agent`, the variable it came from, and the
+profile `name`), and each call record of a session running a profile has
+`agent` and `profile`. The log rotates into gzipped generations within the `log`
 limits, and a write failure never changes a decision.

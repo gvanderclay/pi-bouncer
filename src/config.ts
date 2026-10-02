@@ -2,10 +2,23 @@
 // value; the valid parts still apply.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentSource } from "./agent-env.ts";
 import { type JevSettings, jevPart } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import { validLevels } from "./levels.ts";
 import { effectivePolicy, ruleLevels } from "./policy.ts";
+import {
+	type Agents,
+	chooseProfile,
+	type Normal,
+	type ProfileChoice,
+	type Profiles,
+	profiledAgents,
+	type StartMode,
+	validAgents,
+	validProfiles,
+	withProfile,
+} from "./profiles.ts";
 import {
 	type ConfigFile,
 	type Levels,
@@ -39,7 +52,7 @@ export type AutoSettings = {
 
 export type { ConfigFile } from "./project-config.ts";
 
-export type StartMode = "off" | "auto";
+export type { StartMode };
 
 export type GateConfig = {
 	readonly policy: Policy;
@@ -49,7 +62,12 @@ export type GateConfig = {
 	readonly protect?: Protect;
 	readonly projectTrusted: boolean;
 	readonly log: LogLimits;
+	/** The profile's mode when it sets one, else the user config's. */
 	readonly startMode: StartMode;
+	/** Absent when the session has no agent name. */
+	readonly profile?: ProfileChoice;
+	/** Every agent name whose profile resolves. */
+	readonly profiledAgents: ReadonlySet<string>;
 	/** Absent when the route sets no `auto`: auto mode cannot turn on. */
 	readonly auto?: AutoSettings;
 	readonly files: readonly ConfigFile[];
@@ -253,6 +271,10 @@ type Parsed = {
 	readonly startMode?: StartMode;
 	readonly protect?: Protect;
 	readonly rules?: readonly CustomRule[];
+	readonly profiles?: Profiles;
+	readonly agents?: Agents;
+	/** `agents` as written; checked once both files' profile names are known. */
+	readonly rawAgents?: unknown;
 };
 
 function validStartMode(
@@ -296,7 +318,10 @@ function parseKey(
 	else if (key === "protect") parts.protect = validProtect(value, problems);
 	else if (key === "startMode") {
 		assign(parts, "startMode", validStartMode(value, problems));
-	} else if (key === "$schema") {
+	} else if (key === "profiles") {
+		parts.profiles = validProfiles(value, problems);
+	} else if (key === "agents") parts.rawAgents = value;
+	else if (key === "$schema") {
 		// For editors only: points at schema/bouncer.schema.json.
 		if (typeof value !== "string") problems.push('"$schema" must be a string');
 	} else if (key === "rules") parts.rules = validRules(value, problems);
@@ -331,45 +356,73 @@ export function routeConfigFile(agentDir: string): string {
 	return join(agentDir, "bouncer.json");
 }
 
+// `agents` names profiles from either file, so it is checked after both parse.
+function withAgents(parsed: Parsed, known: ReadonlySet<string>): Parsed {
+	if (!Object.hasOwn(parsed, "rawAgents")) return parsed;
+	const problems: string[] = [];
+	const agents = validAgents(parsed.rawAgents, problems, known);
+	const { file } = parsed;
+	const checked = { ...file, problems: [...file.problems, ...problems] };
+	return { ...parsed, agents, file: checked };
+}
+
 export type Project = { readonly cwd: string; readonly trusted: boolean };
 
 // Project levels override the route (user config) entry by entry, but never loosen
 // the always-deny set, and an untrusted project only makes a rule stricter.
-export function loadConfig(agentDir: string, project: Project): GateConfig {
-	const routeFile = parseFile(routeConfigFile(agentDir), "route");
-	const projectFile = parseFile(projectConfigFile(project.cwd), "project");
+export function loadConfig(
+	agentDir: string,
+	project: Project,
+	agent?: AgentSource,
+): GateConfig {
+	const route0 = parseFile(routeConfigFile(agentDir), "route");
+	const project0 = parseFile(projectConfigFile(project.cwd), "project");
+	const known = new Set([
+		...Object.keys(route0.profiles ?? {}),
+		...Object.keys(project0.profiles ?? {}),
+	]);
+	const routeFile = withAgents(route0, known);
+	const projectFile = withAgents(project0, known);
 	const projectConfig = projectLevels(
 		projectFile,
 		routeFile.levels,
 		project.trusted,
 	);
-	const userRules = routeFile.rules ?? [];
 	const refused: string[] = [];
-	const custom = [
-		...userRules,
-		...projectRules(
-			projectFile.rules ?? [],
-			userRules,
-			project.trusted,
-			refused,
-		),
-	];
+	const normal = normalRules(routeFile, projectFile, projectConfig.levels, {
+		trusted: project.trusted,
+		refused,
+	});
+	const chosen = chooseProfile(
+		agent,
+		routeFile,
+		projectFile,
+		project.trusted,
+		normal,
+	);
+	refused.push(...chosen.problems);
+	const applied = withProfile(normal, chosen.layer);
+	const { protect } = applied;
+	const { policy, off } = effectivePolicy(
+		applied.levels,
+		protect,
+		applied.rules,
+	);
 	const { file } = projectConfig;
 	const files = [
 		routeFile.file,
 		{ ...file, problems: [...file.problems, ...refused] },
 		...oldProjectFile(project.cwd),
 	];
-	const protect = mergeProtect(routeFile.protect, projectFile.protect);
-	const levels = { ...routeFile.levels, ...projectConfig.levels };
-	const { policy, off } = effectivePolicy(levels, protect, custom);
 	return {
 		policy,
 		...(off.length > 0 && { off }),
 		...(protect && { protect }),
 		projectTrusted: project.trusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
-		startMode: routeFile.startMode ?? "off",
+		startMode: applied.startMode,
+		...(chosen.choice && { profile: chosen.choice }),
+		profiledAgents: profiledAgents(routeFile, projectFile, project.trusted),
 		...(routeFile.auto && { auto: routeFile.auto }),
 		files,
 		problems: files.flatMap(({ path, problems }) =>
@@ -378,11 +431,34 @@ export function loadConfig(agentDir: string, project: Project): GateConfig {
 	};
 }
 
+// The rules both files give with no profile: what a profile starts from.
+function normalRules(
+	routeFile: Parsed,
+	projectFile: Parsed,
+	projectLevelsKept: Levels,
+	{ trusted, refused }: { trusted: boolean; refused: string[] },
+): Normal {
+	const userRules = routeFile.rules ?? [];
+	const custom = [
+		...userRules,
+		...projectRules(projectFile.rules ?? [], userRules, trusted, refused),
+	];
+	const protect = mergeProtect(routeFile.protect, projectFile.protect);
+	return {
+		levels: { ...routeFile.levels, ...projectLevelsKept },
+		rules: custom,
+		...(protect && { protect }),
+		startMode: routeFile.startMode ?? "off",
+	};
+}
+
 export type ConfigRecord = {
 	readonly files: readonly ConfigFile[];
 	readonly projectTrusted: boolean;
 	readonly levels: Readonly<Record<RuleName, ConfigLevel>>;
 	readonly log: LogLimits;
+	/** Only when the session has an agent name. */
+	readonly profile?: ProfileChoice;
 	/** Only when a file adds protected paths. */
 	readonly protect?: Protect;
 	/** The route's auto settings, with only a count of environment facts. */
@@ -404,6 +480,7 @@ export function configRecord(config: GateConfig): ConfigRecord {
 		projectTrusted,
 		levels: ruleLevels(config.policy, config.off),
 		log,
+		...(config.profile && { profile: config.profile }),
 		...(protect && { protect }),
 	};
 	if (!auto) return base;

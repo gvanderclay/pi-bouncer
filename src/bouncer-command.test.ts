@@ -18,8 +18,14 @@ async function run(gate: LoadedGate, args: string): Promise<Notice[]> {
 	return notices;
 }
 
-async function started(userConfig: unknown = {}): Promise<LoadedGate> {
-	const gate = await loadGateSession(undefined, undefined, { userConfig });
+async function started(
+	userConfig: unknown = {},
+	env: Readonly<Record<string, string>> = {},
+): Promise<LoadedGate> {
+	const gate = await loadGateSession(undefined, undefined, {
+		userConfig,
+		env,
+	});
 	await gate.startSession("startup");
 	return gate;
 }
@@ -37,7 +43,7 @@ test("/bouncer reports the mode, files, levels, log and auto mode", async () => 
 	assert.equal(await text(gate, "status"), status);
 	const lines = status.split("\n");
 	assert.equal(lines[0], "Bouncer mode: normal");
-	assert.equal(lines[1], "Parser: loaded");
+	assert.equal(lines[2], "Parser: loaded");
 	assert.ok(
 		lines.includes(`- ${join(gate.agentDir, "bouncer.json")} (loaded)`),
 	);
@@ -58,7 +64,7 @@ test("/bouncer status names YOLO mode and a missing parser", async () => {
 	await gate.runCommand("yolo", "on", uiContext().ctx);
 	const lines = (await text(gate, "status")).split("\n");
 	assert.equal(lines[0], "Bouncer mode: YOLO");
-	assert.equal(lines[1], "Parser: missing, so every bash command is denied");
+	assert.equal(lines[2], "Parser: missing, so every bash command is denied");
 });
 
 test("/bouncer rules lists every entry with its level and summary", async () => {
@@ -200,4 +206,67 @@ test("no first-run notice with a user config, or without a UI", async () => {
 	const later = uiContext();
 	await headless.startSession("new", later.ctx);
 	assert.deepEqual(later.notices, [WELCOME]);
+});
+
+const PROFILED = {
+	profiles: { readonly: { levels: { "recursive-rm": "deny" } } },
+	agents: { scout: "readonly" },
+};
+
+const PROFILE_LINES: readonly [
+	string,
+	unknown,
+	Readonly<Record<string, string>>,
+	string,
+][] = [
+	["no agent name", PROFILED, {}, "Profile: none"],
+	[
+		"a profile",
+		PROFILED,
+		{ PI_SUBAGENT_AGENT: "scout" },
+		"Profile: readonly (agent scout, from PI_SUBAGENT_AGENT)",
+	],
+	[
+		"an unmapped agent",
+		PROFILED,
+		{ PI_SUBAGENT_AGENT: "wanderer" },
+		"Profile: none; agent wanderer (from PI_SUBAGENT_AGENT) has no profile",
+	],
+	[
+		"a broken profile",
+		{ profiles: { readonly: { mode: "yolo" } }, agents: { scout: "readonly" } },
+		{ PI_BOUNCER_AGENT: "scout" },
+		'Profile: none; "readonly" for agent scout is broken, so the normal rules apply',
+	],
+];
+
+for (const [label, config, env, line] of PROFILE_LINES) {
+	test(`/bouncer status shows the profile line for ${label}`, async () => {
+		const lines = (await text(await started(config, env), "status")).split(
+			"\n",
+		);
+		assert.equal(lines[1], line);
+		assert.equal(lines[0], "Bouncer mode: normal");
+	});
+}
+
+test("/bouncer check reports a profile problem for the session's agent", async () => {
+	const gate = await started(PROFILED, { PI_SUBAGENT_AGENT: "scout" });
+	gate.writeRouteConfig({
+		...PROFILED,
+		profiles: { readonly: { mode: "yolo" } },
+	});
+	const lines = (await text(gate, "check")).split("\n");
+	assert.equal(lines[0], "Config problems; these parts would be ignored:");
+	assert.ok(
+		lines.includes(
+			'  - profiles.readonly.mode: "yolo" is not allowed: YOLO mode starts only with pi --yolo or /yolo',
+		),
+	);
+});
+
+test("/bouncer explain replays a command under the session's profile", async () => {
+	const gate = await started(PROFILED, { PI_SUBAGENT_AGENT: "scout" });
+	const lines = (await text(gate, "explain rm -rf dist")).split("\n");
+	assert.equal(lines[0], "recursive-rm (deny): rm -rf dist");
 });
