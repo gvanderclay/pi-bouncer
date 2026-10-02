@@ -1,4 +1,4 @@
-// Running anything with elevated privileges. The user can run these with `!`.
+// The user can run these themselves with `!`.
 import type { Invocation } from "../scan/walk.ts";
 import type { Rule } from "./rule.ts";
 

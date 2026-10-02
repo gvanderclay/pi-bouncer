@@ -1,5 +1,3 @@
-// Helpers shared by the auto-mode tests: statuses, notices, a judge list
-// whose one model allows, and contexts holding a fake model registry.
 import assert from "node:assert/strict";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -32,15 +30,10 @@ export const AUTO_OFF = {
 
 export const JUDGE = "fake/judge";
 
-/** A registry whose one model, `fake/judge`, allows every call. */
 export function allowingRegistry(): FakeRegistry {
 	return fakeRegistry({ [JUDGE]: { reply: verdict("allow", "routine") } });
 }
 
-/**
- * A bouncer whose route lists `models` as its judge list and whose session has
- * started; `/auto` is not yet run.
- */
 export async function listedGate(
 	models: readonly string[] = [JUDGE],
 	auto: object = {},
@@ -51,13 +44,11 @@ export async function listedGate(
 	return gate;
 }
 
-/** A UI context holding `fake` as its model registry. */
 export function registryUI(fake: FakeRegistry): ReturnType<typeof uiContext> {
 	const ui = uiContext();
 	return { ...ui, ctx: withRegistry(ui.ctx, fake) };
 }
 
-/** The mode records in `records`, as `[type, on, how]`, in order. */
 export function modeRecords(
 	records: readonly LogRecord[],
 ): (readonly [unknown, unknown, unknown])[] {
@@ -69,10 +60,6 @@ export function modeRecords(
 export const HARD_DENY_TAIL =
 	"None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.";
 
-/**
- * A bouncer in auto mode whose judge list is `fake/judge`, scripted by
- * `script`; the registry gives `keys` by provider.
- */
 export async function judgedGate(
 	script: ModelScript | ModelReply,
 	auto: object = {},
@@ -94,7 +81,6 @@ export async function judgedGate(
 	return { gate, fake };
 }
 
-/** A scripted dialog context that also holds `fake`. */
 export function judgedUI(
 	fake: FakeRegistry,
 	answers: readonly (string | undefined)[] = [],
@@ -103,7 +89,6 @@ export function judgedUI(
 	return { ...ui, ctx: withRegistry(ui.ctx, fake) };
 }
 
-/** `ctx` whose session runs on `provider/id`, as `ctx.model` holds it. */
 export function onModel(
 	ctx: ExtensionContext,
 	provider: string,
@@ -116,15 +101,10 @@ export function noUI(fake: FakeRegistry): ExtensionContext {
 	return withRegistry(fakeContext(), fake);
 }
 
-/** A call record's `auto.verdict`, if any. */
 export function autoVerdict(record: LogRecord | undefined): unknown {
 	return (record?.auto as { verdict?: unknown } | undefined)?.verdict;
 }
 
-/**
- * A bouncer in auto mode whose judge list is `models`, scripted by
- * `scripts`; the registry gives `keys` by provider.
- */
 export async function listGate(
 	models: readonly string[],
 	scripts: Readonly<Record<string, ModelScript>>,

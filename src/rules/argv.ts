@@ -13,16 +13,11 @@
 // - A lone `-` is an operand.
 // - An unknown option is skipped as a bare flag and processing continues.
 
-/** The arguments before the first `--`: the only ones that can be options. */
 export function optionArgs(args: readonly string[]): readonly string[] {
 	const end = args.indexOf("--");
 	return end === -1 ? args : args.slice(0, end);
 }
 
-/**
- * True when a short cluster (`-rf`) holds one of `letters`. Scanning a cluster
- * stops at the first letter in `valueLetters`: the rest is that option's value.
- */
 export function hasShortFlag(
 	args: readonly string[],
 	letters: string,
@@ -38,26 +33,19 @@ export function hasShortFlag(
 	return false;
 }
 
-/**
- * True when a long option abbreviates `name`: `--p` or `--p=value` where `p`
- * is a non-empty prefix of `name` (git and GNU tools accept abbreviations).
- */
 export function hasLongOption(args: readonly string[], name: string): boolean {
 	return optionArgs(args).some((arg) => isLongOption(arg, name));
 }
 
-/** True when `given` is a non-empty prefix of the long option `name`. */
 function abbreviates(given: string, name: string): boolean {
 	return given !== "" && name.startsWith(given);
 }
 
-/** True when `arg` is `--p` or `--p=value` and `p` abbreviates `name`. */
 export function isLongOption(arg: string, name: string): boolean {
 	if (!arg.startsWith("--")) return false;
 	return abbreviates(arg.slice(2).split("=", 1)[0] ?? "", name);
 }
 
-/** Which options of a command take a value. */
 export type OptionSpec = {
 	/** Short options that take a value: the rest of the cluster, or the next argument. */
 	readonly shortValues?: string;
@@ -65,15 +53,10 @@ export type OptionSpec = {
 	readonly longValues?: readonly string[];
 };
 
-/** Arguments read left to right, with option values consumed. */
 export type ParsedArgs = {
-	/** Every short option letter given, in order. */
 	readonly shorts: readonly string[];
-	/** Every long option name as written (possibly abbreviated), without `--`. */
 	readonly longs: readonly string[];
-	/** Operands before `--`, in order. */
 	readonly operands: readonly string[];
-	/** Arguments after the first `--`, or undefined when there is no `--`. */
 	readonly afterDashDash?: readonly string[];
 };
 
@@ -102,7 +85,6 @@ function readShortArg(arg: string, spec: OptionSpec, state: Parsing): void {
 	}
 }
 
-/** Reads `args` per the conventions in the header comment. */
 export function parseArgs(
 	args: readonly string[],
 	spec: OptionSpec = {},
@@ -128,7 +110,6 @@ export function parseArgs(
 	return { shorts, longs, operands };
 }
 
-/** True when a long option given abbreviates `name` (a dangerous option). */
 export function givesLong(parsed: ParsedArgs, name: string): boolean {
 	return parsed.longs.some((given) => abbreviates(given, name));
 }

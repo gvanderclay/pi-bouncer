@@ -1,5 +1,3 @@
-// The grep steer rule: every grep the scan finds is blocked, in every bouncer
-// mode, with a message that sends the model to rg and no warning for the user.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { judgedGate, judgedUI } from "../../test/auto-harness.ts";
@@ -18,7 +16,6 @@ import {
 const STEER =
 	"Blocked by the user's bouncer (rule: grep): grep is not allowed here.";
 
-/** Asserts `command` gets the grep block without a UI. */
 async function expectGrepBlock(command: string): Promise<void> {
 	const handler = await loadGate();
 	const result = await handler(bashCall(command), fakeContext());

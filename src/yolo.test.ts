@@ -1,6 +1,3 @@
-// YOLO mode through the bouncer's Pi events: the /yolo command, the dialog
-// choice, the --yolo flag, the footer status, the notices and the log. Each
-// load gets a fresh mode holder unless a test passes one, as /reload does.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -32,7 +29,6 @@ const OFF_NOTICE = {
 	level: "info",
 };
 
-/** A bouncer whose session has started and whose YOLO mode `/yolo` turned on. */
 async function yoloGate(): Promise<LoadedGate> {
 	const gate = await loadGateSession();
 	await gate.startSession("startup");
@@ -114,7 +110,6 @@ test("/yolo with an unknown argument warns and changes nothing", async () => {
 const HARD_DENY_TAIL =
 	"None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.";
 
-/** Today's hard-deny reason for `rule`, quoting `source`. */
 function hardDeny(rule: string, summary: string, source: string): string {
 	return `Blocked by the user's bouncer (rule: ${rule}): ${summary}. Command: \`${source}\`. ${HARD_DENY_TAIL}`;
 }
@@ -312,8 +307,6 @@ test("a fresh load starts with YOLO mode off", async () => {
 	assert.equal(result?.block, true);
 });
 
-// The bouncer log under YOLO mode.
-
 const HEAD: Record<string, unknown> = {
 	v: 1,
 	sessionId: SESSION_ID,
@@ -321,7 +314,6 @@ const HEAD: Record<string, unknown> = {
 	cwd: "/work",
 };
 
-/** A record without its time, which is checked to be a string. */
 function timeless(record: LogRecord | undefined): object {
 	const { time, ...rest } = record ?? {};
 	assert.equal(typeof time, "string");
@@ -466,8 +458,6 @@ test("an unwritable log leaves YOLO mode's decisions and switches unchanged", as
 	assert.equal(denied?.block, true);
 });
 
-// The "⚠️ Allow all (YOLO)" dialog choice.
-
 const ALLOW_ALL = "⚠️ Allow all (YOLO)";
 const THREE_ASKS = "rm -rf a && git reset --hard && git clean -fd";
 
@@ -538,8 +528,6 @@ test("a line with a hard deny never offers Allow all (YOLO)", async () => {
 	assert.equal(dialogs.length, 0);
 	assert.equal(gate.mode.mode, "off");
 });
-
-// pi --yolo.
 
 const FLAG = { flags: { yolo: true } };
 

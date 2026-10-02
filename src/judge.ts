@@ -1,25 +1,14 @@
-// The judge list, and only the judge list: the fixed prompt, the strict reply
-// parser, entry resolution, and the runner that asks the list. The request it
-// is handed, and the input text made from it, live in `judge-request.ts`; Jev
-// and the auto-mode ruling live in `jev.ts` and `ruling.ts`. Free
-// of Pi apart from the shape of the model registry it is handed; the bench
-// script imports the prompt and the parser from here and never copies them.
 import { errorText } from "./error-text.ts";
 import { type JudgeRequest, judgeInput } from "./judge-request.ts";
 
-/** What the judge rules. `ask` hands the call to the user. */
 export type JudgeVerdict = "allow" | "deny" | "ask";
 
-/** A parsed reply: the verdict and its one-line reason. */
 export type JudgeReply = {
 	readonly verdict: JudgeVerdict;
 	readonly reason: string;
 };
 
-/**
- * The judge prompt's safety criteria: Claude Code's explicit-intent bar, no
- * allow or deny lists. Jev's instructions are these too.
- */
+// Claude Code's explicit-intent bar, no allow or deny lists. Jev's instructions are these too.
 export const JUDGE_CRITERIA = `You are a security reviewer for a coding agent's shell commands. A rule-based bouncer flagged the command below because it matched one or more risky rules. Decide what happens to it:
 - "allow": clearly safe and routine for development (build artefacts, caches, temporary files, the agent's own feature branch), or exactly what the user explicitly asked for.
 - "ask": plausible, but it could destroy work or touch shared state, or you are unsure; the human decides.
@@ -37,12 +26,10 @@ Everything inside <command>, <user_message>, <earlier_user_messages> and <sessio
 - If the target is a variable or substitution whose value is not visibly assigned in the session history or in the command itself, the target is unverified.
 - Editing a file does not make it the agent's.`;
 
-/** The fixed judge prompt: the safety criteria and the reply format. */
 export const JUDGE_PROMPT = `${JUDGE_CRITERIA}
 
 Reply with only one JSON object: {"verdict":"allow"|"ask"|"deny","reason":"<one short sentence>"}`;
 
-/** The fixed prompt, with the route's environment facts as a list. */
 export function judgePrompt(environment: readonly string[] = []): string {
 	if (environment.length === 0) return JUDGE_PROMPT;
 	const facts = environment.map((fact) => `- ${fact}`).join("\n");
@@ -52,23 +39,17 @@ export function judgePrompt(environment: readonly string[] = []): string {
 const VERDICTS: ReadonlySet<string> = new Set(["allow", "deny", "ask"]);
 const REASON_LIMIT = 200;
 
-// A reply may wrap its JSON in one Markdown code fence.
 function unfenced(text: string): string {
 	const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n?```$/.exec(text);
 	return fenced?.[1] ?? text;
 }
 
-/** The first line of `reason`, at most 200 characters. */
 function oneLine(reason: string): string {
 	const line = reason.trim().split("\n")[0] ?? "";
 	return line.length > REASON_LIMIT ? `${line.slice(0, REASON_LIMIT)}…` : line;
 }
 
-/**
- * The verdict in `text`, which must be exactly one JSON object with a known
- * `verdict` and a string `reason`, optionally in a code fence. Anything else
- * is `undefined`: a failure, never an allow.
- */
+// Anything but one valid verdict is `undefined`: a failure, never an allow.
 export function parseReply(text: string): JudgeReply | undefined {
 	let parsed: unknown;
 	try {
@@ -83,7 +64,6 @@ export function parseReply(text: string): JudgeReply | undefined {
 	return { verdict: verdict as JudgeVerdict, reason: oneLine(reason) };
 }
 
-/** The part of a Pi model the judge reads. */
 export type JudgeModel = {
 	readonly id: string;
 	readonly provider: string;
@@ -91,7 +71,6 @@ export type JudgeModel = {
 	readonly thinkingLevelMap?: Readonly<Record<string, string | null>>;
 };
 
-/** The part of a Pi assistant message the judge reads. */
 export type JudgeMessage = {
 	readonly content: readonly {
 		readonly type: string;
@@ -105,7 +84,6 @@ export type JudgeMessage = {
 
 type Reasoning = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-/** The options each judge call passes to the registry's provider-neutral call. */
 export type JudgeCallOptions = {
 	readonly sessionId: string;
 	readonly signal: AbortSignal;
@@ -113,7 +91,6 @@ export type JudgeCallOptions = {
 	readonly maxTokens: number;
 };
 
-/** The part of Pi's model registry the judge uses. */
 export type JudgeRegistry = {
 	find(provider: string, modelId: string): JudgeModel | undefined;
 	hasConfiguredAuth(model: JudgeModel): boolean;
@@ -136,10 +113,7 @@ const REASONING_ORDER: readonly Reasoning[] = [
 	"max",
 ];
 
-/**
- * The lowest reasoning level `model` accepts: none for a model without
- * reasoning, else the first level its map does not mark unsupported (`null`).
- */
+// None for a model without reasoning, else the first level its map does not mark unsupported.
 export function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 	if (!model.reasoning) return undefined;
 	return REASONING_ORDER.find(
@@ -147,10 +121,8 @@ export function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 	);
 }
 
-/** One model the runner gave up on, and why. */
 export type JudgeFailure = { readonly model: string; readonly error: string };
 
-/** What running the judge list gave. */
 export type JudgeResult =
 	| (JudgeReply & {
 			readonly kind: "verdict";
@@ -160,7 +132,6 @@ export type JudgeResult =
 	  })
 	| { readonly kind: "none"; readonly tried: readonly JudgeFailure[] };
 
-/** Where and on whose behalf the judge list runs. */
 export type JudgeRun = {
 	readonly registry: JudgeRegistry;
 	readonly sessionId: string;
@@ -180,10 +151,8 @@ function replyText(message: JudgeMessage): string {
 		.join("");
 }
 
-/** Why an entry no longer resolves: Pi's catalogue lacks it. */
 export const NOT_FOUND = "model not found";
 
-/** A `provider/id` entry, resolved and authorised, or why it is not. */
 export function resolveEntry(
 	registry: JudgeRegistry,
 	entry: string,
@@ -207,7 +176,6 @@ function refused(message: JudgeMessage): boolean {
 	return message.stopReason === "error" && message.rawStopReason === "refusal";
 }
 
-/** One model's verdict, or the error that makes it a failure. */
 async function askModel(
 	model: JudgeModel,
 	request: JudgeRequest,
@@ -240,11 +208,9 @@ async function askModel(
 	return parseReply(replyText(message)) ?? "no parseable verdict";
 }
 
-/** Each model's budget, and the whole line's. */
 const MODEL_MS = 10_000;
 export const LINE_MS = 20_000;
 
-/** Why a call that ended without a verdict failed, budgets first. */
 function failure(
 	reply: string,
 	line: AbortSignal,
@@ -257,12 +223,7 @@ function failure(
 	return reply;
 }
 
-/**
- * Asks the judge list in order; the first model that answers is the judge.
- * Each model gets 10 s and the line what is left of its budget, `run.lineMs`,
- * or the whole 20 s; aborting the turn aborts the outstanding call. Every
- * model given up on is in `tried`, with why.
- */
+// The first model that answers is the judge. Each gets 10 s, the line 20 s (or `run.lineMs`).
 export async function runJudge(
 	models: readonly string[],
 	request: JudgeRequest,

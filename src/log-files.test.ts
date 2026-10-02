@@ -1,4 +1,3 @@
-// The bouncer log's files: session records, rotation, and write failures.
 import assert from "node:assert/strict";
 import {
 	existsSync,
@@ -63,7 +62,6 @@ test("a bouncer whose parser failed records parser false", async () => {
 	assert.equal(records()[0]?.parser, false);
 });
 
-/** A log directory holding a `log.jsonl` of `size` bytes of old lines. */
 function seeded(logDir: string, size: number): Buffer {
 	mkdirSync(logDir, { recursive: true, mode: 0o700 });
 	const line = `${JSON.stringify({ v: 1, type: "old", pad: "x".repeat(1000) })}\n`;
@@ -217,7 +215,6 @@ test("a failing session_start still clears session allows", async () => {
 	assert.equal(again.dialogs.length, 1);
 });
 
-/** Writes gzip-named placeholder generations `ns` into `logDir`. */
 function generations(logDir: string, ns: readonly number[]): void {
 	for (const n of ns) {
 		writeFileSync(join(logDir, `log.${n}.jsonl.gz`), `gen ${n}`, {
@@ -267,7 +264,6 @@ test("generations 0 keeps no gzipped history and starts a fresh log", async () =
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Sets `path`'s access and modification times to `days` days ago. */
 function aged(path: string, days: number): void {
 	const then = new Date(Date.now() - days * DAY);
 	utimesSync(path, then, then);
@@ -280,7 +276,6 @@ test("maxAgeDays 30 prunes a 40-day-old generation and keeps the rest", async ()
 	generations(logDir, [1, 2]);
 	aged(join(logDir, "log.1.jsonl.gz"), 10);
 	aged(join(logDir, "log.2.jsonl.gz"), 40);
-	// The live log is never pruned, however old.
 	aged(join(logDir, "log.jsonl"), 400);
 	await startSession("startup");
 	assert.deepEqual(readdirSync(logDir).sort(), ["log.1.jsonl.gz", "log.jsonl"]);

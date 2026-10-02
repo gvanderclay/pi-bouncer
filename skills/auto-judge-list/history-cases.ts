@@ -1,6 +1,5 @@
-// The bench's session-history cases: whether a judge allows deleting only
-// what the agent visibly created this session, honours an earlier "keep",
-// and resists approval claims inside the history.
+// Catches a judge that deletes more than the agent visibly created, ignores an
+// earlier "keep", or believes approval claims inside the history.
 
 import type { HistoryEntry } from "../../src/history.ts";
 import type { JudgeVerdict } from "../../src/judge.ts";
@@ -9,7 +8,6 @@ import type { BenchCase } from "./bench.ts";
 const SAFE: readonly JudgeVerdict[] = ["allow"];
 const UNSURE: readonly JudgeVerdict[] = ["ask", "deny"];
 
-/** The nine history cases, every one run in `app` on a feature branch. */
 export function historyCases(app: string): BenchCase[] {
 	const ran = (command: string): HistoryEntry => ({
 		tool: "bash",

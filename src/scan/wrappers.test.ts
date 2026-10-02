@@ -116,7 +116,7 @@ const denied = [
 	"watch -n 1 -- rm -rf x",
 	"watch 'ls; rm -rf x'",
 	"setsid flock /tmp/l watch -n 1 rm -rf x",
-	// env -S strings are re-parsed (this was once an accepted miss).
+	// env -S strings are re-parsed.
 	"env -S 'rm -rf x'",
 ];
 
@@ -148,7 +148,6 @@ const allowed = [
 	"watch 'ls -l'",
 	"watch",
 	"watch -x ls",
-	// The value of a wrapper option is not a command.
 	"watch -n rm ls",
 	"flock -w rm /tmp/l ls",
 	// An option that needs a value came last: the tool refuses to run.
@@ -166,7 +165,6 @@ const allowed = [
 	"caffeinate -t 60",
 	"stdbuf -oL ls",
 	"/usr/bin/time ls",
-	// The value of a wrapper option is not a command.
 	"env -u rm -rf",
 	"timeout -s rm 5 ls",
 ];

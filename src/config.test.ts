@@ -1,4 +1,3 @@
-// The bouncer config loader: every kind of problem, and what falls back.
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +15,6 @@ import { type Policy, policyEntryName } from "./rules/rule.ts";
 
 const DEFAULT_LOG = { rotateAboveMiB: 5, generations: 5 };
 
-// The shipped levels, in evaluation order: unreadable-command denies first.
 const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["parser-unavailable", "deny"],
 	["unparseable", "deny"],
@@ -45,22 +43,16 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["grep", "deny"],
 ];
 
-/** A policy as `[rule, level]` rows, in evaluation order. */
 function rows(policy: Policy): (readonly [string, string])[] {
 	return policy.map((entry) => [policyEntryName(entry), entry.level]);
 }
 
-/** The built-in rows with `changes` applied: what an effective policy holds. */
 function builtInWith(
 	changes: Readonly<Record<string, string>> = {},
 ): (readonly [string, string])[] {
 	return BUILT_IN_LEVELS.map(([rule, level]) => [rule, changes[rule] ?? level]);
 }
 
-/**
- * A temp agent dir holding `config` as its route file, that file's path, and
- * a project cwd with no project file.
- */
 function route(config?: unknown): {
 	agentDir: string;
 	path: string;
@@ -116,8 +108,6 @@ test("a valid file sets levels and log limits", () => {
 	assert.deepEqual(config.problems, []);
 });
 
-// Each row: the file, the one problem it reports, and the level changes that
-// apply.
 const problems: readonly (readonly [
 	label: string,
 	config: unknown,
@@ -277,7 +267,6 @@ test("every problem in one file is reported", () => {
 	assert.equal(loadConfig(agentDir, { cwd, trusted: true }).problems.length, 4);
 });
 
-/** A temp route and project, each holding its config when one is given. */
 function routeAndProject(
 	routeConfig: unknown,
 	projectConfig: unknown,

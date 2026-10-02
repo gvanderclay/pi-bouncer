@@ -1,5 +1,3 @@
-// The bouncer log's files: where it lives and how a record is appended. Only
-// index.ts uses it; every failure is the caller's to handle.
 import {
 	appendFileSync,
 	existsSync,
@@ -18,16 +16,12 @@ import { agentDir } from "./agent-dir.ts";
 const MIB = 1024 * 1024;
 const DAY = 24 * 60 * 60 * 1000;
 
-/** How big `log.jsonl` may grow, and how many gzipped generations stay. */
 export type RotationLimits = {
 	readonly rotateAboveMiB: number;
 	readonly generations: number;
 };
 
-/**
- * `$PI_BOUNCER_LOG_DIR`, or the route's own `<agent dir>/bouncer`.
- * It never depends on the bouncer config.
- */
+// Never depends on the bouncer config.
 export function defaultLogDir(): string {
 	const { PI_BOUNCER_LOG_DIR } = process.env;
 	return PI_BOUNCER_LOG_DIR || join(agentDir(), "bouncer");
@@ -37,7 +31,6 @@ export function logFile(dir: string): string {
 	return join(dir, "log.jsonl");
 }
 
-/** Appends one JSON line, creating the directory (0700) and file (0600). */
 export function appendRecord(dir: string, record: object): void {
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	appendFileSync(logFile(dir), `${JSON.stringify(record)}\n`, { mode: 0o600 });
@@ -55,7 +48,6 @@ function sizeOf(path: string): number {
 	}
 }
 
-// Every `log.N.jsonl.gz` in `dir` with its N; none when `dir` is missing.
 function generationsIn(dir: string): { n: number; path: string }[] {
 	let names: string[];
 	try {
@@ -70,7 +62,6 @@ function generationsIn(dir: string): { n: number; path: string }[] {
 	});
 }
 
-// Deletes a file another process may already have deleted.
 function removeIfPresent(path: string): void {
 	try {
 		unlinkSync(path);
@@ -79,12 +70,8 @@ function removeIfPresent(path: string): void {
 	}
 }
 
-/**
- * Past `rotateAboveMiB`, `log.jsonl` becomes `log.1.jsonl.gz` and older
- * generations shift up, keeping `generations` of them (none: the old log is
- * deleted). The first step renames the log to a name only this process uses:
- * of two processes starting at once, only one rotates it.
- */
+// The first step renames the log to a name only this process uses, so of two
+// processes starting at once only one rotates it.
 export function rotateIfNeeded(dir: string, limits: RotationLimits): void {
 	const log = logFile(dir);
 	if (sizeOf(log) <= limits.rotateAboveMiB * MIB) return;
@@ -113,10 +100,7 @@ export function rotateIfNeeded(dir: string, limits: RotationLimits): void {
 	unlinkSync(claimed);
 }
 
-/**
- * Deletes every gzipped generation last modified more than `maxAgeDays` days
- * ago; `undefined` prunes nothing. `log.jsonl` is never pruned.
- */
+// `log.jsonl` is never pruned.
 export function pruneByAge(dir: string, maxAgeDays: number | undefined): void {
 	if (maxAgeDays === undefined) return;
 	const oldest = Date.now() - maxAgeDays * DAY;

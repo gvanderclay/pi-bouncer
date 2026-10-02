@@ -1,9 +1,5 @@
-// The bouncer config: finds, reads, validates and merges the route's
-// `bouncer.json` and the project's `.pi/extensions/bouncer/config.json`, under
-// the project rules in project-config.ts. Free of Pi; only index.ts,
-// explain.ts, mode-switch.ts and ruling.ts (for `judgeOrder`) import it. It
-// never throws: each invalid part is a problem and falls back to its built-in
-// value, and the valid parts still apply.
+// Never throws: each invalid part is a problem and falls back to its built-in
+// value; the valid parts still apply.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type JevSettings, jevPart } from "./auto-jev-config.ts";
@@ -20,7 +16,6 @@ import { builtInEntries, builtInPolicy } from "./rules/built-in-policy.ts";
 import { type Policy, policyEntryName } from "./rules/rule.ts";
 import type { RuleName, VerdictLevel } from "./verdict.ts";
 
-/** The bouncer log's limits; only the route file sets them. */
 export type LogLimits = {
 	readonly rotateAboveMiB: number;
 	readonly generations: number;
@@ -28,41 +23,28 @@ export type LogLimits = {
 	readonly maxAgeDays?: number;
 };
 
-/** Auto mode's route-only settings; only the route file sets them. */
 export type AutoSettings = {
 	/** The judge list: `provider/id` entries, in priority order. */
 	readonly models: readonly string[];
-	/** Command prefixes that always open the dialog in auto mode. */
 	readonly alwaysAsk: readonly string[];
-	/** Prose facts about the user's environment, appended to the judge prompt. */
 	readonly environment: readonly string[];
-	/**
-	 * By the session model's provider, the `models` entry asked first; the
-	 * rest of `models` follows in order.
-	 */
 	readonly firstByProvider: Readonly<Record<string, string>>;
 	/** Absent: Jev is off and the judge list rules alone. */
 	readonly jev?: JevSettings;
 };
 
-/** One config file the bouncer looked for; defined in project-config.ts. */
 export type { ConfigFile } from "./project-config.ts";
 
-/** The bouncer mode a process starts in without a flag; YOLO is flag-only. */
 export type StartMode = "off" | "auto";
 
 export type GateConfig = {
-	/** The effective policy: the built-in policy with the config applied. */
 	readonly policy: Policy;
-	/** Whether Pi trusted the project at session start. */
 	readonly projectTrusted: boolean;
 	readonly log: LogLimits;
-	/** The route's start mode; `off` when it sets none. */
 	readonly startMode: StartMode;
 	/** Absent when the route sets no `auto`: auto mode cannot turn on. */
 	readonly auto?: AutoSettings;
 	readonly files: readonly ConfigFile[];
-	/** Every file's problems, each as `<path>: <problem>`. */
 	readonly problems: readonly string[];
 };
 
@@ -77,7 +59,6 @@ function isObject(value: unknown): value is Json {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** What one file holds: its parsed object, or why it contributes nothing. */
 type Read =
 	| { readonly kind: "missing" }
 	| { readonly kind: "failed"; readonly problem: string }
@@ -172,7 +153,6 @@ function validLog(value: unknown, problems: string[]): LogLimits {
 	return limits;
 }
 
-/** A `provider/id` entry: both parts non-empty. */
 function isModelEntry(value: unknown): value is string {
 	return typeof value === "string" && /^[^/\s]+\/\S+$/.test(value);
 }
@@ -181,7 +161,6 @@ function isNonEmptyString(value: unknown): value is string {
 	return typeof value === "string" && value.trim() !== "";
 }
 
-/** The entries of `auto.<key>` that pass `valid`; each other one is a problem. */
 function validList(
 	key: keyof AutoSettings,
 	value: unknown,
@@ -200,10 +179,7 @@ function validList(
 	});
 }
 
-/**
- * `auto.firstByProvider`: each value must be a `provider/id` entry of
- * `models`, so the judge list stays the whole set of judges.
- */
+// Each value must be an entry of `models`, so the judge list stays the whole set of judges.
 function validFirstByProvider(
 	value: unknown,
 	models: readonly string[],
@@ -225,7 +201,6 @@ function validFirstByProvider(
 	return first;
 }
 
-/** `auto` keys checked after the loop in `validAuto`. */
 const CHECKED_AFTER: ReadonlySet<string> = new Set(["firstByProvider", "jev"]);
 
 function validAuto(
@@ -269,10 +244,6 @@ function validAuto(
 	return { ...auto, ...jevPart(value, problems) };
 }
 
-/**
- * The judge list in the order a session on `provider` asks it: the
- * provider's `firstByProvider` entry, then the rest of `models` in order.
- */
 export function judgeOrder(
 	auto: AutoSettings | undefined,
 	provider: string | undefined,
@@ -288,7 +259,6 @@ export function judgeOrder(
 	return [first, ...models.filter((entry) => entry !== first)];
 }
 
-/** One file's contribution: the parts it set validly, and its problems. */
 type Parsed = {
 	readonly file: ConfigFile;
 	readonly levels: Levels;
@@ -310,7 +280,6 @@ function validStartMode(
 	return undefined;
 }
 
-/** The parts one parsed object sets validly; `problems` collects the rest. */
 function parseKeys(
 	json: Json,
 	scope: "route" | "project",
@@ -327,7 +296,6 @@ function parseKeys(
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
-/** Sets `parts` from one key when its value is valid; `problems` gets the rest. */
 function parseKey(
 	key: string,
 	value: unknown,
@@ -368,15 +336,10 @@ function parseFile(path: string, scope: "route" | "project"): Parsed {
 	return { file: { path, loaded: true, problems }, ...parts };
 }
 
-/** The route's config file: `<agent dir>/bouncer.json`. */
 export function routeConfigFile(agentDir: string): string {
 	return join(agentDir, "bouncer.json");
 }
 
-/**
- * The built-in policy with `levels` applied; unreadable denies and steer
- * rules stay deny.
- */
 function effectivePolicy(levels: Levels): Policy {
 	return builtInPolicy.map((entry) =>
 		entry.kind === "rule"
@@ -385,17 +348,10 @@ function effectivePolicy(levels: Levels): Policy {
 	);
 }
 
-/** The session's project: its directory, and whether Pi trusts it. */
 export type Project = { readonly cwd: string; readonly trusted: boolean };
 
-/**
- * Loads the bouncer config of the route in `agentDir` for a session in
- * `project`, which Pi trusts or not: the project file's
- * levels override the route file's entry by entry, except that no project
- * entry loosens the always-deny set and an untrusted project's entries only
- * make a rule stricter. The result is the effective policy. A missing file is
- * the built-in policy.
- */
+// Project levels override the route (user config) entry by entry, but never loosen
+// the always-deny set, and an untrusted project only makes a rule stricter.
 export function loadConfig(agentDir: string, project: Project): GateConfig {
 	const routeFile = parseFile(routeConfigFile(agentDir), "route");
 	const projectConfig = projectLevels(
@@ -421,11 +377,9 @@ export function loadConfig(agentDir: string, project: Project): GateConfig {
 	};
 }
 
-/** What a session ran under: the shape of the session record's `config`. */
 export type ConfigRecord = {
 	readonly files: readonly ConfigFile[];
 	readonly projectTrusted: boolean;
-	/** Every rule's effective level, unreadable-command denies first. */
 	readonly levels: Readonly<Record<RuleName, VerdictLevel>>;
 	readonly log: LogLimits;
 	/** The route's auto settings, with only a count of environment facts. */

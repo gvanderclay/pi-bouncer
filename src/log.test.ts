@@ -1,4 +1,3 @@
-// What the bouncer log records, read back from the real file each bouncer writes.
 import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -359,8 +358,6 @@ test("session-allowed and asked answers keep the asks' order", async () => {
 	]);
 });
 
-// Every rule's built-in level, unreadable-command denies first, as the
-// session record lists them.
 const BUILT_IN_LEVELS = {
 	"parser-unavailable": "deny",
 	unparseable: "deny",

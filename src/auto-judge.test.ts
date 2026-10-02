@@ -1,6 +1,3 @@
-// Auto mode's decisions through the tool_call handler: the judge's verdicts,
-// what stays denied without a judge call, and the requests the fake model
-// registry saw. No test spends real model quota or reads auth.json.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -605,7 +602,6 @@ test("outside auto mode the prefixes change nothing", async () => {
 	assert.deepEqual(ui.dialogs, []);
 });
 
-/** A judge list whose one model answers `reply` once the test releases it. */
 async function heldGate(): Promise<{
 	gate: Awaited<ReturnType<typeof judgedGate>>["gate"];
 	fake: Awaited<ReturnType<typeof judgedGate>>["fake"];

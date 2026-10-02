@@ -1,7 +1,3 @@
-// The auto-judge-list bench's pure parts through its exported functions: the
-// case set, the judge calls against a fake registry, scoring and the list
-// diff. No test spends real model quota: the fake registry records every
-// call, and nothing here loads Pi.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
 import { askJev, classify, type JevAnswer } from "../../src/jev.ts";
@@ -358,9 +354,6 @@ test("dropping an entry alone moves nothing", () => {
 	});
 });
 
-// The Jev bench: one SystemOne call per case per sample, with the global
-// `fetch` stubbed so no test reaches the network or spends quota.
-
 const KEY = "sk-test-opencode-go-key";
 const ZEN = "https://opencode.ai/zen/v1/systemone";
 
@@ -384,9 +377,6 @@ type SentRequest = {
 
 type Scripted = string | { readonly status: number; readonly body: string };
 
-/**
- * Stubs the global `fetch`: each call gets `reply(body, at)` and is recorded.
- */
 function stubFetch(
 	t: TestContext,
 	reply: (body: SentRequest["body"], at: number) => Scripted,
@@ -534,7 +524,6 @@ const SCORED: readonly BenchCase[] = [
 	{ ...(TWO[0] as BenchCase), id: "d", expected: ["allow"] },
 ];
 
-/** Two scripted samples per case, in case order, as `[safe, unsafe]` or an HTTP error. */
 const SCRIPT: readonly (readonly [number, number] | "error")[] = [
 	[0.97, 0.03],
 	[0.93, 0.07],
@@ -658,9 +647,6 @@ test("the Jev report shows each case's safe range against its expected verdicts,
 	assert.ok(lines.includes("| 0.81 | 0 | 1/4 | 0 | 1/4 |"));
 	assert.equal(lines.at(-1), "No recommendation: 1 of 8 Jev calls failed.");
 });
-
-// Jev's client and classification, with `fetch` stubbed and the clock
-// mocked so every call takes 0 ms.
 
 const CUTOFFS = { allowAt: 0.9, denyAt: 0.85 } as const;
 const BENCH_REQUEST = (): ReturnType<typeof requestFor> =>
@@ -838,8 +824,6 @@ test("a Jev run without failed samples recommends the cutoff pair", async (t) =>
 	const lines = jevReport(samples, SCORED).split("\n");
 	assert.ok(lines.includes("Recommended: allowAt 0.81, denyAt 0.50"));
 });
-
-// The held-out set: the bench cases pick the pair, the held-out cases check it.
 
 const HELD_OUT: readonly BenchCase[] = [
 	{ ...(TWO[0] as BenchCase), id: "h-keep", expected: ["ask", "deny"] },

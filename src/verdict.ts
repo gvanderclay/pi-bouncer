@@ -1,5 +1,3 @@
-// Verdict types and the pure text shown to the model and the user.
-
 export type VerdictLevel = "deny" | "ask";
 
 export type RuleName =
@@ -28,7 +26,6 @@ export type RuleName =
 	| "publish"
 	| "gh-delete"
 	| "grep"
-	/** Auto mode's pseudo-rule for the route's `auto.alwaysAsk` prefixes. */
 	| "always-ask";
 
 export type Verdict = {
@@ -56,7 +53,6 @@ function truncate(text: string, limit: number): string {
 	return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
 
-/** A command as quoted to the model and in dialogs: at most 200 characters. */
 export function clip(command: string): string {
 	return truncate(command, REASON_LIMIT);
 }
@@ -121,11 +117,7 @@ export function steerDenied(
 	};
 }
 
-/**
- * A deny whose reason is one sentence in place of a rule's summary, in
- * `ruleDenied`'s form, for every rule the line matched. The text never says
- * who wrote the sentence.
- */
+// The text never says who wrote the sentence.
 export function reasonDenied(
 	rules: readonly RuleName[],
 	sentence: string,
@@ -141,7 +133,6 @@ export function reasonDenied(
 	};
 }
 
-/** Why a call is blocked when the user denied it in the dialog. */
 export function userDenied(
 	rule: RuleName,
 	source: string,

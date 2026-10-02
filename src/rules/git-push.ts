@@ -1,13 +1,9 @@
-// Pushes that overwrite or delete history on a remote.
 import type { Invocation } from "../scan/walk.ts";
 import { givesLong, type ParsedArgs, parseArgs } from "./argv.ts";
 import { gitCommand } from "./git.ts";
 import type { Rule } from "./rule.ts";
 
-/**
- * The parsed arguments of a real (not dry-run) `git push`. `man git-push`:
- * `-n, --dry-run`; `-o <option>, --push-option=<option>`.
- */
+// Undefined for a dry run. Option spec per `man git-push`.
 function pushArgs(invocation: Invocation): ParsedArgs | undefined {
 	const git = gitCommand(invocation);
 	if (git?.subcommand !== "push") return undefined;
@@ -20,7 +16,6 @@ function pushArgs(invocation: Invocation): ParsedArgs | undefined {
 	return dryRun ? undefined : parsed;
 }
 
-/** Every operand, before and after `--`: the repository and the refspecs. */
 function operands(parsed: ParsedArgs): readonly string[] {
 	return [...parsed.operands, ...(parsed.afterDashDash ?? [])];
 }

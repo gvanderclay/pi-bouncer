@@ -1,7 +1,3 @@
-// The bouncer mode's Pi side: the one switch path, the /yolo and /auto
-// commands, the start flags, the footer status, and the auto-mode ruling
-// (`ruling.ts`) wired to Pi's model registry, with its notices. The mode
-// itself lives in `mode.ts`; `gate.ts` decides.
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -34,7 +30,6 @@ import {
 	rulingFailures,
 } from "./ruling.ts";
 
-/** The fields every log record carries: format, time, session and cwd. */
 export function recordHead(
 	type: "call" | "session" | "yolo" | "auto",
 	ctx: ExtensionContext,
@@ -49,13 +44,9 @@ export function recordHead(
 	};
 }
 
-/**
- * Runs the log writes. Logging never changes a decision: a failure is
- * caught, and the first one a UI can show in a session warns once.
- */
+// Logging never changes a decision: a failure is caught and warns once.
 export function createLogging(logDir: string): {
 	write(ctx: ExtensionContext, writes: () => void): void;
-	/** A new session: the next failure warns again. */
 	restart(): void;
 } {
 	let warned = false;
@@ -91,11 +82,6 @@ const AUTO_OFF = "Auto mode off: the bouncer asks again.";
 const AUTO_USAGE = "Usage: /auto [on|off|status]";
 const SKILL = "auto-judge-list";
 
-/**
- * The footer shows a bold `🔥 YOLO` in the theme's error colour (red) while
- * YOLO mode is on, `🤖 AUTO` in the accent colour while auto mode is on, and
- * nothing otherwise.
- */
 export function showMode(
 	holder: ModeHolder,
 	session: SessionState,
@@ -113,14 +99,11 @@ export function showMode(
 	ctx.ui.setStatus(STATUS_KEY, text);
 }
 
-/** While a judge call is out, the footer says so. */
 function showJudging(ctx: ExtensionContext): void {
 	if (!ctx.hasUI) return;
 	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("muted", "🤖 judging…"));
 }
 
-// Pi's registry, seen through the parts the judge list and Jev use. A
-// context without one resolves nothing.
 function registryOf(ctx: ExtensionContext): RulingRegistry {
 	const registry = (ctx as { modelRegistry?: unknown }).modelRegistry;
 	if (registry) return registry as RulingRegistry;
@@ -133,10 +116,6 @@ function registryOf(ctx: ExtensionContext): RulingRegistry {
 	};
 }
 
-/**
- * Why auto mode cannot turn on: no judge list, or no entry that resolves.
- * `undefined` when at least one entry resolves.
- */
 export function autoRefusal(
 	config: GateConfig | undefined,
 	ctx: ExtensionContext,
@@ -155,10 +134,6 @@ export function autoRefusal(
 	return `Auto mode stays off: no judge-list entry resolves (${failures.join("; ")}). The ${SKILL} skill can fix the list.`;
 }
 
-/**
- * The notice for the mode now in force. Turning off names the mode left, or
- * `about` (the mode the command, choice or flag is about) when none was on.
- */
 function notifyMode(
 	mode: GateMode,
 	left: GateMode,
@@ -173,10 +148,8 @@ function notifyMode(
 	} else ctx.ui.notify(AUTO_OFF, "info");
 }
 
-/** What switched the bouncer mode, as a mode record's `how`. */
 export type How = "command" | "dialog" | "flag" | "config";
 
-/** `/yolo` and `/auto` toggle; `on` and `off` set; anything else is `undefined`. */
 function requestedOn(args: string, current: boolean): boolean | undefined {
 	const arg = args.trim();
 	if (arg === "") return !current;
@@ -187,10 +160,6 @@ function requestedOn(args: string, current: boolean): boolean | undefined {
 
 export type Logging = ReturnType<typeof createLogging>;
 
-/**
- * Puts the bouncer in `mode`, saying what did it; `about` is the mode the
- * command, choice or flag is about.
- */
 export type ModeSwitch = (
 	mode: GateMode,
 	how: How,
@@ -198,11 +167,7 @@ export type ModeSwitch = (
 	ctx: ExtensionContext,
 ) => void;
 
-/**
- * The one path that switches the bouncer mode: the holder, the footer status, a
- * notice, and a `yolo` or `auto` record for each mode that turned off, then
- * on. Setting the mode already in force only notifies.
- */
+// Setting the mode already in force only notifies.
 export function createModeSwitch(
 	holder: ModeHolder,
 	session: SessionState,
@@ -237,13 +202,7 @@ export function createModeSwitch(
 const BOTH_FLAGS =
 	"Bouncer: --auto and --yolo cannot be used together; the bouncer starts with neither.";
 
-/**
- * `pi --yolo` and `pi --auto` only set the state the process starts in: the
- * first `session_start` applies them, and a runtime reloaded later leaves
- * the state to the commands. Both together are an error, and `--auto`
- * refuses as `/auto` does when no judge-list entry resolves. Without either
- * flag the route's `startMode` applies, refusing the same way.
- */
+// The flags set only the starting state: the first `session_start` applies them.
 export function applyStartFlags(
 	pi: ExtensionAPI,
 	holder: ModeHolder,
@@ -291,24 +250,15 @@ export function registerYolo(
 	});
 }
 
-/**
- * What the extension keeps per session, for the commands and the judge to
- * read: the config, the models already reported unavailable, each model's
- * last failure, and the session history. Reset at every `session_start`.
- */
 export type SessionState = {
 	config?: GateConfig;
-	/** Recorded in every bouncer mode; only auto mode's judge reads it. */
 	readonly history: ToolHistory;
 	readonly reported: Set<string>;
 	readonly lastFailure: Map<string, string>;
-	/** The remotes at `session_start`, read once. */
 	remotes?: Promise<Remotes>;
-	/** Auto mode's brakes: whether it is paused, and the denies. */
 	readonly pause: { paused: boolean; inRow: number; total: number };
 };
 
-/** Denies in a row, and in a session, that pause auto mode. */
 const PAUSE_IN_ROW = 3;
 const PAUSE_TOTAL = 20;
 
@@ -316,11 +266,6 @@ export function resetPause(session: SessionState): void {
 	Object.assign(session.pause, { paused: false, inRow: 0, total: 0 });
 }
 
-/**
- * Counts a decision toward auto mode's brakes: a judge's or Jev's deny adds
- * to both counts and may pause it, an allow ends the run of denies, and an
- * allowing dialog answer while paused resumes it.
- */
 export function trackPause(
 	decision: Decision,
 	holder: ModeHolder,
@@ -346,11 +291,6 @@ export function trackPause(
 	}
 }
 
-/**
- * Notifies the first failure of each model in a session, and a total
- * failure; an entry Pi no longer knows, or a total failure, points at the
- * skill that fixes the list.
- */
 function notifyFailures(
 	result: Ruling,
 	session: SessionState,
@@ -381,19 +321,11 @@ function notifyFailures(
 	}
 }
 
-/** `- entry: state` lines, or `none` on the heading's own line. */
 function listed(heading: string, items: readonly string[]): string[] {
 	if (items.length === 0) return [`${heading}: none`];
 	return [`${heading}:`, ...items.map((item) => `- ${item}`)];
 }
 
-/**
- * The whole auto-mode setup in one notice: the mode, the pause, each judge
- * list entry and whether it resolves, the `firstByProvider` entries with
- * this session's provider marked, each model's last failure this
- * session, the always-ask prefixes and the number of environment facts, with
- * Jev's line after the mode. It calls no model.
- */
 async function autoStatus(
 	holder: ModeHolder,
 	session: SessionState,
@@ -430,7 +362,6 @@ async function autoStatus(
 	].join("\n");
 }
 
-/** Turns auto mode on, or warns why it stays off: no entry resolves. */
 function turnAutoOn(
 	config: GateConfig | undefined,
 	how: How,
@@ -442,7 +373,6 @@ function turnAutoOn(
 	else if (ctx.hasUI) ctx.ui.notify(refusal, "warning");
 }
 
-/** `/auto`: toggle, `on`, `off`, or `status`. */
 async function autoCommand(
 	args: string,
 	holder: ModeHolder,
@@ -485,12 +415,6 @@ export function registerAuto(
 	});
 }
 
-/**
- * The judge for one call in auto mode: the auto-mode ruling, run through
- * Pi's registry on behalf of this session, with the footer saying so while
- * it runs. `onSent` hears how many history entries and earlier messages the
- * request holds.
- */
 export function judgeFor(
 	command: string,
 	ctx: ExtensionContext,

@@ -1,4 +1,3 @@
-// The bouncer config's rule levels, through the bouncer's Pi events.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";

@@ -1,6 +1,3 @@
-// The judge request through the exports of `judge-request.ts`: the builder's
-// budgets and omissions, and that building a built request changes nothing.
-// Nothing of the project is mocked.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { type BenchCase, requestFor } from "../skills/auto-judge-list/bench.ts";

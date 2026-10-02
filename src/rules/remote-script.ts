@@ -1,21 +1,14 @@
-// A download fed into a shell or interpreter runs whatever the server sends.
 import type { Invocation } from "../scan/walk.ts";
 import type { Rule } from "./rule.ts";
 
 const DOWNLOADERS: ReadonlySet<string> = new Set(["curl", "wget"]);
 
-/**
- * How an interpreter's arguments say where its program comes from
- * (`python3 --help`, `node --help`, `perl -h`, `ruby -h`, `man bash`, fish(1)).
- */
+// How an interpreter's arguments say where its program comes from (per each tool's help).
 type Interpreter = {
-	/** Short letters that pass the program inline (`-c`, `-e`). */
 	readonly inline: string;
-	/** Long options that pass the program inline (`--eval`). */
 	readonly inlineLongs?: readonly string[];
 	/** Short options whose value is the next argument when last in a cluster. */
 	readonly values?: string;
-	/** Short letters that read the program from stdin (a shell's `-s`). */
 	readonly stdin?: string;
 	/** A shell: `+o` is an option, and a lone `-` ends options like `--`. */
 	readonly shell?: boolean;
@@ -39,8 +32,8 @@ const INTERPRETERS: ReadonlyMap<string, Interpreter> = new Map([
 	["zsh", SHELL],
 	["dash", SHELL],
 	["ksh", SHELL],
-	// fish(1): -C, -d, -o, -f and -p take values. Not installed here, so
-	// letters are over-included: a wrongly consumed script means a deny.
+	// fish(1): -C, -d, -o, -f and -p take values. Taken from the man page, not
+	// probed, so letters are over-included: a wrongly consumed script means a deny.
 	["fish", { ...SHELL, inlineLongs: ["command"], values: "Cdofp" }],
 	["python", PYTHON],
 	["python2", PYTHON],
@@ -68,14 +61,12 @@ const STDIN_PATHS: ReadonlySet<string> = new Set([
 	"/proc/self/fd/0",
 ]);
 
-/** A missing script operand, or one naming stdin, means stdin is the program. */
 function isStdin(operand: string | undefined): boolean {
 	return operand === undefined || STDIN_PATHS.has(operand);
 }
 
 type Reading = "inline" | "stdin" | "next" | "option";
 
-/** What one short cluster says about the program. */
 function readCluster(tool: Interpreter, cluster: string): Reading {
 	for (let at = 1; at < cluster.length; at += 1) {
 		const letter = cluster.charAt(at);
@@ -91,7 +82,6 @@ function readCluster(tool: Interpreter, cluster: string): Reading {
 	return "option";
 }
 
-/** What one long option says; one without `=` may consume the next argument. */
 function readLong(tool: Interpreter, arg: string): Reading {
 	const name = arg.slice(2).split("=", 1)[0] ?? "";
 	if (tool.inlineLongs?.includes(name)) return "inline";
@@ -102,7 +92,6 @@ function isCluster(tool: Interpreter, arg: string): boolean {
 	return /^-./.test(arg) || (tool.shell === true && /^\+./.test(arg));
 }
 
-/** What one argument says, including where options end and the operand is. */
 function readArg(tool: Interpreter, arg: string): Reading | "end" | "operand" {
 	if (arg === "--" || (arg === "-" && tool.shell)) return "end";
 	if (arg === "-") return "stdin";
@@ -110,10 +99,6 @@ function readArg(tool: Interpreter, arg: string): Reading | "end" | "operand" {
 	return isCluster(tool, arg) ? readCluster(tool, arg) : "operand";
 }
 
-/**
- * True when the interpreter reads its program from stdin: no inline program,
- * and no script operand other than stdin itself.
- */
 function readsProgramFromStdin(
 	tool: Interpreter,
 	args: readonly string[],
@@ -143,7 +128,6 @@ function hasDownloader(invocations: readonly Invocation[]): boolean {
 	return invocations.some((invocation) => DOWNLOADERS.has(invocation.name));
 }
 
-/** `curl u | sh`: an interpreter reading its program from a download on stdin. */
 function pipeForm(invocation: Invocation, tool: Interpreter): boolean {
 	return (
 		hasDownloader(invocation.upstream) &&
@@ -151,7 +135,6 @@ function pipeForm(invocation: Invocation, tool: Interpreter): boolean {
 	);
 }
 
-/** `bash <(curl u)`, `eval "$(curl u)"`: a download handed over directly. */
 function substitutionForm(invocation: Invocation): boolean {
 	return hasDownloader(invocation.substitutions);
 }

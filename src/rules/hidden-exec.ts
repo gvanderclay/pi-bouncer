@@ -1,5 +1,3 @@
-// Commands and options that run a command the bouncer cannot read in full:
-// search tools' exec options and template runners.
 import type { Invocation } from "../scan/walk.ts";
 import {
 	hasLongOption,
@@ -10,7 +8,6 @@ import {
 import { findWith } from "./filesystem.ts";
 import type { Rule } from "./rule.ts";
 
-/** find's actions whose next argument is a command it runs. */
 export const FIND_EXEC_ACTIONS: readonly string[] = [
 	"-exec",
 	"-execdir",
@@ -66,8 +63,7 @@ export const rgPre: Rule = {
 		),
 };
 
-// Each runs a command template once per input, with the input substituted
-// into it, so what runs is not in the command line.
+// Each substitutes its input into a command template, so what runs is not in the command line.
 const TEMPLATE_RUNNERS: ReadonlySet<string> = new Set([
 	"parallel",
 	"rush",

@@ -1,4 +1,3 @@
-// Releasing packages publicly, and deleting GitHub repositories or releases.
 import type { Invocation } from "../scan/walk.ts";
 import { type OptionSpec, type ParsedArgs, parseArgs } from "./argv.ts";
 import type { Rule } from "./rule.ts";
@@ -33,7 +32,6 @@ const SPECS: ReadonlyMap<string, OptionSpec> = new Map([
 	["cargo", { shortValues: "CZ", longValues: ["config", "color"] }],
 ]);
 
-/** A dry run releases nothing: exactly `--dry-run` (and cargo's `-n`). */
 function isDryRun(name: string, parsed: ParsedArgs): boolean {
 	return (
 		parsed.longs.includes("dry-run") ||
@@ -41,11 +39,8 @@ function isDryRun(name: string, parsed: ParsedArgs): boolean {
 	);
 }
 
-/**
- * Yarn 1 runs `yarn publish`, also as `yarn workspace <name> publish`; Yarn 2+
- * runs `yarn npm publish`, also after `yarn workspace <name>` or
- * `yarn workspaces foreach …`.
- */
+// Yarn 1: `yarn [workspace <name>] publish`. Yarn 2+: `yarn npm publish`,
+// also after `yarn workspace <name>` or `yarn workspaces foreach …`.
 function yarnPublishes(operands: readonly string[]): boolean {
 	return operands.some(
 		(operand, at) =>

@@ -1,4 +1,3 @@
-// Replays commands through explain.ts's exported function with the real parser.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -18,7 +17,6 @@ import type { Inspection, ParseFn } from "./gate.ts";
 
 const RM_X = { rule: "recursive-rm", level: "ask", source: "rm -rf x" };
 
-/** The replay's inspection under a route and project with no config. */
 function inspected(parser: ParseFn | undefined, command: string): Inspection {
 	return explain(parser, command, tempAgentDir(), {
 		cwd: tempProjectDir(),
@@ -175,7 +173,6 @@ test("the route and project config drive the replay, and come back with it", () 
 	});
 });
 
-/** The replay's `withYolo` under a route config setting `levels`. */
 function withYolo(
 	command: string,
 	levels: object = {},
@@ -229,7 +226,6 @@ for (const [label, command, levels, expected] of yoloRows) {
 	});
 }
 
-/** A route dir whose bouncer config is `config`. */
 function routeWith(config: object): string {
 	const agentDir = tempAgentDir();
 	writeConfig(join(agentDir, "bouncer.json"), config);
@@ -290,7 +286,6 @@ for (const [label, command, config, expected] of autoRows) {
 
 const EXPLAIN = fileURLToPath(new URL("./explain.ts", import.meta.url));
 
-/** `node explain.ts` on `command` under a route whose bouncer config is `config`. */
 function run(command: string, config: object, json = false): string {
 	const args = ["--agent-dir", routeWith(config), "--cwd", tempProjectDir()];
 	return execFileSync(
@@ -346,7 +341,6 @@ for (const [command, config, line, json] of cliRows) {
 	});
 }
 
-/** A route that sets git-push-force to deny, and a project that sets it to ask. */
 function loosenedPush(): { agentDir: string; cwd: string } {
 	const agentDir = routeWith({ levels: { "git-push-force": "deny" } });
 	const cwd = tempProjectDir();
@@ -389,7 +383,6 @@ for (const trusted of [true, false]) {
 	});
 }
 
-/** `node explain.ts` with `args`, its status and output. */
 function runArgs(args: readonly string[]): {
 	status: number | null;
 	stdout: string;

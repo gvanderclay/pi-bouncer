@@ -1,6 +1,3 @@
-// rm-root: a recursive rm of the filesystem root, a system directory, the
-// home directory or an important folder in it. Commands are strings that
-// never run; the home directory is os.homedir() written into them.
 import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -127,7 +124,6 @@ test("rm without a recursive flag is not rm-root", async () => {
 	assert.equal(await handler(bashCall("rm -f /"), fakeContext()), undefined);
 });
 
-/** The rule a no-UI call from `cwd` is denied by. */
 async function deniedRuleFrom(cwd: string, command: string): Promise<string> {
 	const handler = await loadGate();
 	const result = await handler(bashCall(command), fakeContext(cwd));

@@ -1,5 +1,3 @@
-// The bouncer config's route-only `auto` keys, seen through the session record:
-// the validated settings, the problems, and a full example config.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +15,6 @@ type ConfigShape = {
 	readonly auto?: unknown;
 };
 
-/** The session record's `config` after a start with `route` (and `project`). */
 async function sessionConfig(
 	route: unknown,
 	project?: unknown,
@@ -143,7 +140,6 @@ test("a project auto never replaces the route's", async () => {
 	});
 });
 
-// A realistic full config: start mode, judge list, firstByProvider and Jev.
 const EXAMPLE = join(
 	import.meta.dirname,
 	"..",

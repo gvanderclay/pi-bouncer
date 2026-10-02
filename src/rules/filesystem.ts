@@ -20,8 +20,7 @@ export const recursiveRm: Rule = {
 	matches: isRecursiveRm,
 };
 
-// Directories whose recursive removal is never routine. The list is fixed
-// here: the bouncer config cannot extend it.
+// Fixed: the bouncer config cannot extend it.
 const SYSTEM_DIRS: readonly string[] = [
 	"/usr",
 	"/etc",
@@ -57,7 +56,6 @@ const HOME_DIRS: readonly string[] = [
 	".docker",
 ];
 
-/** `/`, a system directory or one of its children, home, or a home folder. */
 function isProtected(path: string, home: string): boolean {
 	if (path === "/" || path === home) return true;
 	const parent = posix.dirname(path);
@@ -67,18 +65,12 @@ function isProtected(path: string, home: string): boolean {
 
 const HOME_PREFIX = /^(?:~|\$HOME|\$\{HOME\})(?=\/|$)/;
 
-/**
- * An operand as an absolute path: a leading `~`, `$HOME` or `${HOME}` is the
- * home directory, a relative path starts at the call's working directory,
- * and `.`, `..` and trailing slashes are folded. Pure string logic: nothing
- * is read from the filesystem and no symlink is followed.
- */
+// Pure string logic: nothing is read from the filesystem, no symlink is followed.
 function resolved(operand: string, { cwd, home }: Where): string {
 	const expanded = operand.replace(HOME_PREFIX, () => home);
 	return posix.resolve(cwd, expanded);
 }
 
-/** True when `operand` names a protected directory or its `/*` glob. */
 function targetsProtected(operand: string, where: Where): boolean {
 	const home = posix.resolve(where.home);
 	const glob = /(?:^|\/)\*$/.test(operand);
@@ -103,7 +95,7 @@ export const rmRoot: Rule = {
 
 export const FIND_NAMES: ReadonlySet<string> = new Set(["find", "gfind"]);
 
-/** `find`/`gfind` (GNU findutils from Homebrew) with an argument exactly `word`. */
+// `gfind` is GNU findutils from Homebrew.
 export function findWith(
 	invocation: Invocation,
 	words: readonly string[],

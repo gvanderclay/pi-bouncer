@@ -1,9 +1,7 @@
-// The dialog that asks the user about an ask-level match. Only gate.ts uses it.
 import { clip, type Outcome, type RuleName, userDenied } from "./verdict.ts";
 
 type DialogOptions = { signal?: AbortSignal };
 
-/** The dialog methods the bouncer needs; Pi's `ctx.ui` satisfies it. */
 export type AskUI = {
 	select(
 		title: string,
@@ -17,7 +15,6 @@ export type AskUI = {
 	): Promise<string | undefined>;
 };
 
-/** One ask-level match: the rule and the invocation it caught. */
 export type Ask = {
 	readonly rule: RuleName;
 	readonly summary: string;
@@ -38,7 +35,6 @@ const CHOICES: readonly string[] = [
 	DENY_AND_STOP,
 ];
 
-/** The auto-mode choice's labels: turning auto mode on, or resuming it. */
 export const AUTO_CHOICE = "🤖 Auto mode";
 export const RESUME_AUTO_CHOICE = "🤖 Auto mode (resume)";
 
@@ -61,7 +57,6 @@ function title(
 	return `Bouncer: ${ask.summary} (rule: ${ask.rule})${counter}${line}\n${clip(ask.source)}`;
 }
 
-/** The typed reason, trimmed; blank or cancelled means none. */
 async function typedReason(
 	ui: AskUI,
 	opts: DialogOptions,
@@ -70,7 +65,6 @@ async function typedReason(
 	return text?.trim() || undefined;
 }
 
-/** What happened to one ask: the log's `asks` shape. */
 export type AskAnswer = {
 	readonly rule: RuleName;
 	readonly source: string;
@@ -91,7 +85,6 @@ export type AskAnswer = {
 	readonly userReason?: string;
 };
 
-/** One dialog's answer, and the outcome when the user denied it. */
 type Answered = { readonly answer: AskAnswer; readonly denied?: Outcome };
 
 // A dismissed select is Escape, unless the turn's signal was aborted.
@@ -140,16 +133,12 @@ async function answer(
 	};
 }
 
-/** The command being decided, and the session allows it is checked against. */
 export type Asking = {
 	readonly command: string;
 	readonly cwd: string;
 	readonly signal?: AbortSignal;
-	/** Keys of the asks the user allowed for this session. */
 	readonly allowed: Set<string>;
-	/** One line shown below each dialog's title, such as the judge's reason. */
 	readonly note?: string;
-	/** The auto-mode choice's label, when the dialog offers it. */
 	readonly autoChoice?: string;
 };
 
@@ -158,12 +147,10 @@ function sessionKey(asking: Asking, ask: Ask): string {
 	return JSON.stringify([asking.command, asking.cwd, ask.rule, ask.source]);
 }
 
-/** Whether a session allow covers `ask`. */
 function isSessionAllowed(asking: Asking, ask: Ask): boolean {
 	return asking.allowed.has(sessionKey(asking, ask));
 }
 
-/** True when a session allow covers every ask: no dialog would open. */
 export function allSessionAllowed(
 	asks: readonly Ask[],
 	asking: Asking,
@@ -171,10 +158,6 @@ export function allSessionAllowed(
 	return asks.every((ask) => isSessionAllowed(asking, ask));
 }
 
-/**
- * Answers with no dialog: each ask a session allow covers is
- * `session-allowed`, and every other ask is `answer`.
- */
 export function quietAnswers(
 	asks: readonly Ask[],
 	asking: Asking,
@@ -187,10 +170,6 @@ export function quietAnswers(
 	}));
 }
 
-/**
- * YOLO mode's answers: each ask a session allow covers is `session-allowed`,
- * as without YOLO mode, and every other ask is `yolo`. No dialog opens.
- */
 export function yoloAnswers(
 	asks: readonly Ask[],
 	asking: Asking,
@@ -198,29 +177,20 @@ export function yoloAnswers(
 	return quietAnswers(asks, asking, "yolo");
 }
 
-/** The asks no session allow covers: the ones a judge or dialog decides. */
 export function uncovered(asks: readonly Ask[], asking: Asking): Ask[] {
 	return asks.filter((ask) => !isSessionAllowed(asking, ask));
 }
 
-/** The outcome of a dialog sequence, and what happened to each ask. */
 export type Asked = {
 	readonly outcome: Outcome;
 	/** In order, ending at the first deny: later asks were never asked. */
 	readonly answers: readonly AskAnswer[];
-	/** Set when the user picked "Allow all (YOLO)": YOLO mode is to turn on. */
 	readonly yoloOn?: true;
-	/** Set when the user picked the auto-mode choice: auto mode is to turn on. */
 	readonly autoOn?: true;
 };
 
-/**
- * Asks the user about each ask not already allowed for the session, in
- * order; "i of N" counts only those. The first deny, including Escape, ends
- * the loop and blocks; if every ask is allowed, the call runs. "Allow all
- * (YOLO)" allows the rest of the line as YOLO mode would, with no more
- * dialogs.
- */
+// "i of N" counts only asks not already allowed. The first deny, including
+// Escape, ends the loop.
 export async function askUser(
 	asks: readonly Ask[],
 	ui: AskUI,

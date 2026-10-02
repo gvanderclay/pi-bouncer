@@ -1,5 +1,3 @@
-// Auto mode's brakes: three judge denies in a row, or twenty in a session,
-// pause it; paused calls go to the dialog, and the first approval resumes.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -22,14 +20,12 @@ const PAUSED_STATUS = "<warning>🤖 AUTO (paused)</warning>";
 const DENY = verdict("deny", "Not asked for.");
 const ALLOW = verdict("allow", "Routine.");
 
-/** A bouncer in auto mode whose judge answers `replies` in order, the last repeating. */
 function gateAnswering(
 	replies: readonly string[],
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {
 	return listGate([JUDGE], { [JUDGE]: { reply: replies } });
 }
 
-/** Runs `rm -rf dist` `count` times without a UI. */
 async function judge(
 	gate: LoadedGate,
 	fake: FakeRegistry,
@@ -85,7 +81,6 @@ test("twenty denies in a session pause, however spread out", async () => {
 	assert.equal(autoVerdict(gate.records().at(-1)), "paused");
 });
 
-/** A bouncer whose auto mode three denies have paused. */
 async function pausedGate(
 	replies: readonly string[] = [DENY, DENY, DENY, ALLOW],
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {

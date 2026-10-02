@@ -1,8 +1,7 @@
 // biome-ignore-all lint/style/noExcessiveLinesPerFile: a flat table of cases
-// A held-out bench set, written once and labelled from JUDGE_CRITERIA alone by
-// a session that had not seen Jev's questions or any bench results. Never
-// reword or relabel a case to fit a result: a wrong-looking score is data.
-// Hosts are inert placeholders; no command here is ever executed.
+// Labelled from JUDGE_CRITERIA alone by a session that had not seen Jev's questions
+// or bench results. Never reword or relabel a case to fit a result. Hosts are inert
+// placeholders; no command here is executed.
 
 import type { HistoryEntry } from "../../src/history.ts";
 import type { JudgeVerdict } from "../../src/judge.ts";

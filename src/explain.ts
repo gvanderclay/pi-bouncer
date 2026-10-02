@@ -1,7 +1,5 @@
-// Replays a command through the bouncer: every match, and what the bouncer would do
-// with a UI, without one, in YOLO mode and in auto mode, under the same route
-// and project bouncer config as the live bouncer. It never opens a dialog, calls a
-// judge, reads git or runs the command.
+// Replays a command under the same config as the live bouncer. It opens no
+// dialog, calls no judge, reads no git and never runs the command.
 //
 //   node explain.ts 'rm -rf x'
 //   jq -r .command record.json | node explain.ts -
@@ -9,11 +7,10 @@
 //   node explain.ts --agent-dir "$HOME/.pi/agent" --cwd /repo 'sudo ls'
 //   node explain.ts --untrusted 'git push --force'
 //
-// The route comes from `PI_CODING_AGENT_DIR` (or `~/.pi/agent`) and the
-// project from the current directory unless `--agent-dir` or `--cwd` say
-// otherwise. The project's trust state comes from `--trusted` or
-// `--untrusted`, else from Pi's saved decision in the route's `trust.json`
-// (no saved decision is untrusted); without Pi's package it refuses to guess.
+// Agent dir: `PI_CODING_AGENT_DIR` or `~/.pi/agent`; project: the current
+// directory, unless `--agent-dir` or `--cwd` say otherwise. Trust: `--trusted` or
+// `--untrusted`, else Pi's saved decision in the agent dir's `trust.json` (none
+// is untrusted); without Pi's package it refuses to guess.
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -35,16 +32,11 @@ import {
 	type Would,
 } from "./gate.ts";
 
-/** One replay: what the bouncer would do, and the config it ran under. */
 export type Explanation = {
 	readonly inspection: Inspection;
 	readonly config: GateConfig;
 };
 
-/**
- * Replays `command` under the bouncer config of the route in `agentDir` for a
- * session in `project`, which Pi trusts or not, as the live bouncer would; no parser means `parser-unavailable`.
- */
 export function explain(
 	parse: ParseFn | undefined,
 	command: string,
@@ -67,7 +59,6 @@ function fileState({ path, loaded, problems }: ConfigFile): string {
 	return problems.length > 0 ? `${path} (not loaded)` : `${path} (absent)`;
 }
 
-// One line: every config file looked for, then every problem.
 function configLine(config: GateConfig): string {
 	const files = config.files.map(fileState).join(", ");
 	const problems = config.problems.join("; ");
@@ -76,7 +67,6 @@ function configLine(config: GateConfig): string {
 		: `config: ${files}`;
 }
 
-/** The trust state a replay used, and where it came from. */
 type Trust = { readonly trusted: boolean; readonly source: string };
 
 function asText(
@@ -108,12 +98,8 @@ async function loadParser(): Promise<ParseFn | undefined> {
 	}
 }
 
-/**
- * The trust state for `cwd` from the route's saved Pi decisions: trusted only
- * when a decision says so. A project with a bouncer config needs trust, so
- * this is what Pi reported at startup unless the user trusted the project for
- * that session only. An error when Pi's package cannot be loaded.
- */
+// A project with a bouncer config needs trust, so this is what Pi reported at
+// startup unless the user trusted the project for that session only.
 async function savedTrust(agentDir: string, cwd: string): Promise<Trust> {
 	let pi: typeof import("@earendil-works/pi-coding-agent");
 	try {
@@ -130,10 +116,6 @@ async function savedTrust(agentDir: string, cwd: string): Promise<Trust> {
 	return { trusted: decision, source };
 }
 
-/**
- * The trust state `--trusted` or `--untrusted` names, else Pi's saved
- * decision for `cwd` in the route `agentDir`; an error when that cannot be read.
- */
 async function resolveTrust(
 	flags: { readonly trusted: boolean; readonly untrusted: boolean },
 	agentDir: string,

@@ -3,7 +3,6 @@ import { expectAllow, expectDeny } from "../../test/harness.ts";
 
 const denied: Record<string, readonly string[]> = {
 	"git-reset-hard": [
-		// Global options before the subcommand.
 		"git -C repo reset --hard",
 		"git -Crepo reset --hard",
 		"git -C repo -C sub reset --hard",
@@ -30,7 +29,6 @@ const denied: Record<string, readonly string[]> = {
 		"/usr/bin/git reset --hard",
 		"env GIT_DIR=.git git reset --hard",
 		"GIT_DIR=.git git reset --hard",
-		// The rule itself.
 		"git reset --hard",
 		"git reset --hard HEAD~1",
 		"git reset --hard origin/main",

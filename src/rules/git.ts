@@ -1,4 +1,3 @@
-// git operations that throw away uncommitted or stashed work.
 import type { Invocation } from "../scan/walk.ts";
 import {
 	givesLong,
@@ -26,7 +25,6 @@ const GLOBAL_VALUES: ReadonlySet<string> = new Set([
 	"--attr-source",
 ]);
 
-/** The subcommand of a `git` invocation, skipping git's global options. */
 export function gitCommand(invocation: Invocation): GitCommand | undefined {
 	if (invocation.name !== "git") return undefined;
 	const { args } = invocation;
@@ -40,7 +38,6 @@ export function gitCommand(invocation: Invocation): GitCommand | undefined {
 	return undefined;
 }
 
-/** The parsed arguments of `git <subcommand>`, or undefined for anything else. */
 function gitArgs(
 	invocation: Invocation,
 	subcommand: string,
@@ -118,7 +115,6 @@ export const gitCheckoutDiscard: Rule = {
 	},
 };
 
-/** Only unstaging: staged exactly, and no worktree flag. */
 function onlyUnstages(parsed: ParsedArgs): boolean {
 	const staged = parsed.shorts.includes("S") || parsed.longs.includes("staged");
 	const worktree = parsed.shorts.includes("W") || givesLong(parsed, "worktree");

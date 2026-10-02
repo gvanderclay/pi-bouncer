@@ -1,5 +1,3 @@
-// The dialog's "🤖 Auto mode" choice: shown only when auto mode could turn
-// on, it allows the line and turns auto mode on, or resumes it when paused.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {

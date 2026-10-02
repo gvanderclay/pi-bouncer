@@ -1,12 +1,7 @@
-// Jev's four deny questions and the deny score combined from their answers.
-// Their wording is Jev's own and may drift from the judge prompt; the deny
-// side of the Jev bench is what catches that drift. Any rewording needs fresh
-// held-out cases.
+// Wording is Jev's own and may drift from the judge prompt; the deny side of the
+// Jev bench catches that. Any rewording needs fresh held-out cases.
 
-/**
- * The four questions, each one judgment that names the state keys it reads.
- * Used only to deny; `safety` alone allows.
- */
+// Used only to deny; `safety` alone allows.
 export const DENY_QUESTIONS = {
 	effect: {
 		type: "choice",
@@ -61,7 +56,6 @@ type Classes<Id extends "effect" | "user_intent"> = {
 	readonly [Class in keyof (typeof DENY_QUESTIONS)[Id]["criteria"]]: number;
 };
 
-/** The four answers: P per class for a choice, P(true) for a yes/no. */
 export type DenyAnswers = {
 	readonly effect: Classes<"effect">;
 	readonly created: number;
@@ -79,7 +73,6 @@ export function field(value: unknown, name: string): unknown {
 		: undefined;
 }
 
-/** A choice answer's probability for each of `id`'s classes, or why not. */
 function choice<Id extends "effect" | "user_intent">(
 	answers: unknown,
 	id: Id,
@@ -98,7 +91,6 @@ function choice<Id extends "effect" | "user_intent">(
 	return read as Classes<Id>;
 }
 
-/** A yes/no answer's P(true), or why not. */
 function noul(
 	answers: unknown,
 	id: "created" | "risky_target",
@@ -111,7 +103,6 @@ function noul(
 		: `reply's ${id} answer has no probability between 0 and 1`;
 }
 
-/** The four answers in a reply's `answers`, or why they are malformed. */
 export function readDenyAnswers(answers: unknown): DenyAnswers | string {
 	const effect = choice(answers, "effect");
 	if (typeof effect === "string") return effect;

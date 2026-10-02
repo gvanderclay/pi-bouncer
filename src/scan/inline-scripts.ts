@@ -1,5 +1,3 @@
-// Strings that a command runs as bash: `sh -c SCRIPT`, `eval ARGS…`,
-// `trap SCRIPT SIGNAL…`, and `env -S STRING` (split into one command).
 import type { ParsedScript } from "unbash";
 import type { Invocation } from "./walk.ts";
 
@@ -18,7 +16,6 @@ const SHELL_LONG_VALUES: ReadonlySet<string> = new Set([
 	"--init-file",
 ]);
 
-/** How many arguments a shell option spans; 0 when `arg` is not an option. */
 function shellOptionWidth(arg: string): number {
 	if (SHELL_LONG_VALUES.has(arg)) return 2;
 	if (arg.startsWith("--")) return 1;
@@ -26,10 +23,8 @@ function shellOptionWidth(arg: string): number {
 	return 0;
 }
 
-/**
- * bash(1): with -c, "commands are read from the first non-option argument".
- * `-o`/`-O` (and `+o`/`+O`) take a value; `--` or `-` ends options.
- */
+// bash(1): with -c, the script is the first non-option argument. `-o`/`-O`
+// (and `+o`/`+O`) take a value; `--` or `-` ends options.
 function shellScript(args: readonly string[]): string | undefined {
 	let hasC = false;
 	let at = 0;
@@ -43,16 +38,13 @@ function shellScript(args: readonly string[]): string | undefined {
 	return hasC ? args[at] : undefined;
 }
 
-/** bash: eval joins its arguments with spaces and runs the result. */
 function evalScript(args: readonly string[]): string | undefined {
 	const operands = args[0] === "--" ? args.slice(1) : args;
 	return operands.length > 0 ? operands.join(" ") : undefined;
 }
 
-/**
- * `help trap`: `trap [-Plp] [[action] signal_spec ...]`. An absent action
- * (one operand), `-`, or the null string runs nothing.
- */
+// `help trap`: `trap [-Plp] [[action] signal_spec ...]`. An absent action
+// (one operand), `-`, or the null string runs nothing.
 function trapScript(args: readonly string[]): string | undefined {
 	const first = args[0];
 	if (first !== "--" && first?.startsWith("-")) return undefined;
@@ -62,7 +54,6 @@ function trapScript(args: readonly string[]): string | undefined {
 	return action;
 }
 
-/** The bash script an invocation runs from a string argument, if any. */
 export function inlineScript(invocation: Invocation): string | undefined {
 	if (SHELLS.has(invocation.name)) return shellScript(invocation.args);
 	if (invocation.name === "eval") return evalScript(invocation.args);
@@ -70,18 +61,14 @@ export function inlineScript(invocation: Invocation): string | undefined {
 	return undefined;
 }
 
-/**
- * env -S splits its string into words and splices them into its own argv
- * (`genv -S 'echo' -- -rf x` prints `-- -rf x`), so the caller rebuilds the
- * wrapper with those words and peels it once more. env does not interpret
- * `|`, `;` or redirects: a string that is not exactly one simple command is
- * suspicious, so it yields an error message instead of words.
- */
+// env -S splices its split words into its own argv (`genv -S 'echo' -- -rf x`
+// prints `-- -rf x`), so the caller rebuilds the wrapper and peels it again.
+// env does not interpret `|`, `;` or redirects: a string that is not exactly
+// one simple command yields an error message instead of words.
 export function splitCommand(script: ParsedScript): readonly string[] | string {
 	return splitWords(script) ?? "env -S string is not a single simple command";
 }
 
-/** The words of a script that is one simple command (or empty), else undefined. */
 function splitWords(script: ParsedScript): readonly string[] | undefined {
 	const [statement, ...others] = script.commands;
 	if (!statement) return [];

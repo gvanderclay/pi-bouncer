@@ -1,109 +1,3 @@
-/**
- * Bouncer: catches a short, fixed list of dangerous bash actions for
- * the daily route and lets every other tool call run untouched. Each rule's
- * built-in level lives in `rules/built-in-policy.ts`:
- * recoverable-if-intended actions ask the user (Allow once, Allow for this
- * session, Deny, Deny with reason, Deny and stop, 🤖 Auto mode, ⚠️ Allow all
- * (YOLO)), and
- * catastrophic or unreadable ones are denied with a warning, among them
- * `rm-root`: a recursive rm of `/`, a system directory, the home directory or
- * an important folder in it. A deny anywhere on a line wins; without a UI
- * every match denies. Session allows are in memory and cleared on every
- * `session_start`.
- *
- * Steer rule: `grep` (`rules/grep.ts`) blocks every grep, egrep or fgrep
- * the scan finds and sends the model to `rg`, in every bouncer mode, with no
- * dialog, judge call or warning; each block is logged. Its level is fixed. A
- * real deny on the same line wins; the grep block wins over every ask. It
- * moves to a custom rule once the bouncer config supports them.
- *
- * Bouncer mode: off, auto or YOLO, one process-wide setting (`mode.ts`); turning
- * one on leaves the other. `mode-switch.ts` holds the one switch path, the
- * commands, the flags, the footer status and the judge's Pi wiring.
- *
- * YOLO mode: `/yolo` (toggle, `on`, `off`), the dialog's "Allow all (YOLO)"
- * and `pi --yolo` turn it on; it then answers every ask with allow, with or
- * without a UI, and no dialog opens. The always-deny set (`privilege`,
- * `power`, `disk-format`, `dd-device`, `rm-root`, fixed in
- * `rules/built-in-policy.ts`), the unreadable-command denies and the steer
- * rule still deny, whatever the bouncer config's levels say. It is process-wide and in memory
- * only (`mode.ts`, on `globalThis` so it survives `/reload`), survives every
- * `session_start`, and ends with the process; `--yolo` applies only at the
- * process's first `session_start`. The footer shows a bold red `🔥 YOLO`
- * while it is on.
- * The model is never told: a deny reads as any other hard deny.
- *
- * Auto mode: `/auto` (toggle, `on`, `off`, `status`), the dialog's "🤖 Auto
- * mode" and `pi --auto` turn it on, only when an entry of the route's judge
- * list (`auto.models` in the route's bouncer config; no default in code)
- * resolves in Pi's model registry; `--auto` with `--yolo` is an error.
- * Without either flag the route's `startMode: "auto"` turns it on at the
- * process's first `session_start`, refusing the same way. It
- * has YOLO mode's lifetime. Every ask no session allow covers goes, one call
- * per line, to the judge (`judge.ts`): the first list entry that answers,
- * each within 10 s and the line within 20 s. The route's
- * `auto.firstByProvider` moves the session model's provider's entry to the
- * front of the list for that call. It sees the command, the asks,
- * the cwd, git branch and remotes (`facts.ts`), the user's last message, up
- * to 10 earlier ones (capped), the session history and the route's
- * `auto.environment` facts, never tool output, file contents or the agent's
- * own messages. The session history (`history.ts`) is the bouncer's own
- * record of executed calls, taken at `tool_result` in every bouncer mode:
- * bash commands with their cwd, `write` and `edit` absolute paths, failed
- * and background starts marked. Only the judge reads it; it is capped and
- * cleared at every `session_start`. Allow runs the
- * line quietly; deny (or a provider's usage-policy refusal) blocks it in the
- * hard-deny form with the judge's reason;
- * a hand-off, or no judge answering, opens the dialog (blocks without a UI).
- * Rule-level denies, the always-deny set, the unreadable-command denies and
- * the steer rule are denied before any judge is asked, and the route's
- * `auto.alwaysAsk` prefixes (`always-ask.ts`) open the dialog unless the
- * steer rule blocks the line. Three denies (a judge's or Jev's) in a
- * row, or 20 in a session, pause it: calls go to the dialog until one is
- * allowed. A mode switch while the judge is out drops its verdict and the
- * new mode decides. The footer shows `🤖 AUTO`, `🤖 AUTO (paused)` or
- * `🤖 judging…`. The bundled `auto-judge-list` skill picks the list.
- *
- * Bouncer config: at every `session_start`, `config.ts` reads the route's
- * `<agent dir>/bouncer.json` and the project's
- * `<cwd>/.pi/extensions/bouncer/config.json` (plain JSON; the project
- * overrides the route entry by entry, under the trust Pi reported at that
- * `session_start`: no project file loosens the always-deny set, and an
- * untrusted project's file only makes a rule stricter; `/trust` applies at
- * the next `session_start`). The old `<cwd>/.pi/bouncer.json` is never read;
- * finding one is a problem. `levels` sets any built-in rule to ask or deny (the
- * unreadable-command denies and the steer rule stay deny); the route's `log`
- * sets the log's rotation size, generations kept and age pruning, and the route's `auto`
- * sets auto mode's `models`, `alwaysAsk`, `environment` and
- * `firstByProvider`, and the route's `startMode` (`off` or `auto`) the mode
- * a process starts in without a flag (all three are ignored,
- * with a warning, in a project file). An invalid part falls
- * back to its built-in value, and one warning lists every problem. Before
- * the first `session_start` the built-in levels apply.
- *
- * This file only translates the bouncer's outcome for Pi; `gate.ts` decides.
- *
- * Bouncer log: every call the bouncer does more than let through (a hard deny, a
- * no-UI deny, a dialog and its answers, a session-allow hit, a call YOLO
- * mode allowed, a call auto mode decided), every bouncer mode switch and every
- * session start append one
- * JSON line to the route's own `<agent dir>/bouncer/log.jsonl` (or
- * `$PI_BOUNCER_LOG_DIR`), written here in `tool_call`,
- * `session_start` and the mode switch through `log.ts`. Its location never
- * depends on the bouncer config. It rotates into gzipped
- * generations and prunes old ones at session start, within the config's
- * limits, and a write failure never changes a decision. The bundled
- * `bouncer-debug` skill (`skills/bouncer-debug/SKILL.md`)
- * explains how to read it, and `explain.ts` replays a command through the
- * bouncer under the same config, with a UI, without one, in YOLO mode and in
- * auto mode (without calling a judge).
- *
- * Requires: `pnpm install` in this directory, once per machine.
- *
- * History: the design notes (design.md and the spec*.md files) lived in
- * .scratch/permission-gate/ and are now in git history.
- */
-
 import { homedir } from "node:os";
 import type {
 	BashToolCallEvent,
@@ -199,7 +93,6 @@ function callFrom(
 		: { ...where, ui: ctx.ui };
 }
 
-/** The `call` record for a decision, or `undefined` when no rule matched. */
 function callRecord(
 	command: string,
 	decision: Decision,
@@ -225,11 +118,8 @@ function callRecord(
 	return { ...head, outcome, reason, matches, asks, ...mode };
 }
 
-/**
- * Pi records a call aborted after `tool_call` as "Operation aborted" and
- * drops the block reason, so the stopped call's result is rewritten as it is
- * finalized: the model then reads why the turn ended.
- */
+// Pi records a call aborted after `tool_call` as "Operation aborted" and drops
+// the block reason, so the result is rewritten to say why the turn ended.
 function restoreStopReason(
 	stopped: Map<string, string>,
 	{ message }: MessageEndEvent,
@@ -241,7 +131,6 @@ function restoreStopReason(
 	return { message: { ...message, content: [{ type: "text", text: reason }] } };
 }
 
-/** One warning listing every bouncer config problem, when a UI can show it. */
 function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	if (config.problems.length === 0 || !ctx.hasUI) return;
 	const lines = config.problems.map((problem) => `- ${problem}`);
@@ -251,7 +140,6 @@ function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	);
 }
 
-/** Everything one bouncer runtime shares between its handlers. */
 type Runtime = {
 	readonly pi: ExtensionAPI;
 	readonly gate: ReturnType<typeof createGate>;
@@ -262,12 +150,11 @@ type Runtime = {
 	readonly logDir: string;
 	readonly agentDir: string;
 	readonly switchMode: ModeSwitch;
-	/** Stopped calls whose recorded result still needs the bouncer's reason. */
 	readonly stopped: Map<string, string>;
 };
 
-// Nothing outlives a session but the bouncer mode: startup, reload, new, resume,
-// fork. A reloaded runtime starts with no status, so it is set again.
+// Nothing outlives a session but the bouncer mode. A reloaded runtime starts
+// with no status, so it is set again.
 function startSession(
 	rt: Runtime,
 	event: SessionStartEvent,
@@ -287,7 +174,6 @@ function startSession(
 	rt.session.reported.clear();
 	rt.session.lastFailure.clear();
 	clearHistory(rt.session.history);
-	// Only a route with a judge list can use the snapshot.
 	if (config.auto) rt.session.remotes = readRemotes(ctx.cwd);
 	else delete rt.session.remotes;
 	rt.gate.reset(config.policy);
@@ -307,11 +193,6 @@ function startSession(
 	});
 }
 
-/**
- * The dialog's auto-mode choice: offered when the judge list has an entry
- * that resolves, labelled as resuming while auto mode is paused, and hidden
- * while auto mode is on and not paused.
- */
 function autoChoiceFor(
 	mode: GateMode,
 	paused: boolean,
@@ -323,10 +204,6 @@ function autoChoiceFor(
 	return mode === "auto" ? RESUME_AUTO_CHOICE : AUTO_CHOICE;
 }
 
-/**
- * The call in the bouncer mode now in force. A mode switch while its judge is
- * out has the bouncer decide it again, in the new mode.
- */
 function callIn(
 	rt: Runtime,
 	command: string,
@@ -373,7 +250,6 @@ async function decideCall(
 	});
 	trackPause(outcome, rt.holder, rt.session, ctx);
 	if (outcome.yoloOn) rt.switchMode("yolo", "dialog", "yolo", ctx);
-	// While paused, picking the choice resumed auto mode through trackPause.
 	if (outcome.autoOn && rt.holder.mode !== "auto") {
 		rt.switchMode("auto", "dialog", "auto", ctx);
 	}
@@ -388,14 +264,7 @@ async function decideCall(
 	return { block: true, reason: outcome.reason };
 }
 
-/**
- * Records an executed call in the session history: a bash command, or the
- * absolute path of a `write` or `edit`, with the cwd, a failed marker and a
- * started-in-background marker. Only the command and path are read, never
- * the output, `content`, `edits` or `timeout`; other tools are ignored. Pi
- * fires `tool_result` only for calls it ran, so blocked, refused and aborted
- * calls never get here. It never changes a result.
- */
+// Reads only the command and path, never output or content.
 function recordResult(
 	rt: Runtime,
 	event: ToolResultEvent,
@@ -453,7 +322,6 @@ export default async function bouncer(
 	};
 	registerYolo(pi, holder, rt.switchMode);
 	registerAuto(pi, holder, rt.switchMode, rt.session);
-	// A launched child session takes the current bouncer mode through this hook.
 	registerSessionLaunch(pi, holder);
 	pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) =>
 		startSession(rt, event, ctx),
@@ -466,7 +334,6 @@ export default async function bouncer(
 	pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext) =>
 		decideCall(rt, event, ctx),
 	);
-	// Recorded in every bouncer mode; only auto mode's judge reads it.
 	pi.on("tool_result", (event: ToolResultEvent, ctx: ExtensionContext) =>
 		recordResult(rt, event, ctx),
 	);

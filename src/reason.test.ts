@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bashCall, fakeContext, loadGate, uiContext } from "../test/harness.ts";
 
-// A hard deny (privilege) warns with a UI; ask-level rules ask instead.
 test("the reason and notification for sudo rm -rf build are the fixed texts", async () => {
 	const handler = await loadGate();
 	const { ctx, notices } = uiContext();

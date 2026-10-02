@@ -1,10 +1,5 @@
-// Jev: OpenCode Zen's SystemOne classifier, asked five typed questions about
-// a bash line in one call: `safety`, which allows, and the four in
-// `jev-questions.ts`, whose deny score denies. Follows TypeSafe's SystemOne
-// wire format, without retries: a failed call goes to the judge list. The
-// client never throws, and its errors never hold the key. `ruling.ts` decides when Jev is asked and what
-// its answer does to the line. What Jev is shown comes from `jevState` in
-// `judge-request.ts`, built from the same request as the judge input.
+// Jev: OpenCode Zen's SystemOne classifier. Follows TypeSafe's SystemOne wire
+// format, without retries: a failed call goes to the judge list. Errors never hold the key.
 import type { JevSettings } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import {
@@ -23,21 +18,16 @@ import {
 } from "./judge.ts";
 import { type JudgeRequest, jevState } from "./judge-request.ts";
 
-/** Where Jev is asked, and which Jev. */
 export const JEV_URL = "https://opencode.ai/zen/v1/systemone";
 export const JEV_MODEL = "jev-1.13";
 
-/** The provider whose key Pi holds for Jev, and the error when it has none. */
 export const JEV_PROVIDER = "opencode-go";
 export const NO_KEY = "no opencode-go key";
 
-/** Jev's own budget for one call. */
 export const JEV_MS = 5_000;
 
-/** The question Jev allows on, and its two choices. */
 const QUESTION = "safety";
 
-// The state's fields are the ones `jevState` (`judge-request.ts`) builds.
 const INSTRUCTIONS = `${JUDGE_CRITERIA}
 
 The state holds the flagged call as JSON. Its fields command, user_message, earlier_user_messages and session_history are the blocks named above, and the same rules apply to them. Answer "safe" when your verdict would be "allow", and "unsafe" when it would be "ask" or "deny".`;
@@ -47,33 +37,25 @@ const CRITERIA = {
 	unsafe: 'Your verdict would be "ask" or "deny".',
 };
 
-/** The part of Pi's model registry Jev uses: its key lookup. */
 export type JevKeyLookup = {
-	/** The provider's API key, as Pi resolves it for the route. */
 	getApiKeyForProvider?(provider: string): Promise<string | undefined>;
 };
 
-/**
- * The key Jev is called with, from Pi's registry; none is `undefined`. A
- * registry that fails to look it up throws, and the caller reports why.
- */
+// A registry that fails to look up the key throws.
 export async function jevKey(
 	registry: JevKeyLookup,
 ): Promise<string | undefined> {
 	return (await registry.getApiKeyForProvider?.(JEV_PROVIDER)) || undefined;
 }
 
-/** One Jev call: its parsed reply, or why there is none, and its time. */
 export type JevCall =
 	| { readonly reply: unknown; readonly ms: number }
 	| { readonly error: string; readonly ms: number };
 
-/** `text` with every occurrence of `key` hidden. */
 function hidden(text: string, key: string): string {
 	return text.replaceAll(key, "<key>");
 }
 
-/** A response body as an error shows it: the key hidden, then 200 characters. */
 function shown(text: string, key: string): string {
 	return hidden(text, key).slice(0, 200);
 }
@@ -114,10 +96,6 @@ async function post(
 	}
 }
 
-/**
- * Asks Jev about `request` once, within 5 s and `signal`. Every failure is
- * an `error`, never a throw.
- */
 export async function askJev(
 	request: JudgeRequest,
 	key: string,
@@ -140,17 +118,12 @@ export async function askJev(
 	}
 }
 
-/**
- * Jev's reading of one reply: `safety`'s P(safe) and confidence, the deny
- * score as `unsafe`, and the four answers it comes from.
- */
 export type JevReading = DenyAnswers & {
 	readonly safe: number;
 	readonly unsafe: number;
 	readonly confidence: number;
 };
 
-/** The reading of a parsed reply, or why it is malformed. */
 export function readReply(reply: unknown): JevReading | string {
 	const answers = field(reply, "answers");
 	const answer = field(answers, QUESTION);
@@ -166,10 +139,7 @@ export function readReply(reply: unknown): JevReading | string {
 	return { safe, unsafe: denyScore(deny), confidence, ...deny };
 }
 
-/**
- * When Jev may decide: allow when `safety`'s P(safe) reaches `allowAt`, deny
- * when the deny score reaches `denyAt`; null never decides.
- */
+// Null never decides.
 export type JevCutoffs = {
 	readonly allowAt: number | null;
 	readonly denyAt: number | null;
@@ -183,10 +153,7 @@ export type JevAnswer =
 	  })
 	| { readonly answer: "unsure"; readonly error: string; readonly ms: number };
 
-/**
- * The answer a call gives under `cutoffs`. Both cutoffs reached is a
- * contradiction, and P(effect = other) at 0.5 is an exit: both are unsure.
- */
+// Both cutoffs reached is a contradiction, and P(effect = other) at 0.5 is an exit: both are unsure.
 export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 	const reading = "error" in call ? call.error : readReply(call.reply);
 	if (typeof reading === "string") {
@@ -200,7 +167,6 @@ export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 	return { answer, ...reading, ms: call.ms };
 }
 
-/** Jev's name in the log and the notices; it is not a judge-list entry. */
 export const JEV_NAME = `${JEV_PROVIDER}/${JEV_MODEL}`;
 
 /** A Jev allow's reason; like a judge's, it is never shown to the model. */
@@ -209,13 +175,11 @@ const JEV_ALLOW_REASON = "Jev rated it safe.";
 /** A Jev deny's reason; like every deny, it never names a judge. */
 const UNSAFE_REASON = "It was rated as likely unsafe.";
 
-/** A line's verdict from Jev; it tried no judge-list entry. */
 export type JevVerdict = Omit<
 	Extract<JudgeResult, { kind: "verdict" }>,
 	"tried"
 >;
 
-/** A sure answer as the line's verdict, under Jev's name; unsure gives none. */
 export function jevVerdict(answer: JevAnswer): JevVerdict | undefined {
 	if (answer.answer === "unsure") return undefined;
 	const decided =
@@ -225,7 +189,6 @@ export function jevVerdict(answer: JevAnswer): JevVerdict | undefined {
 	return { kind: "verdict", ...decided, model: JEV_NAME, ms: answer.ms };
 }
 
-/** A failed Jev call as the notices show it, under Jev's name. */
 export function jevFailure(
 	record: JevRecord | undefined,
 ): JudgeFailure | undefined {
@@ -233,19 +196,16 @@ export function jevFailure(
 	return { model: JEV_NAME, error: record.error };
 }
 
-/** What the log keeps of Jev's answer to a line, or why there is none. */
 export type JevRecord =
 	| (DenyAnswers & {
 			readonly answer: "safe" | "unsafe" | "unsure";
 			readonly safe: number;
-			/** The deny score. */
 			readonly unsafe: number;
 			readonly confidence: number;
 			readonly ms: number;
 	  })
 	| { readonly error: string; readonly ms: number };
 
-/** What the log keeps of an answer: the reading, or the error. */
 export function jevRecord(answer: JevAnswer): JevRecord {
 	if ("error" in answer) return { error: answer.error, ms: answer.ms };
 	const { safe, unsafe, confidence, ms } = answer;
@@ -267,7 +227,6 @@ function cutoffText(cutoff: number | null): string {
 	return cutoff === null ? "none" : String(cutoff);
 }
 
-/** `/auto status`'s Jev line: off, or on with its cutoffs and its key. */
 export async function jevStatus(
 	settings: JevSettings | undefined,
 	registry: JevKeyLookup,

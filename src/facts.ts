@@ -1,18 +1,14 @@
-// The judge's git facts, read with real git in the call's working directory.
-// Free of Pi. Every read has about a second; a failure reads as "unknown".
+// Each read gets about a second; a failure reads as "unknown".
 import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
 
-/** The branch and whether the tree has uncommitted changes. */
 export type GitState =
 	| { readonly kind: "repo"; readonly branch: string; readonly dirty: boolean }
 	| { readonly kind: "not-a-repo" }
 	| { readonly kind: "unknown" };
 
-/** Remote name → fetch URL. */
 export type Remotes = ReadonlyMap<string, string>;
 
-/** One remote as the judge sees it. */
 export type RemoteFact = {
 	readonly name: string;
 	readonly url: string;
@@ -60,7 +56,6 @@ function branchOf(header: string): string {
 	return name.split("...")[0]?.split(" ")[0] || "unknown";
 }
 
-/** The branch and dirty flag of the repository at `cwd`. */
 export async function readGitState(cwd: string): Promise<GitState> {
 	const ran = await runGit(cwd, ["status", "--porcelain=v1", "--branch"]);
 	if (!ran.ok) {
@@ -72,7 +67,6 @@ export async function readGitState(cwd: string): Promise<GitState> {
 	return { kind: "repo", branch: branchOf(header), dirty: changes.length > 0 };
 }
 
-/** The fetch URL of each remote at `cwd`; none when git cannot say. */
 export async function readRemotes(cwd: string): Promise<Remotes> {
 	const ran = await runGit(cwd, ["remote", "-v"]);
 	const remotes = new Map<string, string>();
@@ -84,7 +78,6 @@ export async function readRemotes(cwd: string): Promise<Remotes> {
 	return remotes;
 }
 
-/** `now`'s remotes by name, each flagged if `snapshot` lacks it or its URL. */
 export function remoteFacts(snapshot: Remotes, now: Remotes): RemoteFact[] {
 	return [...now]
 		.sort(([a], [b]) => a.localeCompare(b))

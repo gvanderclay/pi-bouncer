@@ -1,7 +1,3 @@
-// Turns a bash command string into the ordered list of simple commands
-// (invocations) it would run, wherever they sit: in lists and compound
-// commands, and in every substitution nested in words and redirects.
-// The only module family that reads unbash types.
 import type {
 	ArithmeticExpression,
 	AssignmentPrefix,
@@ -38,7 +34,6 @@ export type Scan =
 	| { readonly kind: "unparseable"; readonly message: string }
 	| { readonly kind: "too-deep" };
 
-/** State shared by the whole scan. */
 type ScanState = {
 	readonly parse: ParseFn;
 	readonly invocations: Invocation[];
@@ -46,17 +41,14 @@ type ScanState = {
 	tooDeep: boolean;
 };
 
-/**
- * Where the walk is. `source` is the string positions index. Inside an inline
- * script, `origin` is the invoking command's text: invocations quote that,
- * so a reason always quotes text from the user's input.
- */
+// `source` is the string positions index. Inside an inline script, `origin` is
+// the invoking command's text: invocations quote that, so a reason always
+// quotes text from the user's input.
 type Frame = {
 	readonly state: ScanState;
 	readonly source: string;
 	readonly depth: number;
 	readonly origin?: string;
-	/** Invocations upstream of the current pipeline stage. */
 	readonly upstream: readonly Invocation[];
 };
 
@@ -198,7 +190,6 @@ function visitAssignments(
 	}
 }
 
-/** Parses a string a command runs as bash, one level deeper; undefined if too deep. */
 function reparse(
 	script: string,
 	origin: string,
@@ -225,10 +216,7 @@ function visitInline(invocation: Invocation, frame: Frame): void {
 	if (parsed) visitScript(parsed.script, parsed.frame);
 }
 
-/**
- * The command a wrapper runs, re-parsing an env -S string if needed. A shell
- * string (watch, flock -c) is walked here like `sh -c`; nothing is returned.
- */
+// A shell string (watch, flock -c) is walked here like `sh -c`; nothing is returned.
 function unwrap(
 	peeled: Peeled | undefined,
 	frame: Frame,
@@ -274,7 +262,6 @@ function visitCommand(command: Command, frame: Frame): void {
 	substitutions.push(...frame.state.invocations.slice(start));
 }
 
-/** Each stage sees every invocation of the stages before it as upstream. */
 function visitPipeline(stages: readonly Node[], frame: Frame): void {
 	const start = frame.state.invocations.length;
 	for (const stage of stages) {

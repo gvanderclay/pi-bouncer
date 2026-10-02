@@ -1,6 +1,4 @@
-// The built-in policy: every built-in rule, steer rule and unreadable-command
-// deny, in evaluation order, at the level the bouncer ships with. Only
-// `config.ts` turns it into an effective policy.
+// Every built-in entry in evaluation order, at its shipped level.
 
 import type { RuleName } from "../verdict.ts";
 import { findDelete, recursiveRm, rmRoot } from "./filesystem.ts";
@@ -48,16 +46,14 @@ export const builtInPolicy: Policy = [
 	{ kind: "steer", rule: grep, instead: grepInstead, level: "deny" },
 ];
 
-/** Every built-in policy entry by its name (`policyEntryName`). */
 export const builtInEntries: ReadonlyMap<string, PolicyEntry> = new Map(
 	builtInPolicy.map((entry) => [policyEntryName(entry), entry]),
 );
 
 /**
- * The rules YOLO mode still denies, whatever the bouncer config's levels say:
- * fixed here, so no config can shrink or grow it. The unreadable-command
- * denies and the steer rules stay denied in YOLO mode by their kind, not by
- * this list.
+ * Rules YOLO mode still denies whatever the config says: fixed here so no
+ * config can change it. Unreadable-command denies and steer rules stay denied
+ * by their kind, not by this list.
  */
 export const alwaysDenySet: ReadonlySet<RuleName> = new Set<RuleName>([
 	"privilege",

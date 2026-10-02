@@ -1,13 +1,8 @@
-// The `session:launch` contract the bouncer consumes: a launch that emits the
-// hook gets the bouncer mode's flag, so a delegate starts in the parent's mode.
-// `delegate` is the emitter; this test stands in for it on the bouncer's own
-// event bus (`test/harness.ts`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { type LoadedGate, loadGateSession } from "../test/harness.ts";
 import { createModeHolder, type GateMode } from "./mode.ts";
 
-/** The bouncer loaded with `mode` already on, as a session in that mode. */
 async function gateIn(mode: GateMode): Promise<LoadedGate> {
 	const holder = createModeHolder();
 	holder.mode = mode;

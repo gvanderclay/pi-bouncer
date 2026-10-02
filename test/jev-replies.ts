@@ -1,7 +1,3 @@
-// SystemOne replies for the Jev tests: `safety`'s P(safe) and the four deny
-// questions' answers.
-
-/** The four deny questions' answers, as the log keeps them. */
 export type Four = {
 	readonly effect: {
 		readonly routine: number;
@@ -37,7 +33,6 @@ export function fourFor(deny: number): Four {
 	};
 }
 
-/** The `answers` of a SystemOne reply: `safety` and the four. */
 export function answersFor(
 	safe: number,
 	four: Four,
@@ -58,7 +53,6 @@ export function answersFor(
 	};
 }
 
-/** A SystemOne reply with `safety`'s P(safe) and four answers. */
 export function replyWith(safe: number, four: Four, confidence = 0.8): string {
 	return JSON.stringify({
 		model: "jev-1.13",
@@ -66,7 +60,6 @@ export function replyWith(safe: number, four: Four, confidence = 0.8): string {
 	});
 }
 
-/** A SystemOne reply with `safety`'s P(safe) and a deny score of `deny`. */
 export function jevReply(safe: number, deny: number, confidence = 0.8): string {
 	return replyWith(safe, fourFor(deny), confidence);
 }

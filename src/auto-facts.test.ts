@@ -1,7 +1,3 @@
-// What the judge sees: git facts read with real git in temp directories,
-// remotes changed since the session started, the user's last message and up
-// to 10 earlier ones, and the route's environment facts. Tool output,
-// assistant text and AGENTS.md never reach it.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -32,7 +28,6 @@ function git(cwd: string, ...args: string[]): void {
 	);
 }
 
-/** A temp repo on branch `feature` with one commit. */
 function repo(): string {
 	const cwd = tempProjectDir();
 	mkdirSync(cwd, { recursive: true });
@@ -43,7 +38,6 @@ function repo(): string {
 	return cwd;
 }
 
-/** A bouncer in auto mode, its session started in `cwd`, with an allowing judge. */
 async function gateIn(
 	cwd: string,
 	auto: object = {},
@@ -64,7 +58,6 @@ function contextIn(
 	return withBranch(withRegistry(fakeContext(cwd), fake), branch);
 }
 
-/** The judge input of the one call `rm -rf dist` makes in `cwd`. */
 async function inputFor(
 	gate: LoadedGate,
 	fake: FakeRegistry,
@@ -154,12 +147,10 @@ test("the input holds the user's earlier and last messages, never tool output or
 	assert.doesNotMatch(prompt, /NOTE TO REVIEWER|AGENTS-MARKER/);
 });
 
-/** A user entry on the branch holding `text`. */
 function said(text: string): object {
 	return messageEntry({ role: "user", content: text, timestamp: 1 });
 }
 
-/** The text between `<earlier_user_messages>` and its closing tag. */
 function earlierBlock(input: string): string | undefined {
 	return /\n<earlier_user_messages>\n([\s\S]*)\n<\/earlier_user_messages>\n/.exec(
 		input,

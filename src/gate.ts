@@ -1,5 +1,3 @@
-// The whole decision, free of Pi: a bash command in, an outcome out.
-
 import { ALWAYS_ASK } from "./always-ask.ts";
 import {
 	type Ask,
@@ -45,23 +43,18 @@ export type { AskAnswer, AskUI, Match, Outcome, ParseFn };
  */
 export type WithoutYolo = "blocked" | "dialog" | "allowed";
 
-/** What auto mode's judge made of a call: the log's `auto` shape. */
 export type AutoTrace = {
 	/** `none`: no model on the judge list answered. */
 	readonly verdict: "allow" | "deny" | "ask" | "none" | "always-ask" | "paused";
 	readonly reason?: string;
-	/** The `provider/id` entry that answered. */
 	readonly model?: string;
 	readonly ms?: number;
-	/** Every model given up on before the answer, with why. */
 	readonly tried: readonly JudgeFailure[];
-	/** What Jev said first, when the route has `auto.jev`. */
 	readonly jev?: JevRecord;
 	/** Set when the bouncer mode changed while the judge was out: unused. */
 	readonly discarded?: true;
 };
 
-/** Why the bouncer did what it did, for the bouncer log. */
 export type Trace = {
 	/**
 	 * Every match, in evaluation order; a deny match ends the list (under
@@ -70,7 +63,6 @@ export type Trace = {
 	 */
 	readonly matches: readonly Match[];
 	readonly ui: boolean;
-	/** What happened to each ask, when a dialog sequence ran. */
 	readonly asks: readonly AskAnswer[];
 	/** Set only when YOLO mode made the decision. */
 	readonly yolo?: { readonly withoutYolo: WithoutYolo };
@@ -79,34 +71,22 @@ export type Trace = {
 	readonly auto?: AutoTrace;
 };
 
-/**
- * An outcome, with a trace whenever a rule matched. `yoloOn` is set when the
- * user picked "Allow all (YOLO)": the caller turns YOLO mode on.
- */
 export type Decision = Outcome & {
 	readonly trace?: Trace;
 	readonly yoloOn?: true;
-	/** Set when the user picked the auto-mode choice: the caller turns it on. */
 	readonly autoOn?: true;
 };
 
-/** Rules a line's uncovered asks: the auto-mode ruling. */
 export type Judge = (asks: readonly Ask[]) => Promise<Ruling>;
 
-/** One bash call: where it runs, and who can be asked about it. */
 export type Call = {
 	readonly cwd: string;
-	/** The home directory, for rules that resolve `~`. */
 	readonly home: string;
-	/** The bouncer mode this call is decided in. */
 	readonly mode: GateMode;
 	/** Auto mode's judge; without one, auto mode hands every ask to the user. */
 	readonly judge?: Judge;
-	/** The route's `auto.alwaysAsk` prefixes; used in auto mode only. */
 	readonly alwaysAsk?: readonly string[];
-	/** Whether auto mode's brakes paused it: its calls go to the dialog. */
 	readonly paused?: boolean;
-	/** The dialog's auto-mode choice label, when auto mode could turn on. */
 	readonly autoChoice?: string;
 	/**
 	 * Asked once the judge answers: the decision under the bouncer mode now in
@@ -119,7 +99,6 @@ export type Call = {
 
 export type Gate = {
 	decide(command: string, call: Call): Promise<Decision>;
-	/** Forgets every session allow and enforces `policy` from now on. */
 	reset(policy: Policy): void;
 };
 
@@ -149,7 +128,6 @@ function askingFor(command: string, call: Call, allowed: Set<string>): Asking {
 	};
 }
 
-/** The switches a dialog answer asked for, to put on the decision. */
 function switches(asked: Asked): Pick<Decision, "yoloOn" | "autoOn"> {
 	return {
 		...(asked.yoloOn && { yoloOn: asked.yoloOn }),
@@ -187,10 +165,6 @@ function withoutYolo(
 	return allSessionAllowed(ranking.asks, asking) ? "allowed" : "dialog";
 }
 
-/**
- * YOLO mode's decision from its own ranking: no dialog opens, with or
- * without a UI. `ranking` is the effective policy's, for the trace.
- */
 function yoloDecided(
 	yoloRanking: Ranking | undefined,
 	ranking: Ranking | undefined,
@@ -224,17 +198,10 @@ function autoTrace(result: Ruling): AutoTrace {
 
 const NO_JUDGE = "Auto: no judge available";
 
-/** The rules of `asks`, each once, in order. */
 function rulesOf(asks: readonly Ask[]): RuleName[] {
 	return [...new Set(asks.map((ask) => ask.rule))];
 }
 
-/**
- * Auto mode's decision from its own ranking: one judge call covers every
- * ask no session allow covers. Allow runs the line quietly, deny blocks it
- * in the hard-deny form, and a hand-off or no judge opens the dialog, or
- * blocks without a UI. `ranking` is the effective policy's, for the trace.
- */
 async function autoDecided(
 	autoRanking: Ranking | undefined,
 	ranking: Ranking | undefined,
@@ -295,7 +262,6 @@ async function autoDecided(
 	return dialogDecided(autoRanking, command, call, allowed, judged, note);
 }
 
-/** `decision`, keeping the judge's dropped verdict in its trace. */
 function discarded(decision: Decision, auto: AutoTrace, call: Call): Decision {
 	const trace = decision.trace ?? {
 		matches: [],
@@ -308,10 +274,6 @@ function discarded(decision: Decision, auto: AutoTrace, call: Call): Decision {
 	};
 }
 
-/**
- * Auto mode's dialog, or its no-UI fallback: for a hand-off, no judge, an
- * alwaysAsk hit or a pause. `note` is one line below each dialog's title.
- */
 async function dialogDecided(
 	ranking: Ranking & { readonly kind: "ask" },
 	command: string,
@@ -328,11 +290,7 @@ async function dialogDecided(
 	return { ...asked.outcome, trace: answered, ...switches(asked) };
 }
 
-/**
- * An undefined parser makes every decision the `parser-unavailable` deny.
- * Each bouncer keeps its own session allows, in memory only, and enforces
- * `policy` until `reset` is given another.
- */
+// An undefined parser makes every decision the `parser-unavailable` deny.
 export function createGate(parse: ParseFn | undefined, policy: Policy): Gate {
 	const allowed = new Set<string>();
 	let current = policy;
@@ -359,16 +317,11 @@ export function createGate(parse: ParseFn | undefined, policy: Policy): Gate {
 	};
 }
 
-/** What the bouncer would do with a command, before anyone is asked. */
 export type Would =
 	| { readonly kind: "allow" }
 	| { readonly kind: "ask" }
 	| { readonly kind: "deny"; readonly rule: RuleName };
 
-/**
- * What auto mode would do with a command, before any judge is asked: allow
- * (no match), `judge`, a dialog for an always-ask prefix, or a deny.
- */
 export type AutoWould =
 	| { readonly kind: "allow" }
 	| { readonly kind: "judge" }
@@ -377,22 +330,17 @@ export type AutoWould =
 
 export type Inspection = {
 	readonly matches: readonly Match[];
-	/** Session allows aside: a dialog, or a deny. */
 	readonly withUI: Would;
 	readonly withoutUI: Would;
-	/** Session allows aside: YOLO mode's allow, or the rule that still denies. */
 	readonly withYolo: Would;
-	/** Session allows aside: auto mode's judge, dialog, or deny. */
 	readonly withAuto: AutoWould;
 };
 
-/** YOLO mode never asks: its ranking allows or denies. */
 function yoloWould(ranking: Ranking | undefined): Would {
 	if (ranking?.kind !== "deny") return { kind: "allow" };
 	return { kind: "deny", rule: ranking.verdict.rule };
 }
 
-/** Auto mode asks the judge unless an always-ask prefix sends it to the user. */
 function autoWould(ranking: Ranking | undefined): AutoWould {
 	if (!ranking) return { kind: "allow" };
 	if (ranking.kind === "deny") {
@@ -402,12 +350,6 @@ function autoWould(ranking: Ranking | undefined): AutoWould {
 	return always ? { kind: "ask", rule: ALWAYS_ASK } : { kind: "judge" };
 }
 
-/**
- * Every match and what the bouncer would do with and without a UI, in YOLO
- * mode and in auto mode (with the route's `alwaysAsk` prefixes), from the
- * same rankings `decide` uses, for a call running `where`. Opens no dialog,
- * calls no judge and remembers nothing.
- */
 export function inspect(
 	parse: ParseFn | undefined,
 	command: string,

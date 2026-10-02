@@ -1,4 +1,3 @@
-// What a project's bouncer config may change, through the bouncer's Pi events.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -15,7 +14,6 @@ import {
 	writeProjectConfig,
 } from "../test/harness.ts";
 
-/** The first session record's `config.projectTrusted`. */
 function projectTrusted(records: readonly LogRecord[]): unknown {
 	const config = records[0]?.config as { projectTrusted?: unknown };
 	return config?.projectTrusted;

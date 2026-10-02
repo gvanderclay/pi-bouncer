@@ -1,6 +1,5 @@
-// The Jev bench: asks Jev about every bench case a few times, through the
-// bouncer's own Jev client, and works out the cutoffs at which Jev may
-// decide. `bench.ts jev` dispatches here. It spends real quota.
+// Asks Jev about every bench case a few times and works out the cutoffs at which
+// Jev may decide. Spends real quota.
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
@@ -9,13 +8,8 @@ import { askJev, jevKey, NO_KEY, readReply } from "../../src/jev.ts";
 import type { RulingRegistry } from "../../src/ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
-/**
- * One Jev answer to one case: `safety`'s P(safe), the deny score as
- * `unsafe`, or why it gave none.
- */
 export type JevSample = {
 	readonly id: string;
-	/** Which sample of the case, from 1. */
 	readonly sample: number;
 	readonly safe?: number;
 	readonly unsafe?: number;
@@ -24,10 +18,7 @@ export type JevSample = {
 	readonly ms: number;
 };
 
-/**
- * Asks Jev about each case `samples` times, one call at a time, with the
- * route's opencode-go key. Without a key it throws before any call.
- */
+// Without a key it throws before any call.
 export async function runJevBench(
 	cases: readonly BenchCase[],
 	registry: RulingRegistry,
@@ -61,7 +52,6 @@ export async function runJevBench(
 	return results;
 }
 
-/** At one candidate cutoff, what Jev would get wrong and decide. */
 export type CutoffRow = {
 	readonly cutoff: number;
 	/** Cases that should not be allowed with a sample's safe probability at the cutoff. */
@@ -75,7 +65,6 @@ export type CutoffRow = {
 	readonly cases: number;
 };
 
-/** The candidate cutoffs: 0.50 to 0.99 in steps of 0.01. */
 const CANDIDATES: readonly number[] = Array.from(
 	{ length: 50 },
 	(_, at) => (50 + at) / 100,
@@ -94,11 +83,8 @@ function reaches(value: number | undefined, cutoff: number): boolean {
 	return value !== undefined && value >= cutoff;
 }
 
-/**
- * The cutoff table: a case is a wrong allow (deny) when any sample reaches
- * the cutoff and its expected verdicts exclude allow (deny), and is decided
- * when every sample reaches it.
- */
+// A case is a wrong allow (deny) when any sample reaches the cutoff and its expected
+// verdicts exclude allow (deny), and is decided when every sample reaches it.
 export function cutoffTable(
 	samples: readonly JevSample[],
 	cases: readonly BenchCase[],
@@ -126,7 +112,6 @@ export function cutoffTable(
 	}));
 }
 
-/** The recommended cutoffs: the lowest with no wrong answer, or `null`. */
 export type JevRecommendation = {
 	readonly allowAt: number | null;
 	readonly denyAt: number | null;
@@ -156,11 +141,8 @@ function cutoffText(cutoff: number | null): string {
 	return cutoff === null ? "null" : cutoff.toFixed(2);
 }
 
-/**
- * The exact one-sided 95% upper bound on an error rate after `errors` errors
- * in `n` cases (Clopper–Pearson): the rate at which `errors` or fewer would
- * happen only 5% of the time. With no errors it is 1 − 0.05^(1/n), about 3/n.
- */
+// Clopper–Pearson one-sided 95% upper bound on an error rate. With no errors it is
+// 1 − 0.05^(1/n), about 3/n.
 export function upperBound(errors: number, n: number): number {
 	if (errors >= n) return 1;
 	const atMost = (p: number): number => {
@@ -181,7 +163,6 @@ export function upperBound(errors: number, n: number): number {
 	return (low + high) / 2;
 }
 
-/** Cases with a sample whose `side` reaches `cutoff`; none for a `null` cutoff. */
 function reached(
 	samples: readonly JevSample[],
 	cases: readonly BenchCase[],
@@ -194,11 +175,8 @@ function reached(
 	);
 }
 
-/**
- * The denies at `denyAt`, split by label: a deny of a deny-labelled case is
- * what the judge would have done, while one of an ask-labelled case hard-blocks
- * what the judge would only have asked about.
- */
+// A deny of a deny-labelled case is what the judge would have done; one of an
+// ask-labelled case hard-blocks what the judge would only have asked about.
 function denySplit(
 	samples: readonly JevSample[],
 	cases: readonly BenchCase[],
@@ -214,10 +192,6 @@ function denySplit(
 	return `Denies: ${part("deny")}, ${part("ask")}`;
 }
 
-/**
- * One error count against its base, with its 95% upper bound and the cases;
- * a `null` cutoff makes no errors to bound.
- */
 function errorLine(
 	what: string,
 	cutoff: [name: string, at: number | null],
@@ -232,11 +206,7 @@ function errorLine(
 	return `${what}: ${wrong.length} of ${base.length} ${of} cases (95% upper bound ${bound}%)${named}`;
 }
 
-/**
- * How the recommended pair does on the held-out cases: the wrong allows and
- * denies with their bounds, the decided cases and the deny split. A failed
- * call is never a wrong answer; each case's line counts its errors.
- */
+// A failed call is never a wrong answer; each case's line counts its errors.
 function heldOutCheck(
 	samples: readonly JevSample[],
 	cases: readonly BenchCase[],
@@ -274,11 +244,6 @@ function heldOutCheck(
 	];
 }
 
-/**
- * The bench's output: each case's safe range, the cutoff table, the pair
- * recommended from `cases` alone and its deny split, then, given held-out
- * cases, their ranges and how the pair does on them.
- */
 export function jevReport(
 	samples: readonly JevSample[],
 	cases: readonly BenchCase[],
@@ -332,7 +297,6 @@ const USAGE =
 
 type JevArgs = { readonly route: string; readonly samples: number };
 
-/** The parsed arguments, or the exit code after printing usage. */
 function jevArgs(args: readonly string[]): JevArgs | number {
 	let parsed: ReturnType<typeof parse>;
 	try {
@@ -370,11 +334,6 @@ function parse(args: readonly string[]): {
 	});
 }
 
-/**
- * `bench.ts jev`: runs the Jev bench over every bench and held-out case with
- * the route's registry and prints the report. Usage and a missing key make no
- * call.
- */
 export async function jevMain(
 	args: readonly string[],
 	loadRegistry: (route: string) => Promise<RulingRegistry>,

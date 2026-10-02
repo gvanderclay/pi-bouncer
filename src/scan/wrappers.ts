@@ -1,6 +1,4 @@
-// Commands that run another command. One table row per wrapper; one peeling
-// function reads it. Option lists are the union of the macOS (BSD) and GNU
-// tools; the evidence is in the package's archived issue notes.
+// Option lists are the union of the macOS (BSD) and GNU tools.
 import { commandName } from "./normalize.ts";
 import type { Invocation } from "./walk.ts";
 
@@ -10,7 +8,6 @@ type Wrapper = {
 	readonly shortValues?: string;
 	/** Short options whose optional value can only be attached (`-i{}`). */
 	readonly shortAttached?: string;
-	/** Long options that take a value: `--name=value` or `--name value`. */
 	readonly longValues?: readonly string[];
 	/** Short options that mean no command runs (`command -v`). */
 	readonly noRun?: string;
@@ -20,9 +17,9 @@ type Wrapper = {
 	readonly assignments?: boolean;
 	/** A lone `-` is an option here, not the command (env's `-i`). */
 	readonly dashOption?: boolean;
-	/** The option whose value is a string split into the command (env -S). */
+	// env -S
 	readonly split?: { readonly short: string; readonly long: string };
-	/** The option whose value is a shell script the wrapper runs (flock -c). */
+	// flock -c
 	readonly script?: { readonly short: string; readonly long: string };
 	/**
 	 * The command operands are joined with spaces and run by `sh -c`, unless
@@ -31,22 +28,17 @@ type Wrapper = {
 	readonly shellRest?: { readonly exec: { short: string; long: string } };
 };
 
-/**
- * What a wrapper runs: a command; (env -S) a string to split into one,
- * followed by the wrapper's remaining operands; a string it hands to
- * `sh -c` (watch, flock -c); or something its arguments do not show.
- */
+// What a wrapper runs: a command; (env -S) a string to split into one, then
+// the remaining operands; or a string it hands to `sh -c` (watch, flock -c).
 export type Peeled =
 	| { readonly kind: "command"; readonly invocation: Invocation }
 	| {
 			readonly kind: "split";
-			/** The wrapper invocation, to rebuild with the split words. */
 			readonly parent: Invocation;
 			readonly script: string;
 			readonly rest: readonly string[];
 	  }
 	| {
-			/** A string the wrapper runs with `sh -c`. */
 			readonly kind: "shell";
 			readonly parent: Invocation;
 			readonly script: string;
@@ -127,7 +119,6 @@ type Cursor = {
 	exec?: boolean;
 };
 
-/** Reads the value of a value-taking short option at `at` in its cluster. */
 function readShortValue(
 	wrapper: Wrapper,
 	args: readonly string[],
@@ -146,7 +137,6 @@ function readShortValue(
 	}
 }
 
-/** Reads one short cluster. Returns false when an option means no command runs. */
 function readCluster(
 	wrapper: Wrapper,
 	args: readonly string[],
@@ -200,7 +190,6 @@ function isOption(wrapper: Wrapper, arg: string): boolean {
 	return arg.startsWith("-") && (arg.length > 1 || wrapper.dashOption === true);
 }
 
-/** Reads one option. Returns false when it means no command runs. */
 function readOption(
 	wrapper: Wrapper,
 	args: readonly string[],
@@ -213,7 +202,6 @@ function readOption(
 	return true;
 }
 
-/** Skips the wrapper's options up to its operands. Returns false when no command runs. */
 function skipOptions(
 	wrapper: Wrapper,
 	args: readonly string[],
@@ -235,11 +223,6 @@ function skipOptions(
 	return true;
 }
 
-/**
- * What a wrapper invocation runs, or undefined when the invocation is not a
- * wrapper or runs nothing. The result keeps the wrapper's source text and
- * relationships.
- */
 export function peel(invocation: Invocation): Peeled | undefined {
 	const wrapper = BY_NAME.get(invocation.name);
 	if (!wrapper) return undefined;
@@ -261,7 +244,6 @@ export function peel(invocation: Invocation): Peeled | undefined {
 	return peelCommand(wrapper, invocation, args.slice(cursor.index), cursor);
 }
 
-/** The command operands after the wrapper's options and plain operands. */
 function peelCommand(
 	wrapper: Wrapper,
 	invocation: Invocation,
@@ -271,7 +253,6 @@ function peelCommand(
 	const [name, ...commandArgs] = rest;
 	if (name === undefined) return undefined;
 	if (wrapper.shellRest && cursor.exec !== true) {
-		// watch joins its operands with spaces and runs them with `sh -c`.
 		return { kind: "shell", parent: invocation, script: rest.join(" ") };
 	}
 	if (wrapper.script && isScriptOption(wrapper.script, name)) {
@@ -286,11 +267,9 @@ function peelCommand(
 	};
 }
 
-/**
- * flock FILE -c COMMAND: util-linux stops reading options at the file, so
- * only -c or --command right after it is an option; any other word there,
- * dash or not, is the command.
- */
+// flock FILE -c COMMAND: util-linux stops reading options at the file, so
+// only -c or --command right after it is an option; any other word there,
+// dash or not, is the command.
 function isScriptOption(
 	option: { readonly short: string; readonly long: string },
 	given: string,

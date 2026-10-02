@@ -1,4 +1,3 @@
-// Formatting disks, writing raw bytes to devices, and taking the machine down.
 import type { Invocation } from "../scan/walk.ts";
 import type { Rule } from "./rule.ts";
 
@@ -25,7 +24,7 @@ const DISKUTIL_VERBS: ReadonlySet<string> = new Set([
 	"partitiondisk",
 ]);
 
-/** `diskutil [quiet] verb [subVerb] …` (man diskutil). */
+// `diskutil [quiet] verb [subVerb] …` (man diskutil).
 function diskutilErases(args: readonly string[]): boolean {
 	const [verb = "", subVerb = ""] = (
 		args[0]?.toLowerCase() === "quiet" ? args.slice(1) : args

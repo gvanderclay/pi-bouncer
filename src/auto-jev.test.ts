@@ -1,7 +1,3 @@
-// Jev, which auto mode asks before the judge list, through the tool_call handler: the route's
-// `auto.jev` opts in, a stubbed global `fetch` scripts Jev's replies and
-// records each request, and the fake registry gives the opencode-go key. No
-// test reaches the network or spends quota.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
 import {
@@ -42,7 +38,6 @@ const KEYS: Readonly<Record<string, string>> = { "opencode-go": KEY };
 const ZEN = "https://opencode.ai/zen/v1/systemone";
 const JEV = "opencode-go/jev-1.13";
 
-/** One request Jev's stubbed endpoint saw. */
 type Sent = {
 	readonly url: string;
 	readonly headers: Record<string, string>;
@@ -54,17 +49,12 @@ type Sent = {
 	readonly signal: AbortSignal | undefined;
 };
 
-/** What the stub answers: a 200 body, a status and body, or never. */
 type Scripted =
 	| string
 	| { readonly status: number; readonly body: string }
 	| "hang"
 	| Promise<string>;
 
-/**
- * Stubs the global `fetch` with Jev's endpoint: each call gets `reply()` and
- * is recorded. A hanging or pending reply rejects when its signal aborts.
- */
 function stubJev(t: TestContext, reply: () => Scripted): Sent[] {
 	const sent: Sent[] = [];
 	t.mock.method(
@@ -119,7 +109,6 @@ function autoOf(gate: { records(): { auto?: unknown }[] }): AutoRecord {
 	return (gate.records().at(-1)?.auto ?? {}) as AutoRecord;
 }
 
-/** A bouncer in auto mode with `auto.jev` set to `jev`, its judge `judge`. */
 function jevGate(
 	jev: unknown,
 	judge: ModelReply = verdict("deny", "Not asked for."),
@@ -207,7 +196,6 @@ test("an unsafe answer at denyAt blocks in the hard-deny form with no judge-list
 	assert.equal(auto.jev?.safe, 0.05);
 });
 
-/** Jev's replies in order, the last repeating. */
 function inTurn(replies: readonly string[]): () => string {
 	let next = 0;
 	return () => replies[Math.min(next++, replies.length - 1)] ?? "";
@@ -675,7 +663,6 @@ test("after Jev's 5 s the judge list gets the line's remaining 15 s, not a fresh
 	assert.deepEqual(auto.jev, { error: "no reply within 5 s", ms: 5_000 });
 });
 
-/** Makes `fake`'s key lookup give Jev's key only after `ms`. */
 function slowKey(fake: { registry: unknown }, ms: number): void {
 	const late = (): Promise<string | undefined> =>
 		new Promise((resolve) => setTimeout(() => resolve(KEY), ms));
@@ -929,7 +916,6 @@ test("/auto off while Jev is out drops its allow, with auto.discarded", async (t
 	assert.equal(auto.discarded, true);
 });
 
-/** A held Jev reply: `release` answers it once the line is out. */
 function heldReply(): { held: Promise<string>; release: (b: string) => void } {
 	let release: (body: string) => void = () => {};
 	const held = new Promise<string>((resolve) => {
@@ -1026,7 +1012,6 @@ test("Jev's earlier messages and session history are exactly the judge input's b
 	);
 });
 
-/** The `/auto status` notice, with the registry `fake` in the context. */
 async function statusText(
 	gate: Awaited<ReturnType<typeof judgedGate>>["gate"],
 	fake: ReturnType<typeof fakeRegistry>,

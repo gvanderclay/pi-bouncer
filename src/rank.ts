@@ -1,6 +1,3 @@
-// What the policy makes of a command, before anyone is asked: the scan's
-// reading and the rankings in normal, YOLO and auto mode. Free of Pi.
-
 import { alwaysAskHits } from "./always-ask.ts";
 import type { Ask } from "./ask.ts";
 import { alwaysDenySet } from "./rules/built-in-policy.ts";
@@ -17,19 +14,16 @@ import {
 	type VerdictLevel,
 } from "./verdict.ts";
 
-/** One rule that caught one invocation: the log's `matches` shape. */
 export type Match = {
 	readonly rule: RuleName;
 	readonly level: VerdictLevel;
 	readonly source: string;
 };
 
-/** A command as the scan read it, or the deny for one it could not read. */
 export type Read =
 	| { readonly kind: "unreadable"; readonly verdict: Verdict }
 	| { readonly kind: "ok"; readonly invocations: readonly Invocation[] };
 
-/** What the policy makes of a command, before anyone is asked. */
 export type Ranking =
 	| {
 			readonly kind: "deny";
@@ -45,20 +39,16 @@ export type Ranking =
 			readonly matches: readonly Match[];
 	  };
 
-// An unreadable-command deny: no rule matched, so the whole command is its
-// source.
 function wholeCommandDeny(verdict: Verdict): Ranking {
 	const { level, rule, command: source } = verdict;
 	return { kind: "deny", verdict, matches: [{ rule, level, source }] };
 }
 
-/** One policy rule or steer rule that caught one invocation. */
 type Hit = {
 	readonly entry: RuleEntry | SteerEntry;
 	readonly source: string;
 };
 
-/** Every (invocation, policy rule) match, in evaluation order, lazily. */
 function* hits(
 	invocations: readonly Invocation[],
 	policy: Policy,
@@ -74,11 +64,8 @@ function* hits(
 	}
 }
 
-/**
- * Ranks the matches in evaluation order: a match for which `denies` holds
- * wins outright; otherwise the first steer match denies the line, whatever
- * asks it holds; every other match is an ask, once per (rule, source).
- */
+// A match for which `denies` holds wins outright; otherwise the first steer
+// match denies the line, whatever asks it holds.
 function rankHits(
 	found: Iterable<Hit>,
 	denies: (entry: RuleEntry) => boolean,
@@ -126,7 +113,6 @@ export function read(parse: ParseFn | undefined, command: string): Read {
 	return { kind: "ok", invocations: result.invocations };
 }
 
-/** The effective policy's ranking: its first deny-level match wins. */
 export function rank(
 	command: Read,
 	policy: Policy,
@@ -137,11 +123,8 @@ export function rank(
 	return rankHits(found, (entry) => entry.level === "deny");
 }
 
-/**
- * YOLO mode's ranking: the first match in the always-deny set wins, at
- * whatever level the policy puts it, and every other match is an ask. The
- * unreadable-command denies still deny.
- */
+// The first match in the always-deny set wins at whatever level the policy
+// puts it; every other match is an ask.
 export function rankYolo(
 	command: Read,
 	policy: Policy,
@@ -152,11 +135,8 @@ export function rankYolo(
 	return rankHits(found, (entry) => alwaysDenySet.has(entry.rule.name));
 }
 
-/**
- * Auto mode's ranking: an unreadable command, the first match in the
- * always-deny set whatever its level, and the first effective-level deny
- * all deny; every other match is an ask, for the judge.
- */
+// An unreadable command, the first always-deny match whatever its level, and
+// the first effective-level deny all deny; every other match is an ask.
 export function rankAuto(
 	command: Read,
 	policy: Policy,

@@ -1,6 +1,3 @@
-// Auto mode through the bouncer's Pi events: the /auto command, the judge-list
-// check, the footer status and the notices. Each load gets a fresh mode
-// holder unless a test passes one, as /reload does.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -191,7 +188,6 @@ test("session records carry auto beside yolo, true after a reload in auto mode",
 	assert.equal(session?.yolo, false);
 });
 
-/** A bouncer loaded with `flags`, its route listing `models`; no session yet. */
 async function flaggedGate(
 	flags: Readonly<Record<string, boolean>>,
 	models: readonly string[] | undefined = [JUDGE],
@@ -260,7 +256,6 @@ test("--auto applies once: /auto off then a reload stays off", async () => {
 	assert.equal(reloaded.mode.mode, "off");
 });
 
-/** A bouncer whose route sets `startMode`, with `flags`; no session yet. */
 async function startModeGate(
 	startMode: unknown,
 	flags: Readonly<Record<string, boolean>> = {},
@@ -337,7 +332,6 @@ for (const [startMode, problem] of [
 	});
 }
 
-/** The one `/auto status` notice for `gate`, with `fake` as the registry. */
 async function statusNotice(
 	gate: LoadedGate,
 	fake: ReturnType<typeof fakeRegistry>,

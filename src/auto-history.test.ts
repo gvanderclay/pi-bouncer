@@ -1,8 +1,3 @@
-// The session history: what the agent ran (bash) and which files it wrote or
-// edited, as the bouncer saw them at `tool_result`, reaching auto mode's judge
-// so it can allow the agent's clean-up of what it made. Driven through the
-// bouncer's `tool_call` and `tool_result` handlers only; normal and YOLO
-// modes must not notice it.
 import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { test } from "node:test";
@@ -37,14 +32,12 @@ const PROBE = "rm -rf /tmp/pi-probe";
 const MADE = "mkdir -p /tmp/pi-probe";
 const HAND_OFF = verdict("ask", "not sure");
 
-/** The text between `<session_history>` and its closing tag, if any. */
 function historyBlock(input: string): string | undefined {
 	return /\n<session_history>\n([\s\S]*)\n<\/session_history>\n/.exec(
 		input,
 	)?.[1];
 }
 
-/** A judge that allows only when its input's history shows `line`. */
 function allowsWhenShown(line: string): (input: string) => ModelReply {
 	return (input: string): ModelReply =>
 		historyBlock(input)?.split("\n").includes(line)
@@ -52,7 +45,6 @@ function allowsWhenShown(line: string): (input: string) => ModelReply {
 			: HAND_OFF;
 }
 
-/** The judge input of one call of `command`, which must reach the judge. */
 async function inputFor(
 	gate: LoadedGate,
 	fake: FakeRegistry,
@@ -65,7 +57,6 @@ async function inputFor(
 	return fake.requests.at(-1)?.input ?? "";
 }
 
-/** An auto-mode bouncer whose judge always hands the call to the user. */
 function handingOff(): ReturnType<typeof judgedGate> {
 	return judgedGate(HAND_OFF);
 }
@@ -132,13 +123,11 @@ test("a call that never finished, and a call the judge denied, are not in the hi
 	const { gate, fake } = await judgedGate({
 		reply: [verdict("deny", "no"), HAND_OFF],
 	});
-	// Denied by the judge: Pi never runs it, so no tool_result follows.
 	const denied = await gate.handler(
 		bashCall("rm -rf /tmp/denied"),
 		judgedUI(fake).ctx,
 	);
 	assert.equal(denied?.block, true);
-	// Allowed but never finished: no tool_result either.
 	await gate.handler(bashCall("echo started"), judgedUI(fake).ctx);
 	const input = await inputFor(gate, fake);
 	assert.equal(historyBlock(input), undefined);

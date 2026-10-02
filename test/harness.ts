@@ -1,5 +1,3 @@
-// Drives the bouncer through its one seam: the handlers it registers with Pi,
-// `tool_call` above all.
 import assert from "node:assert/strict";
 import {
 	mkdirSync,
@@ -38,56 +36,32 @@ export type ToolResultMessage = {
 	readonly timestamp: number;
 };
 
-/** What a `message_end` handler returned: a replacement, or nothing. */
 export type MessageEndResult = { readonly message?: unknown } | undefined;
 
 export type LoadedGate = {
 	readonly handler: Handler;
-	/** The bouncer's log directory: a fresh temp path unless one was given. */
 	readonly logDir: string;
-	/** The bouncer's agent dir: a fresh temp path, never the real route's. */
+	/** A fresh temp path, never the real agent dir. */
 	readonly agentDir: string;
-	/**
-	 * Writes the route's bouncer config, `<agentDir>/bouncer.json`: a
-	 * string as is, anything else as JSON. It applies from the next session start.
-	 */
+	// Writes the user config (`<agentDir>/bouncer.json`); applies from the next session start.
 	readonly writeRouteConfig: (config: unknown) => void;
-	/** Every record in the bouncer's `log.jsonl`, parsed; none if it is absent. */
 	readonly records: () => LogRecord[];
-	/**
-	 * Fires the `session_start` handler the bouncer registered, if any, with
-	 * `ctx` (by default a UI-less context in /work).
-	 */
 	readonly startSession: (
 		reason: SessionReason,
 		ctx?: ExtensionContext,
 	) => Promise<void>;
-	/** Fires the `message_end` handler the bouncer registered, if any. */
 	readonly endMessage: (message: unknown) => Promise<MessageEndResult>;
-	/**
-	 * Fires the `tool_result` handler the bouncer registered, as Pi does once
-	 * an executed call finishes, with `ctx` (by default UI-less, in /work).
-	 * Returns what the handler returned.
-	 */
 	readonly finishTool: (
 		event: ToolResultEvent,
 		ctx?: ExtensionContext,
 	) => Promise<unknown>;
-	/**
-	 * Runs the slash command `name` the bouncer registered with `args`, as the
-	 * user typing `/name args` does, with `ctx` (by default UI-less).
-	 */
 	readonly runCommand: (
 		name: string,
 		args?: string,
 		ctx?: ExtensionContext,
 	) => Promise<void>;
-	/** The bouncer-mode holder this load was given. */
 	readonly mode: ModeHolder;
-	/**
-	 * The bouncer's event bus: how a test emits a hook, as the provider would.
-	 * `emit` runs every listener's synchronous code before it returns.
-	 */
+	// `emit` runs every listener's synchronous code before it returns.
 	readonly events: EventBus;
 };
 
@@ -116,15 +90,12 @@ type ToolResultHandler = (
 	ctx: ExtensionContext,
 ) => unknown;
 
-/** How a built tool result ended, and the output text it carries. */
 export type ResultOptions = {
 	readonly isError?: boolean;
-	/** The result's output text, where a test plants markers. */
 	readonly text?: string;
 	readonly id?: string;
 };
 
-/** The `tool_result` event Pi fires once `toolName` ran with `input`. */
 export function toolResult(
 	toolName: string,
 	input: Record<string, unknown>,
@@ -152,7 +123,6 @@ export function bashResult(
 	return toolResult("bash", input, options);
 }
 
-/** A finished `write` of `content` to `path`. */
 export function writeResult(
 	path: string,
 	content: string,
@@ -161,7 +131,6 @@ export function writeResult(
 	return toolResult("write", { path, content }, options);
 }
 
-/** A finished `edit` of `path` replacing `oldText` with `newText`. */
 export function editResult(
 	path: string,
 	newText: string,
@@ -171,7 +140,6 @@ export function editResult(
 	return toolResult("edit", { path, edits }, options);
 }
 
-/** The tool result Pi records for a call aborted after `tool_call`. */
 export function abortedResult(toolCallId = "t1"): ToolResultMessage {
 	return {
 		role: "toolResult",
@@ -207,12 +175,10 @@ export type LogRecord = {
 	readonly withoutAuto?: unknown;
 };
 
-// Every bouncer's log and agent dir live below one temp root, removed when the
-// process exits, so no test reads a real route's config or writes its log.
+// One temp root, removed at exit, so no test reads a real config or writes a real log.
 let tempRoot: string | undefined;
 let tempCount = 0;
 
-/** A fresh, not yet created directory named `name` below the temp root. */
 function tempDir(name: string): string {
 	if (!tempRoot) {
 		const root = mkdtempSync(join(tmpdir(), "pi-gate-log-"));
@@ -223,40 +189,31 @@ function tempDir(name: string): string {
 	return join(tempRoot, `gate-${tempCount}`, name);
 }
 
-/** A fresh, not yet created log directory below the temp root. */
 export function tempLogDir(): string {
 	return tempDir("pi-bouncer");
 }
 
-/** A fresh, not yet created agent dir below the temp root. */
 export function tempAgentDir(): string {
 	return tempDir("agent");
 }
 
-/** A fresh, not yet created project directory below the temp root. */
 export function tempProjectDir(): string {
 	return tempDir("project");
 }
 
-/** A project's bouncer config path, `<cwd>/.pi/extensions/bouncer/config.json`; written out here so the tests pin it apart from project-config.ts. */
+// Written out here so the tests pin the path apart from project-config.ts.
 export function projectConfigPath(cwd: string): string {
 	return join(cwd, ".pi", "extensions", "bouncer", "config.json");
 }
 
-/**
- * Writes a project's bouncer config,
- * `<cwd>/.pi/extensions/bouncer/config.json`.
- */
 export function writeProjectConfig(cwd: string, config: unknown): void {
 	writeConfig(projectConfigPath(cwd), config);
 }
 
-/** Writes a project config at the old path, `<cwd>/.pi/bouncer.json`. */
 export function writeOldProjectConfig(cwd: string, config: unknown): void {
 	writeConfig(join(cwd, ".pi", "bouncer.json"), config);
 }
 
-/** Writes `config` to `path` (a string as is, else as JSON), creating dirs. */
 export function writeConfig(path: string, config: unknown): void {
 	mkdirSync(dirname(path), { recursive: true });
 	const text = typeof config === "string" ? config : JSON.stringify(config);
@@ -276,11 +233,7 @@ export function readRecords(logDir: string): LogRecord[] {
 		.map((line) => JSON.parse(line) as LogRecord);
 }
 
-/**
- * Loads the bouncer with a fresh temp log directory, or `logDir` when given;
- * `null` lets the bouncer pick its default from the environment. The agent dir
- * is always a fresh temp path.
- */
+// `logDir` null lets the bouncer pick its default from the environment.
 export async function loadGateSession(
 	loadParser?: ParserLoader,
 	logDir: string | null = tempLogDir(),
@@ -370,13 +323,9 @@ export async function loadGate(loadParser?: ParserLoader): Promise<Handler> {
 
 export type Notice = { readonly message: string; readonly level: string };
 
-/** The footer statuses set through `ctx.ui.setStatus`, by key. */
 export type Statuses = Record<string, string | undefined>;
 
-/**
- * The part of Pi's theme the bouncer styles text with, writing each style as
- * markup (`<error>…</error>`, `<b>…</b>`) so a test can see it.
- */
+// Writes each style as markup (`<error>…</error>`, `<b>…</b>`) so a test can see it.
 export const markupTheme = {
 	fg: (color: string, text: string): string => `<${color}>${text}</${color}>`,
 	bold: (text: string): string => `<b>${text}</b>`,
@@ -385,7 +334,6 @@ export const markupTheme = {
 export const SESSION_ID = "session-1";
 export const SESSION_FILE = "/sessions/session-1.jsonl";
 
-/** The part of Pi's session manager the bouncer reads. */
 export function sessionManager(
 	id = SESSION_ID,
 	file: string | undefined = SESSION_FILE,
@@ -393,10 +341,7 @@ export function sessionManager(
 	return { getSessionId: () => id, getSessionFile: () => file };
 }
 
-/**
- * A context without a UI. `trusted` backs `isProjectTrusted()`; like Pi for a
- * folder that needs no trust decision, it defaults to trusted.
- */
+// `trusted` defaults to true, like Pi for a folder that needs no trust decision.
 export function fakeContext(cwd = "/work", trusted = true): ExtensionContext {
 	return {
 		hasUI: false,
@@ -406,7 +351,6 @@ export function fakeContext(cwd = "/work", trusted = true): ExtensionContext {
 	} as unknown as ExtensionContext;
 }
 
-/** A UI context that records notices; `trusted` as in `fakeContext`. */
 export function uiContext(
 	cwd = "/work",
 	trusted = true,
@@ -452,15 +396,10 @@ export type ScriptedUI = {
 	readonly dialogs: DialogCall[];
 	readonly aborts: { count: number };
 	readonly signal: AbortSignal;
-	/** Aborts `signal`, as Ctrl-C does to the turn. */
 	readonly cancelTurn: () => void;
 };
 
-/**
- * A UI context whose dialogs answer from a script: each `select` or `input`
- * call takes the next answer in order (a string, or `undefined` for Escape).
- * Running out of answers fails the test.
- */
+// Each `select` or `input` takes the next answer in order (`undefined` is Escape); running out fails the test.
 export function scriptedUI(
 	answers: readonly (string | undefined)[] = [],
 	cwd = "/work",
@@ -539,17 +478,11 @@ export function bashCall(command: string): ToolCallEvent {
 	return toolCall("bash", { command });
 }
 
-// The quoted command in a reason: the text between "Command: `" and "`.".
 function quotedCommand(reason: string): string | undefined {
 	return /Command: `([\s\S]*)`\./.exec(reason)?.[1];
 }
 
-/**
- * Asserts a rule deny when no one can be asked (no UI), where ask and deny
- * rules block alike: blocked with the rule marker and the retry warning, and
- * `terminate` unset. The quoted command must equal `quote` when given, and
- * otherwise appear in the input. Levels are pinned in `levels.test.ts`.
- */
+// With no UI, ask and deny rules block alike. Levels are pinned in `levels.test.ts`.
 export async function expectDeny(
 	command: string,
 	rule: string,
@@ -567,7 +500,6 @@ export async function expectDeny(
 	assert.equal(result?.terminate, undefined);
 }
 
-/** Asserts the handler returns nothing and notifies nothing. */
 export async function expectAllow(command: string): Promise<void> {
 	const handler = await loadGate();
 	const { ctx, notices } = uiContext();
@@ -582,39 +514,26 @@ export async function expectAllow(command: string): Promise<void> {
 
 /** What a scripted model sends back for one call. */
 export type ModelReply =
-	/** A text reply with stop reason `stop`. */
 	| string
-	/** A reply with stop reason `error` and this message. */
 	| { readonly error: string }
-	/**
-	 * A usage-policy refusal as Pi's Anthropic adapter reports it: stop reason
-	 * `error`, raw stop reason `refusal`, no content, and this message.
-	 */
+	// Pi's Anthropic adapter reports a usage-policy refusal as stop reason `error`, raw `refusal`.
 	| { readonly refuses: string }
-	/** `result()` rejects with this message. */
 	| { readonly throws: string }
 	/** Never answers; aborting the call's signal ends it as `aborted`. */
 	| "hang"
 	/** Answers with whatever the promise gives, unless the call is aborted first. */
 	| { readonly later: Promise<ModelReply> };
 
-/** One scripted model: what `find` returns for it and how it answers. */
 export type ModelScript = {
 	readonly reasoning?: boolean;
 	readonly thinkingLevelMap?: Readonly<Record<string, string | null>>;
-	/** Whether `hasConfiguredAuth` holds; true unless set. */
 	readonly auth?: boolean;
-	/**
-	 * The reply to every call, or one per call in order (the last repeats), or
-	 * a reply worked out from the judge input of each call.
-	 */
 	readonly reply:
 		| ModelReply
 		| readonly ModelReply[]
 		| ((input: string) => ModelReply);
 };
 
-/** One call the fake registry saw. */
 export type ModelRequest = {
 	readonly model: string;
 	readonly sessionId: unknown;
@@ -626,9 +545,7 @@ export type ModelRequest = {
 
 export type FakeRegistry = {
 	readonly registry: unknown;
-	/** Every model call, in order. */
 	readonly requests: ModelRequest[];
-	/** Every `find` lookup, as `provider/id`. */
 	readonly finds: string[];
 };
 
@@ -686,14 +603,9 @@ function settle(reply: ModelReply, signal?: AbortSignal): Promise<FakeMessage> {
 	});
 }
 
-/**
- * A fake `ctx.modelRegistry` whose models are scripted by `provider/id`; an
- * entry absent from `models` is missing from `find`. It never touches a
- * network or `auth.json`.
- */
+// A model absent from `models` is missing from `find`. Never touches a network or `auth.json`.
 export function fakeRegistry(
 	models: Readonly<Record<string, ModelScript>> = {},
-	/** The key `getApiKeyForProvider` gives for each provider; none unless set. */
 	keys: Readonly<Record<string, string>> = {},
 ): FakeRegistry {
 	const requests: ModelRequest[] = [];
@@ -745,7 +657,6 @@ export function fakeRegistry(
 	return { registry, requests, finds };
 }
 
-/** `ctx` with `registry` as its `modelRegistry`. */
 export function withRegistry(
 	ctx: ExtensionContext,
 	fake: FakeRegistry,
@@ -756,12 +667,10 @@ export function withRegistry(
 	} as unknown as ExtensionContext;
 }
 
-/** A judge reply as the prompt asks for it. */
 export function verdict(verdict: string, reason: string): string {
 	return JSON.stringify({ verdict, reason });
 }
 
-/** `ctx` whose session manager's current branch holds `entries`. */
 export function withBranch(
 	ctx: ExtensionContext,
 	entries: readonly unknown[],
@@ -776,7 +685,6 @@ export function withBranch(
 	} as unknown as ExtensionContext;
 }
 
-/** A session branch entry holding one message. */
 export function messageEntry(message: object): object {
 	return { type: "message", id: "e", parentId: null, timestamp: "", message };
 }
