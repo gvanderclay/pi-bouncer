@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.19.x", "24.x"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # A fresh HOME and no Pi or bouncer env vars, so a test that leans on
+      # the developer's own agent dir fails here.
+      - name: test
+        run: |
+          export HOME="$(mktemp -d)"
+          unset PI_CODING_AGENT_DIR PI_BOUNCER_LOG_DIR
+          node --test test/*.test.ts
+
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - run: node scripts/check-pack.mjs
