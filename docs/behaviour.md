@@ -35,6 +35,11 @@ Even then, the `rm` still asks unless all of these hold:
 
 - it is plain `rm`, not run through a wrapper such as `xargs`, `timeout` or
   `bash -c`;
+- nothing else on the line could add to the folder: every other command is
+  `rm`, `cd`, `echo`, `printf`, `true`, `ls`, `pwd` or a plain variable
+  assignment, so `mv x /tmp/made/ && rm -rf /tmp/made` asks;
+- it is the only tool call in the agent's message, because Pi checks every
+  call in a message before running any of them;
 - every path is written out in full from `/`, with no variable, `~`,
   wildcard or brace;
 - every path, with symlinks followed, lies inside the folder, so
@@ -44,8 +49,13 @@ Even then, the `rm` still asks unless all of these hold:
   an archive or copying with dates kept (`cp -p`, `rsync -a`) asks for the
   same reason, and so does a tree of more than 10,000 items.
 
-`rm-root` and every other rule still apply. The bouncer forgets these
-folders at every session start. When an ask on a recursive `rm` blocks
+`rm-root` and every other rule still apply. The bouncer forgets a folder
+once it is deleted or replaced, and forgets them all at every session start.
+
+The check cannot tell who put a file in the folder, only when. A file you
+add to the folder yourself after the agent made it, a file changed in the
+last two seconds and then moved in, or a move still running in a background
+command can still be deleted without an ask. When an ask on a recursive `rm` blocks
 because no one can answer, the reason tells the agent to retry with the
 folder's full path written out. `"trustAgentMade": false` turns all this off
 (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands

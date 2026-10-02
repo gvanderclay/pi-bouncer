@@ -1,4 +1,4 @@
-import type { AgentMade } from "./agent-made.ts";
+import { type AgentMade, onlyRemoves } from "./agent-made.ts";
 import { ALWAYS_ASK } from "./always-ask.ts";
 import {
 	type Ask,
@@ -84,6 +84,8 @@ export type Call = {
 	readonly cwd: string;
 	readonly home: string;
 	readonly agentMade?: AgentMade;
+	/** The only tool call in its assistant message: no sibling runs beside it. */
+	readonly lone?: true;
 	readonly mode: GateMode;
 	/** Auto mode's judge; without one, auto mode hands every ask to the user. */
 	readonly judge?: Judge;
@@ -120,7 +122,7 @@ function denied(ranking: Ranking & { readonly kind: "deny" }): Outcome {
 }
 
 export const AGENT_MADE_HINT =
-	" Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
+	" Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
 
 // No one can answer: the ask's block, which says how a recursive rm of a
 // folder the agent made gets through.
@@ -316,9 +318,11 @@ export function createGate(parse: ParseFn | undefined, policy: Policy): Gate {
 	let current = policy;
 	return {
 		decide(command: string, call: Call): Promise<Decision> {
-			const { cwd, home, agentMade } = call;
-			const where = { cwd, home, ...(agentMade && { agentMade }) };
 			const given = read(parse, command);
+			const { cwd, home, agentMade } = call;
+			const removes = given.kind === "ok" && onlyRemoves(given.invocations);
+			const trusted = agentMade && call.lone && removes ? { agentMade } : {};
+			const where = { cwd, home, ...trusted };
 			const ranking = rank(given, current, where);
 			if (call.mode === "auto") {
 				const prefixes = call.alwaysAsk ?? [];

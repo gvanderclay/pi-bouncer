@@ -12,7 +12,12 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { agentFrom } from "./agent-env.ts";
-import { mkdirTargets, mktempTarget, recordMade } from "./agent-made.ts";
+import {
+	forgetGone,
+	mkdirTargets,
+	mktempTarget,
+	recordMade,
+} from "./agent-made.ts";
 import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
 import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
@@ -112,6 +117,14 @@ function restoreStopReason(
 	return { message: { ...message, content: [{ type: "text", text: reason }] } };
 }
 
+function noteLoneCall(rt: Runtime, { message }: MessageEndEvent): void {
+	if (message.role !== "assistant") return;
+	const calls = message.content.filter((part) => part.type === "toolCall");
+	const [only] = calls;
+	if (only && calls.length === 1) rt.lone.id = only.id;
+	else delete rt.lone.id;
+}
+
 function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	if (!ctx.hasUI) return;
 	const { profile } = config;
@@ -174,6 +187,8 @@ type Runtime = {
 	readonly stopped: Map<string, string>;
 	/** Per allowed bash call that may make directories: when it ran, and what its `mkdir`s would newly make. */
 	readonly making: Map<string, Making>;
+	/** The tool call id of the latest assistant message, when it made exactly one. */
+	readonly lone: { id?: string };
 };
 
 // Nothing outlives a session but the bouncer mode. A reloaded runtime starts
@@ -197,6 +212,7 @@ function startSession(
 	clearHistory(rt.session.history);
 	rt.session.agentMade.clear();
 	rt.making.clear();
+	delete rt.lone.id;
 	if (config.auto) rt.session.remotes = readRemotes(ctx.cwd);
 	else delete rt.session.remotes;
 	rt.gate.reset(config.policy);
@@ -228,10 +244,14 @@ function autoChoiceFor(
 	return mode === "auto" ? RESUME_AUTO_CHOICE : AUTO_CHOICE;
 }
 
+// `lone`: the call is the only one its assistant message made. Pi checks every
+// call of a message before running any, so a sibling could fill a folder
+// the check already passed.
 function callIn(
 	rt: Runtime,
 	command: string,
 	ctx: ExtensionContext,
+	lone: boolean,
 	onSent?: (sent: JudgeSent) => void,
 ): Call {
 	const { mode } = rt.holder;
@@ -246,10 +266,11 @@ function callIn(
 	const redecide = (): Promise<Decision> | undefined =>
 		rt.holder.mode === mode
 			? undefined
-			: rt.gate.decide(command, callIn(rt, command, ctx, onSent));
+			: rt.gate.decide(command, callIn(rt, command, ctx, lone, onSent));
 	return {
 		...callFrom(ctx, mode, judge),
 		...(trusted && { agentMade: rt.session.agentMade }),
+		...(lone && { lone }),
 		alwaysAsk,
 		paused,
 		redecide,
@@ -268,7 +289,8 @@ async function decideCall(
 	const onSent = (counts: JudgeSent): void => {
 		sent = counts;
 	};
-	const call = callIn(rt, command, ctx, onSent);
+	const lone = event.toolCallId === rt.lone.id;
+	const call = callIn(rt, command, ctx, lone, onSent);
 	const outcome = await rt.gate.decide(command, call);
 	rt.logging.write(ctx, () => {
 		const record = callRecord(
@@ -319,6 +341,7 @@ function recordMadeBy(
 	event: ToolResultEvent,
 	command: string,
 ): void {
+	forgetGone(rt.session.agentMade);
 	const making = rt.making.get(event.toolCallId);
 	rt.making.delete(event.toolCallId);
 	if (!making || event.isError || event.input["background"] === true) return;
@@ -391,6 +414,7 @@ export default async function bouncer(
 		switchMode: createModeSwitch(holder, session, logging, logDir),
 		stopped: new Map<string, string>(),
 		making: new Map<string, Making>(),
+		lone: {},
 	};
 	registerYolo(pi, holder, rt.switchMode);
 	registerAuto(pi, holder, rt.switchMode, rt.session);
@@ -401,8 +425,10 @@ export default async function bouncer(
 	);
 	pi.on(
 		"message_end",
-		(event: MessageEndEvent): MessageEndEventResult | undefined =>
-			restoreStopReason(rt.stopped, event),
+		(event: MessageEndEvent): MessageEndEventResult | undefined => {
+			noteLoneCall(rt, event);
+			return restoreStopReason(rt.stopped, event);
+		},
 	);
 	pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext) =>
 		decideCall(rt, event, ctx),

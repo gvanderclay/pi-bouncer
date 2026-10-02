@@ -68,7 +68,7 @@ test("without a UI an ask rule denies with v1's text and opens no dialog", async
 	assert.deepEqual(result, {
 		block: true,
 		reason:
-			"Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: `rm -rf build`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide. Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.",
+			"Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: `rm -rf build`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide. Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.",
 	});
 });
 

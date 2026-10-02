@@ -9,9 +9,15 @@ import type { Invocation } from "./scan/walk.ts";
 
 /**
  * Real path (so `/tmp` and `/private/tmp` agree) to the time, in ms, just
- * before the command that made it ran.
+ * before the command that made it ran, and the directory's identity then.
  */
-export type AgentMade = Map<string, number>;
+export type AgentMade = Map<string, Made>;
+
+type Made = {
+	readonly since: number;
+	readonly dev: number;
+	readonly ino: number;
+};
 
 // Room for filesystems that store times to the second (or two, on FAT).
 const CLOCK_SLACK_MS = 2_000;
@@ -79,19 +85,41 @@ export function recordMade(
 ): void {
 	for (const path of paths) {
 		try {
-			if (lstatSync(path).isDirectory()) made.set(realpathSync(path), since);
+			const stat = lstatSync(path);
+			if (!stat.isDirectory()) continue;
+			made.set(realpathSync(path), { since, dev: stat.dev, ino: stat.ino });
 		} catch {
 			// Gone already: nothing to record.
 		}
 	}
 }
 
+function isSame(dir: string, { dev, ino }: Made): boolean {
+	try {
+		const stat = lstatSync(dir);
+		return stat.dev === dev && stat.ino === ino;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Forgets each directory that is gone or replaced, so whatever is made at its
+ * path later is not the agent's.
+ */
+export function forgetGone(made: AgentMade): void {
+	for (const [dir, entry] of made) if (!isSame(dir, entry)) made.delete(dir);
+}
+
 // The earliest time the agent made a directory holding `real`.
 function madeSince(made: AgentMade, real: string): number | undefined {
+	forgetGone(made);
 	let since: number | undefined;
-	for (const [dir, at] of made) {
+	for (const [dir, entry] of made) {
 		const inside = real === dir || real.startsWith(`${dir}/`);
-		if (inside && (since === undefined || at < since)) since = at;
+		if (inside && (since === undefined || entry.since < since)) {
+			since = entry.since;
+		}
 	}
 	return since;
 }
@@ -132,6 +160,25 @@ function isMade(
 	} catch {
 		return false;
 	}
+}
+
+// Commands that add nothing to a directory tree. The trees are read before any
+// of the line runs, so a `mv` or `cp` earlier on it could fill them unseen.
+const HARMLESS = new Set([
+	"rm",
+	"grm",
+	"cd",
+	"echo",
+	"printf",
+	"true",
+	"ls",
+	"pwd",
+	"",
+]);
+
+/** True when nothing on the line but removing could change what `rm` deletes. */
+export function onlyRemoves(invocations: readonly Invocation[]): boolean {
+	return invocations.every((invocation) => HARMLESS.has(invocation.name));
 }
 
 // Typed as `rm` itself: a wrapper (`xargs`, `bash -c`, `timeout`) may add

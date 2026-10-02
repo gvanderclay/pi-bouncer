@@ -6,6 +6,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	renameSync,
+	rmSync,
 	symlinkSync,
 	utimesSync,
 	writeFileSync,
@@ -38,11 +39,18 @@ async function run(
 	act: () => void = (): void => {},
 	result: { isError?: boolean; text?: string; background?: boolean } = {},
 ): Promise<{ block?: boolean; reason?: string } | undefined> {
+	await gate.endMessage(assistant(["t1"]));
 	const decision = await gate.handler(bashCall(command), fakeContext());
 	if (decision?.block) return decision;
 	act();
 	await gate.finishTool(bashResult(command, result));
 	return decision;
+}
+
+// The assistant message whose tool calls are about to be checked.
+function assistant(ids: readonly string[]): object {
+	const content = ids.map((id) => ({ type: "toolCall", id, name: "bash" }));
+	return { role: "assistant", content };
 }
 
 function parent(): string {
@@ -188,9 +196,48 @@ test('a project file\'s "trustAgentMade": false turns it off too', async () => {
 	await gate.startSession("new", fakeContext(cwd));
 	const dir = join(parent(), "made");
 	const ctx = fakeContext(cwd);
+	await gate.endMessage(assistant(["t1"]));
 	await gate.handler(bashCall(`mkdir ${dir}`), ctx);
 	mkdirSync(dir);
 	await gate.finishTool(bashResult(`mkdir ${dir}`), ctx);
+	await gate.endMessage(assistant(["t1"]));
 	const result = await gate.handler(bashCall(`rm -rf ${dir}`), ctx);
 	assert.match(result?.reason ?? "", /\(rule: recursive-rm\)/);
+});
+
+test("anything that could fill the folder earlier on the line makes it ask", async () => {
+	const gate = await session();
+	const dir = await made(gate);
+	const outside = parent();
+	await asks(gate, `mv ${outside} ${dir}/x && rm -rf ${dir}`);
+	await asks(gate, `cp -al ${outside} ${dir}/x; rm -rf ${dir}`);
+	await asks(gate, `rm -rf $(mv ${outside} ${dir}/x) ${dir}`);
+	assert.equal(
+		await run(gate, `cd /work && ls ${dir} && rm -rf ${dir}`),
+		undefined,
+	);
+});
+
+test("an rm with sibling calls in the same message asks", async () => {
+	const gate = await session();
+	const dir = await made(gate);
+	await gate.endMessage(assistant(["t0", "t1"]));
+	const result = await gate.handler(bashCall(`rm -rf ${dir}`), fakeContext());
+	assert.match(result?.reason ?? "", /\(rule: recursive-rm\)/);
+});
+
+test("a folder deleted and made again at the same path is not the agent's", async () => {
+	const gate = await session();
+	const dir = await made(gate);
+	await run(gate, `rm -rf ${dir}`, () => rmSync(dir, { recursive: true }));
+	mkdirSync(dir);
+	await asks(gate, `rm -rf ${dir}`);
+});
+
+test("a folder replaced between the agent's calls is not the agent's", async () => {
+	const gate = await session();
+	const dir = await made(gate);
+	rmSync(dir, { recursive: true });
+	mkdirSync(dir);
+	await asks(gate, `rm -rf ${dir}`);
 });
