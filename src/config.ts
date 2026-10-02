@@ -322,13 +322,30 @@ function normalRules(
 	};
 }
 
+/** A profile choice as the log writes it: the agent flattened to strings. */
+export type ProfileRecord = {
+	readonly state: ProfileChoice["state"];
+	readonly agent: string;
+	readonly from: string;
+	readonly name?: string;
+};
+
+function profileRecord(choice: ProfileChoice): ProfileRecord {
+	return {
+		state: choice.state,
+		agent: choice.agent.name,
+		from: choice.agent.variable,
+		...("name" in choice && { name: choice.name }),
+	};
+}
+
 export type ConfigRecord = {
 	readonly files: readonly ConfigFile[];
 	readonly projectTrusted: boolean;
 	readonly levels: Readonly<Record<RuleName, ConfigLevel>>;
 	readonly log: LogLimits;
 	/** Only when the session has an agent name. */
-	readonly profile?: ProfileChoice;
+	readonly profile?: ProfileRecord;
 	/** Only when a file adds protected paths. */
 	readonly protect?: Protect;
 	/** The route's auto settings, with only a count of environment facts. */
@@ -350,7 +367,7 @@ export function configRecord(config: GateConfig): ConfigRecord {
 		projectTrusted,
 		levels: ruleLevels(config.policy, config.off),
 		log,
-		...(config.profile && { profile: config.profile }),
+		...(config.profile && { profile: profileRecord(config.profile) }),
 		...(protect && { protect }),
 	};
 	if (!auto) return base;

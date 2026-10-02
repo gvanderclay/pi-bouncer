@@ -89,6 +89,43 @@ function okProfile(parsed: ParsedProfile | undefined): Profile | undefined {
 	return parsed?.kind === "ok" ? parsed.profile : undefined;
 }
 
+type Picked =
+	| { readonly state: "unmapped" }
+	| { readonly state: "broken"; readonly name: string }
+	| {
+			readonly state: "profile";
+			readonly name: string;
+			readonly mine: ParsedProfile | undefined;
+			readonly theirs: ParsedProfile | undefined;
+	  };
+
+// Steps 1 and 2 and the broken check, once: what the agent name resolves to.
+function pick(
+	agent: string,
+	user: ProfileFile,
+	project: ProfileFile,
+	trusted: boolean,
+	problems: string[],
+): Picked {
+	const name = profileName(agent, user, project, trusted, problems);
+	if (name === undefined) return { state: "unmapped" };
+	const mine = own(user.profiles, name);
+	const theirs = own(project.profiles, name);
+	const broken = mine?.kind === "broken" || (!mine && theirs?.kind !== "ok");
+	if (broken) return { state: "broken", name };
+	return { state: "profile", name, mine, theirs };
+}
+
+/** Whether the agent resolves to a usable profile. */
+export function resolves(
+	agent: Pick<AgentSource, "name">,
+	user: ProfileFile,
+	project: ProfileFile,
+	trusted: boolean,
+): boolean {
+	return pick(agent.name, user, project, trusted, []).state === "profile";
+}
+
 /**
  * Steps 1 to 4 of the resolution: which profile the agent gets, the layer to
  * apply, and the problems the project file's refusals add.
@@ -101,32 +138,25 @@ export function chooseProfile(
 	normal: Normal,
 ): Chosen {
 	if (!agent) return { problems: [] };
-	const { name: who, variable: from } = agent;
 	const problems: string[] = [];
-	const name = profileName(who, user, project, trusted, problems);
-	if (name === undefined) {
-		return { choice: { state: "unmapped", agent: who, from }, problems };
+	const picked = pick(agent.name, user, project, trusted, problems);
+	if (picked.state === "unmapped") {
+		return { choice: { state: "unmapped", agent }, problems };
 	}
-	const mine = own(user.profiles, name);
-	const theirs = own(project.profiles, name);
-	const broken = mine?.kind === "broken" || (!mine && theirs?.kind !== "ok");
-	if (broken) {
-		return { choice: { state: "broken", agent: who, from, name }, problems };
+	const { name } = picked;
+	if (picked.state === "broken") {
+		return { choice: { state: "broken", agent, name }, problems };
 	}
 	const refused: string[] = [];
 	const layer = layered(
-		okProfile(mine),
-		okProfile(theirs),
+		okProfile(picked.mine),
+		okProfile(picked.theirs),
 		normal,
 		trusted,
 		refused,
 	);
 	problems.push(...refused.map((problem) => `profiles.${name}.${problem}`));
-	return {
-		choice: { state: "profile", agent: who, from, name },
-		layer,
-		problems,
-	};
+	return { choice: { state: "profile", agent, name }, layer, problems };
 }
 
 /** Every agent name whose profile resolves, for PR 5's launch listener. */
@@ -135,17 +165,11 @@ export function profiledAgents(
 	project: ProfileFile,
 	trusted: boolean,
 ): ReadonlySet<string> {
-	// Placeholders: only `choice.state` is read, so `variable` and `normal` are unused.
-	const normal: Normal = { levels: {}, rules: [], startMode: "off" };
 	const names = new Set([
 		...Object.keys(user.agents ?? {}),
 		...Object.keys(project.agents ?? {}),
 	]);
 	return new Set(
-		[...names].filter((name) => {
-			const agent = { name, variable: "" };
-			const { choice } = chooseProfile(agent, user, project, trusted, normal);
-			return choice?.state === "profile";
-		}),
+		[...names].filter((name) => resolves({ name }, user, project, trusted)),
 	);
 }

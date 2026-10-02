@@ -215,7 +215,7 @@ function choose(
 	return chooseProfile(SCOUT, user, project, trusted, NORMAL);
 }
 
-const FROM = { agent: "scout", from: "PI_SUBAGENT_AGENT" };
+const FROM = { agent: SCOUT } as const;
 
 test("chooseProfile: no agent name means no profile", () => {
 	const user = { agents: { scout: "r" }, profiles: { r: ok() } };
@@ -336,8 +336,7 @@ test("chooseProfile: an untrusted project's broken profile, with no user definit
 	assert.deepEqual(result, {
 		choice: {
 			state: "broken",
-			agent: "scout",
-			from: "PI_SUBAGENT_AGENT",
+			agent: SCOUT,
 			name: "p",
 		},
 		problems: [],
@@ -352,8 +351,7 @@ test("chooseProfile: an untrusted project's profile the user maps but does not d
 	assert.deepEqual(result, {
 		choice: {
 			state: "profile",
-			agent: "scout",
-			from: "PI_SUBAGENT_AGENT",
+			agent: SCOUT,
 			name: "p",
 		},
 		layer: { levels: { "recursive-rm": "deny" }, rules: [] },
@@ -373,8 +371,7 @@ test("chooseProfile: an untrusted project's profile the user maps but does not d
 	assert.deepEqual(result, {
 		choice: {
 			state: "profile",
-			agent: "scout",
-			from: "PI_SUBAGENT_AGENT",
+			agent: SCOUT,
 			name: "p",
 		},
 		layer: { levels: { publish: "deny" }, rules: [] },
