@@ -1,6 +1,9 @@
 # Architecture
 
-How the bouncer is put together, as of v0.2.0, and what to change next. Words
+How the bouncer is put together, and what to change next. Written at v0.2.0;
+the map is updated for the cleanup in `docs/refactor-plan.md` (pull requests
+#19 to #24). Findings marked *Done* have landed; the rest are open, each
+waiting for the trigger its recommendation names. Words
 for the bouncer's behaviour come from `docs/glossary.md`. Words for code
 structure come from the `codebase-design` skill:
 
@@ -64,17 +67,19 @@ it.
    commands, flags, dialog choices and the config's start mode. It also
    pauses auto mode after repeated judge denies.
 8. **The judge** (`src/ruling.ts`, `src/judge.ts`, `src/jev.ts`,
-   `src/jev-questions.ts`, `src/auto-jev-config.ts`,
+   `src/jev-questions.ts`, `src/auto-config.ts`, `src/judge-wiring.ts`,
    `src/judge-request.ts`, `src/history.ts`, `src/facts.ts`).
    `ruleLine(request, auto, provider, run)` asks Jev first when it is
-   configured, then the judge list in order (`judgeOrder` in `config.ts`),
-   all within one 20-second budget. `judge-request.ts` builds what the judge
-   sees, cut to size. `history.ts` keeps the session's bash commands and
+   configured, then the judge list in order (`judgeOrder` in
+   `auto-config.ts`), all within one 20-second budget. `judgeFor` in
+   `judge-wiring.ts` gathers a call's request and reports judge failures.
+   `judge-request.ts` builds what the judge sees, cut to size. `history.ts` keeps the session's bash commands and
    written paths. `facts.ts` reads git state and remotes.
-9. **The log** (`src/log.ts`). `appendRecord`, rotation and pruning. The
-   records themselves are built in `index.ts` (`callRecord`) and
-   `mode-switch.ts` (`recordHead`, mode switches). The `bouncer-debug` skill
-   is the only reader.
+9. **The log** (`src/log.ts`). `appendRecord`, rotation and pruning, and the
+   three record types (`SessionRecord`, `CallRecord`, `ModeRecord`) that
+   `appendRecord` accepts. `log.ts` builds each record's head (`recordHead`)
+   and the call record (`callRecord`). The `bouncer-debug` skill is the only
+   reader.
 10. **Children** (`src/session-launch.ts`). A synchronous listener on
     pi-squire's `session:launch` event adds `--auto` or `--yolo` to the
     child's arguments and sets `PI_BOUNCER_AGENT` in its environment.
@@ -132,6 +137,8 @@ Each finding ends with a recommendation.
    `notifyFailures` and `registryOf` into an auto-judge module beside
    `ruling.ts`, and `recordHead`/`createLogging` into `log.ts`. That leaves
    `mode-switch.ts` about modes. Do this before the next auto-mode feature.
+   *Done* in #23 and #24: the judge wiring is `src/judge-wiring.ts`.
+   `registryOf` stayed in `mode-switch.ts`, so the two files import one way.
 
 3. **`SessionState` is a shared, mutable bag.** `index.ts`, `mode-switch.ts`,
    `commands.ts` and `session-launch.ts` all read it, and `index.ts`
@@ -161,6 +168,7 @@ Each finding ends with a recommendation.
    *Recommendation:* add `CallRecord`, `SessionRecord` and `ModeRecord`
    types in `log.ts` and have `appendRecord` accept only those, so a renamed
    field fails the typecheck instead of breaking the skill silently.
+   *Done* in #23.
 
 7. **The profile layer carries the agent twice.** `AgentSource { name,
    variable }` and `ProfileChoice { agent, from }` are the same pair under
@@ -169,17 +177,20 @@ Each finding ends with a recommendation.
    `GateConfig.profiledAgents` exists only for `session-launch.ts`.
    *Recommendation:* make `ProfileChoice` hold an `AgentSource` field. Keep
    `profiledAgents`; it is the cheapest way to answer the launch listener.
+   *Done* in #22.
 
 8. **`profiledAgents` calls `chooseProfile` with placeholder arguments**
    (`profile-resolve.ts`). It builds an empty `Normal` and an empty variable
    name, because it only needs to know whether a profile resolves.
    *Recommendation:* split the "which profile name, and is it broken" part
-   out of `chooseProfile` into a small function both call.
+   out of `chooseProfile` into a small function both call. *Done* in #22:
+   `resolves` in `profile-resolve.ts`.
 
 ## What to cut or simplify (ponytail audit)
 
 Ranked by size of cut. Tags: `shrink` keeps the behaviour in fewer lines,
 `delete` removes something unused, `yagni` removes a layer nothing needs.
+*Done:* every item in this list landed in #19 to #22.
 
 - `shrink` `isObject` is copied in `levels.ts`, `protect.ts`,
   `rules/custom.ts` and `profiles.ts`, with a variant in `config.ts`.

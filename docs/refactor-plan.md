@@ -5,6 +5,11 @@ and pull request, ordered cheapest and safest first, because the bouncer gates
 the shell it is developed in: a merged step that breaks a rule breaks every
 bash call on `main`.
 
+Status: done. Steps 0 to 6 merged as pull requests #18 to #24 on 2026-10-02.
+Step 6 kept `registryOf` in `src/mode-switch.ts`, exported, because either
+option in its edit 2 would have made the two files import each other. What is
+left is under "Deferred, with their trigger".
+
 Each step is written to be executable on its own by someone who has read
 nothing else: it names the files, the symbols, the invariants that must not
 move, the test edits it needs and the commands that prove it worked.
