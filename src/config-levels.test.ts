@@ -196,3 +196,27 @@ test("a route config cannot turn off an always-deny rule or an unreadable deny",
 	const broken = await handler(bashCall("echo 'x"), scriptedUI().ctx);
 	assert.equal(broken?.block, true);
 });
+
+test("a user config turning bouncer-escape off lets pi --yolo run", async () => {
+	const gate = await loadGateSession(undefined, undefined, {
+		userConfig: { levels: { "bouncer-escape": "off" } },
+	});
+	await gate.startSession("startup");
+	assert.equal(
+		await gate.handler(bashCall("pi --yolo"), fakeContext()),
+		undefined,
+	);
+});
+
+test("an untrusted project config turning bouncer-escape off is refused", async () => {
+	const gate = await loadGateSession();
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { "bouncer-escape": "off" } });
+	const { ctx, notices } = uiContext(cwd, false);
+	await gate.startSession("startup", ctx);
+	const result = await gate.handler(bashCall("pi --yolo"), fakeContext(cwd));
+	assert.equal(result?.block, true);
+	assert.ok(result?.reason?.includes("(rule: bouncer-escape)"));
+	assert.equal(notices.length, 1, JSON.stringify(notices));
+	assert.match(notices[0]?.message ?? "", /"bouncer-escape"/);
+});

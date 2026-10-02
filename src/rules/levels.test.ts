@@ -43,6 +43,7 @@ const denies: readonly Row[] = [
 	],
 	["power", "shutdown -h now", "shutdown -h now"],
 	["privilege", "sudo true", "sudo true"],
+	["bouncer-escape", "pi --yolo", "pi --yolo"],
 ];
 
 for (const [rule, command, source] of asks) {

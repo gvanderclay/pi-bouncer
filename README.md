@@ -104,6 +104,7 @@ Each rule has a level: `ask` opens the dialog, `deny` blocks with no dialog.
 | `remote-script` | ask | a download piped into a shell, such as `curl … \| sh` |
 | `publish` | ask | publishing a package, such as `npm publish` |
 | `gh-delete` | ask | deleting a GitHub repository or release |
+| `bouncer-escape` | deny | `pi --yolo`, or setting or clearing an agent variable |
 
 ✱ The always-deny set: its level can be `ask` or `deny` but never `off`.
 Every other rule can also be `off`. Commands that cannot be parsed are

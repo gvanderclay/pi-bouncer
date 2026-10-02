@@ -64,13 +64,18 @@ test("/bouncer status names YOLO mode and a missing parser", async () => {
 test("/bouncer rules lists every entry with its level and summary", async () => {
 	const gate = await started({ ...PREFER_RG, levels: { "git-clean": "deny" } });
 	const lines = (await text(gate, "rules")).split("\n");
-	assert.equal(lines.length, 25);
+	assert.equal(lines.length, 26);
 	assert.ok(
 		lines.includes("unparseable (deny): the command is not valid bash"),
 	);
 	assert.ok(
 		lines.includes(
 			"git-clean (deny): git clean deletes untracked files for good",
+		),
+	);
+	assert.ok(
+		lines.includes(
+			"bouncer-escape (deny): starting pi with --yolo, or choosing a bouncer profile, from bash sidesteps the user's rules",
 		),
 	);
 	assert.match(lines.at(-1) ?? "", /^grep \(deny\): .*rg/);
@@ -87,7 +92,7 @@ test("/bouncer status and rules show rules turned off", async () => {
 	assert.ok(!status.find((l) => l.startsWith("Ask: "))?.includes("git-clean"));
 	assert.ok(!status.some((l) => l.startsWith("rm-root also protects")));
 	const rules = (await text(gate, "rules")).split("\n");
-	assert.equal(rules.length, 25);
+	assert.equal(rules.length, 26);
 	assert.ok(
 		rules.includes(
 			"git-clean (off): git clean deletes untracked files for good",

@@ -97,6 +97,10 @@
 				"gh-delete": {
 					"enum": ["ask", "deny", "off"],
 					"description": "deleting a GitHub repository or release destroys it for everyone. Built-in level: ask."
+				},
+				"bouncer-escape": {
+					"enum": ["ask", "deny", "off"],
+					"description": "starting pi with --yolo, or setting or clearing an agent variable (PI_BOUNCER_AGENT, PI_SUBAGENT_AGENT, PI_DADDY_DEFINITION), from bash sidesteps the user's rules. Built-in level: deny."
 				}
 			}
 		},
@@ -160,7 +164,8 @@
 								"git-push-delete",
 								"remote-script",
 								"publish",
-								"gh-delete"
+								"gh-delete",
+								"bouncer-escape"
 							]
 						},
 						"description": "Shown in messages, dialogs and the log. Lowercase letters, digits and dashes; not a built-in rule's name."

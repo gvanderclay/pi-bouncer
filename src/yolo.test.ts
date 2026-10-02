@@ -205,6 +205,11 @@ test("YOLO mode denies sudo even when the route config lowers privilege to ask",
 	);
 });
 
+test("YOLO mode allows pi --yolo, a rule-level deny", async () => {
+	const { handler } = await yoloGate();
+	assert.equal(await handler(bashCall("pi --yolo"), fakeContext()), undefined);
+});
+
 test("YOLO mode allows a rule the route config raised to deny", async () => {
 	const gate = await loadGateSession();
 	gate.writeRouteConfig({ levels: { "git-push-force": "deny" } });

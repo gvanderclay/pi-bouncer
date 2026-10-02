@@ -6,6 +6,15 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- The `bouncer-escape` rule denies bash that starts `pi --yolo` or sets or
+  clears `PI_BOUNCER_AGENT`, `PI_SUBAGENT_AGENT` or `PI_DADDY_DEFINITION`
+  (`VAR=x cmd`, `export`, `env VAR=x`, `unset VAR`, `env -u VAR`, and `env -i`
+  running `pi`). Starting `pi` otherwise is still allowed. This is a new deny
+  for anyone who ran `pi --yolo` from bash: `"levels": {"bouncer-escape":
+  "off"}` restores the old behaviour, and `"ask"` asks instead.
+
 ### Changed
 
 - Releases go through a pull request: `pnpm release patch` bumps the version,
