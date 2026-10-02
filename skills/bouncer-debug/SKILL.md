@@ -298,7 +298,10 @@ holds it.
    otherwise. The latest `yolo` record before the call, or the `session`
    record's `yolo`, says when and how YOLO mode came on. Answers `auto`
    mean the judge allowed it: `auto.model` and `auto.reason` say who and
-   why, and `withoutAuto` what would have happened otherwise.
+   why, and `withoutAuto` what would have happened otherwise. A recursive
+   `rm` with no record that a replay says asks most likely deleted a folder
+   the agent made earlier in that session (the "Folders the agent made"
+   section of `docs/behaviour.md`); a replay cannot know that.
    **Why did the judge deny this?** On a call with `auto.verdict: "deny"`,
    `auto.reason` is the judge's reason (also in `reason`), `auto.model` the
    model that said it, and `auto.tried` the models that failed first. The

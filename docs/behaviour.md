@@ -20,6 +20,37 @@ the package.
 and expands `~` and `$HOME`. It reads nothing from the filesystem and
 follows no symlink.
 
+## Folders the agent made
+
+A recursive `rm` runs without an ask, in every mode and with or without a
+UI, when everything it deletes is a folder the agent made earlier in the same
+session, or something inside one. A folder counts as made by the agent when:
+
+- a `mkdir` that finished without error created it, and nothing was at that
+  path just before the command ran (for `mkdir -p`, the highest folder that
+  was missing counts);
+- or a command that was only `mktemp -d` printed its path.
+
+Even then, the `rm` still asks unless all of these hold:
+
+- it is plain `rm`, not run through a wrapper such as `xargs`, `timeout` or
+  `bash -c`;
+- every path is written out in full from `/`, with no variable, `~`,
+  wildcard or brace;
+- every path, with symlinks followed, lies inside the folder, so
+  `rm -rf /tmp/x/link/` of a link out of it asks;
+- nothing inside is dated before the folder was made, so a file moved in
+  from elsewhere makes it ask again (moving keeps a file's dates). Unpacking
+  an archive or copying with dates kept (`cp -p`, `rsync -a`) asks for the
+  same reason, and so does a tree of more than 10,000 items.
+
+`rm-root` and every other rule still apply. The bouncer forgets these
+folders at every session start. When an ask on a recursive `rm` blocks
+because no one can answer, the reason tells the agent to retry with the
+folder's full path written out. `"trustAgentMade": false` turns all this off
+(see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
+and `bouncer-debug` replays do not know which folders the agent made.
+
 ## Which decision wins
 
 One line can match several rules. A deny anywhere on the line wins over

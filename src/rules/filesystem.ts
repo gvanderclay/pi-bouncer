@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { rmOfAgentMade } from "../agent-made.ts";
 import type { Invocation } from "../scan/walk.ts";
 import { hasLongOption, hasShortFlag, parseArgs } from "./argv.ts";
 import type { Rule, Where } from "./rule.ts";
@@ -17,7 +18,10 @@ function isRecursiveRm(invocation: Invocation): boolean {
 export const recursiveRm: Rule = {
 	name: "recursive-rm",
 	summary: "recursive rm deletes whole directory trees",
-	matches: isRecursiveRm,
+	// A directory the agent made this session is its own to delete.
+	matches: (invocation: Invocation, { agentMade }: Where): boolean =>
+		isRecursiveRm(invocation) &&
+		!(agentMade && rmOfAgentMade(agentMade, invocation)),
 };
 
 // A config's `protect` adds to these lists and never removes from them.

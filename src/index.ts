@@ -12,6 +12,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { agentFrom } from "./agent-env.ts";
+import { mkdirTargets, mktempTarget, recordMade } from "./agent-made.ts";
 import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
 import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
@@ -55,7 +56,9 @@ import {
 	showMode,
 	trackPause,
 } from "./mode-switch.ts";
+import { read } from "./rank.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
+import type { Invocation } from "./scan/walk.ts";
 import { registerSessionLaunch } from "./session-launch.ts";
 
 export type ParserLoader = () => Promise<ParseFn>;
@@ -155,6 +158,8 @@ function trustedIfKnown(ctx: ExtensionContext): boolean {
 	return false;
 }
 
+type Making = { readonly since: number; readonly targets: string[] };
+
 type Runtime = {
 	readonly pi: ExtensionAPI;
 	readonly gate: ReturnType<typeof createGate>;
@@ -167,6 +172,8 @@ type Runtime = {
 	readonly env: Readonly<Record<string, string | undefined>>;
 	readonly switchMode: ModeSwitch;
 	readonly stopped: Map<string, string>;
+	/** Per allowed bash call that may make directories: when it ran, and what its `mkdir`s would newly make. */
+	readonly making: Map<string, Making>;
 };
 
 // Nothing outlives a session but the bouncer mode. A reloaded runtime starts
@@ -188,6 +195,8 @@ function startSession(
 	rt.session.reported.clear();
 	rt.session.lastFailure.clear();
 	clearHistory(rt.session.history);
+	rt.session.agentMade.clear();
+	rt.making.clear();
 	if (config.auto) rt.session.remotes = readRemotes(ctx.cwd);
 	else delete rt.session.remotes;
 	rt.gate.reset(config.policy);
@@ -233,12 +242,14 @@ function callIn(
 	const alwaysAsk = rt.session.config?.auto?.alwaysAsk ?? [];
 	const { paused } = rt.session.pause;
 	const autoChoice = autoChoiceFor(mode, paused, rt.session, ctx);
+	const trusted = rt.session.config?.trustAgentMade !== false;
 	const redecide = (): Promise<Decision> | undefined =>
 		rt.holder.mode === mode
 			? undefined
 			: rt.gate.decide(command, callIn(rt, command, ctx, onSent));
 	return {
 		...callFrom(ctx, mode, judge),
+		...(trusted && { agentMade: rt.session.agentMade }),
 		alwaysAsk,
 		paused,
 		redecide,
@@ -274,7 +285,10 @@ async function decideCall(
 	if (outcome.autoOn && rt.holder.mode !== "auto") {
 		rt.switchMode("auto", "dialog", "auto", ctx);
 	}
-	if (outcome.kind === "allow") return undefined;
+	if (outcome.kind === "allow") {
+		noteMaking(rt, event.toolCallId, command);
+		return undefined;
+	}
 	if (outcome.stop) {
 		rt.stopped.set(event.toolCallId, outcome.reason);
 		// Never awaited: abort() waits for idle, which cannot come while this
@@ -285,7 +299,39 @@ async function decideCall(
 	return { block: true, reason: outcome.reason };
 }
 
-// Reads only the command and path, never output or content.
+function invocationsOf(rt: Runtime, command: string): readonly Invocation[] {
+	const given = read(rt.parser, command);
+	return given.kind === "ok" ? given.invocations : [];
+}
+
+// Checked just before the command runs: a directory that exists now is not
+// one the agent makes.
+function noteMaking(rt: Runtime, toolCallId: string, command: string): void {
+	if (!/mkdir|mktemp/.test(command)) return;
+	const targets = mkdirTargets(invocationsOf(rt, command));
+	rt.making.set(toolCallId, { since: Date.now(), targets });
+}
+
+// Only a call that finished without error made anything; a detached one may
+// still be running. The output is read only for a lone `mktemp -d`.
+function recordMadeBy(
+	rt: Runtime,
+	event: ToolResultEvent,
+	command: string,
+): void {
+	const making = rt.making.get(event.toolCallId);
+	rt.making.delete(event.toolCallId);
+	if (!making || event.isError || event.input["background"] === true) return;
+	const { since, targets } = making;
+	if (command.includes("mktemp")) {
+		const output = event.content.map((c) => (c.type === "text" ? c.text : ""));
+		const made = mktempTarget(invocationsOf(rt, command), output.join(""));
+		if (made) targets.push(made);
+	}
+	recordMade(rt.session.agentMade, targets, since);
+}
+
+// History reads only the command and path, never output or content.
 function recordResult(
 	rt: Runtime,
 	event: ToolResultEvent,
@@ -303,6 +349,7 @@ function recordResult(
 	if (toolName === "bash" && typeof command === "string") {
 		const detached = background === true && { background: true as const };
 		entry = { tool: "bash", text: command, cwd, ...marks, ...detached };
+		recordMadeBy(rt, event, command);
 	} else if (
 		(toolName === "write" || toolName === "edit") &&
 		typeof path === "string"
@@ -328,6 +375,7 @@ export default async function bouncer(
 		reported: new Set(),
 		lastFailure: new Map(),
 		history: createHistory(),
+		agentMade: new Map(),
 		pause: { paused: false, inRow: 0, total: 0 },
 	};
 	const rt: Runtime = {
@@ -342,6 +390,7 @@ export default async function bouncer(
 		env,
 		switchMode: createModeSwitch(holder, session, logging, logDir),
 		stopped: new Map<string, string>(),
+		making: new Map<string, Making>(),
 	};
 	registerYolo(pi, holder, rt.switchMode);
 	registerAuto(pi, holder, rt.switchMode, rt.session);

@@ -1,9 +1,12 @@
+import type { AgentMade } from "../agent-made.ts";
 import type { Invocation } from "../scan/walk.ts";
 import type { RuleName, VerdictLevel } from "../verdict.ts";
 
 export type Where = {
 	readonly cwd: string;
 	readonly home: string;
+	/** Directories the agent made this session; absent when that is not trusted. */
+	readonly agentMade?: AgentMade;
 };
 
 // A rule only recognises an invocation; a `Policy` sets its level.

@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentMade } from "./agent-made.ts";
 import type { GateConfig } from "./config.ts";
 import type { Remotes } from "./facts.ts";
 import type { Decision } from "./gate.ts";
@@ -185,6 +186,7 @@ export function registerYolo(
 
 export type SessionState = {
 	config?: GateConfig;
+	readonly agentMade: AgentMade;
 	readonly history: ToolHistory;
 	readonly reported: Set<string>;
 	readonly lastFailure: Map<string, string>;
