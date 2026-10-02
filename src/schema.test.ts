@@ -85,10 +85,37 @@ const VALID: readonly unknown[] = [
 		},
 	},
 	{ auto: { models: ["a/b"], jev: { denyAt: 0.9 } } },
+	{
+		profiles: {
+			readonly: {
+				levels: { "recursive-rm": "deny" },
+				rules: [
+					{
+						name: "no-commit",
+						command: "git",
+						args: ["commit"],
+						level: "deny",
+						summary: "a read-only agent does not commit",
+					},
+				],
+				mode: "off",
+			},
+			worker: {
+				levels: { "recursive-rm": "off" },
+				protect: { home: ["notes"] },
+				mode: "auto",
+			},
+		},
+		agents: { scout: "readonly", builder: "worker" },
+	},
+	{
+		profiles: { "lint-only": { levels: { "recursive-rm": "deny" } } },
+		agents: { linter: "lint-only" },
+	},
 ];
 
 // Not covered by the schema: a firstByProvider value missing from models,
-// and two rules with one name.
+// two rules with one name, and an agent naming a profile no file defines.
 const INVALID: readonly unknown[] = [
 	{ $schema: 1 },
 	{ rules: {} },
@@ -142,6 +169,11 @@ const INVALID: readonly unknown[] = [
 	{ auto: { models: ["a/b"], jev: { denyAt: 1.1 } } },
 	{ auto: { models: ["a/b"], jev: { model: "bad" } } },
 	{ auto: { models: ["a/b"], jev: { other: 1 } } },
+	{ profiles: { w: { mode: "yolo" } } },
+	{ profiles: { w: { colour: 1 } } },
+	{ profiles: { "Bad Name": {} } },
+	{ profiles: { w: { levels: { "rm-root": "off" } } } },
+	{ profiles: { w: {} }, agents: { scout: 1 } },
 ];
 
 test("every config the bouncer reads without problems validates", () => {
@@ -192,11 +224,11 @@ test("the schema's levels are exactly the rules a config can set", () => {
 	const names = builtInPolicy.flatMap((entry) =>
 		entry.kind === "unreadable" ? [] : [entry.rule.name],
 	);
-	assert.deepEqual(Object.keys(schema.properties.levels.properties), names);
+	assert.deepEqual(Object.keys(schema.definitions.levels.properties), names);
 });
 
 test("the schema refuses every built-in name for a custom rule", () => {
 	const names = ["always-ask", ...builtInPolicy.map(policyEntryName)];
-	const taken = schema.properties.rules.items.properties.name.not.enum;
+	const taken = schema.definitions.rules.items.properties.name.not.enum;
 	assert.deepEqual(taken, names);
 });

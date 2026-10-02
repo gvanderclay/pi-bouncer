@@ -1,0 +1,34 @@
+{
+	"$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"profiles": {
+		"readonly": {
+			"levels": {
+				"recursive-rm": "deny",
+				"git-push-force": "deny",
+				"publish": "deny",
+				"gh-delete": "deny"
+			},
+			"rules": [
+				{
+					"name": "no-commit",
+					"command": "git",
+					"args": ["commit"],
+					"level": "deny",
+					"summary": "a read-only agent does not commit"
+				}
+			],
+			"mode": "off"
+		},
+		"worker": {
+			"levels": { "recursive-rm": "off", "git-clean": "off" },
+			"protect": { "home": ["notes"] },
+			"mode": "auto"
+		}
+	},
+	"agents": {
+		"scout": "readonly",
+		"reviewer": "readonly",
+		"orchestrator": "readonly",
+		"builder": "worker"
+	}
+}

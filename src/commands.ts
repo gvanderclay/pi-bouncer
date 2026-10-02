@@ -6,6 +6,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentSource } from "./agent-env.ts";
 import {
 	type ConfigFile,
 	type GateConfig,
@@ -68,6 +69,24 @@ function modeText({ holder, session }: BouncerParts): string {
 	return "normal";
 }
 
+// The session's agent, so `check` and `explain` show the profile it runs.
+function agentOf(parts: BouncerParts): AgentSource | undefined {
+	const profile = parts.session.config?.profile;
+	return profile && { name: profile.agent, variable: profile.from };
+}
+
+function profileLine(config: GateConfig | undefined): string {
+	const profile = config?.profile;
+	if (!profile) return "Profile: none";
+	const who = `agent ${profile.agent} (from ${profile.from})`;
+	if (profile.state === "profile") {
+		return `Profile: ${profile.name} (agent ${profile.agent}, from ${profile.from})`;
+	}
+	if (profile.state === "unmapped")
+		return `Profile: none; ${who} has no profile`;
+	return `Profile: none; "${profile.name}" for agent ${profile.agent} is broken, so the normal rules apply`;
+}
+
 function autoLine(config: GateConfig | undefined): string {
 	const auto = config?.auto;
 	if (!auto)
@@ -93,6 +112,7 @@ function status(parts: BouncerParts): string {
 			.join(", ") || "none";
 	return [
 		`Bouncer mode: ${modeText(parts)}`,
+		profileLine(config),
 		parts.parser
 			? "Parser: loaded"
 			: "Parser: missing, so every bash command is denied",
@@ -127,7 +147,8 @@ function explainCommand(
 	ctx: ExtensionContext,
 ): string {
 	const project = { cwd: ctx.cwd, trusted: trusted(parts) };
-	const config = parts.session.config ?? loadConfig(parts.agentDir, project);
+	const config =
+		parts.session.config ?? loadConfig(parts.agentDir, project, agentOf(parts));
 	const where = { cwd: ctx.cwd, home: homedir() };
 	const alwaysAsk = config.auto?.alwaysAsk ?? [];
 	const inspection = inspect(
@@ -158,10 +179,8 @@ function init(parts: BouncerParts): string {
 
 // Reads both files again and applies nothing.
 function check(parts: BouncerParts, ctx: ExtensionContext): string {
-	const config = loadConfig(parts.agentDir, {
-		cwd: ctx.cwd,
-		trusted: trusted(parts),
-	});
+	const project = { cwd: ctx.cwd, trusted: trusted(parts) };
+	const config = loadConfig(parts.agentDir, project, agentOf(parts));
 	const verdict =
 		config.problems.length === 0
 			? "No config problems."

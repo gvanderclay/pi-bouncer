@@ -8,6 +8,15 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Profiles: `profiles` names groups of rule changes (`levels`, `rules`,
+  `protect`, `mode`), and `agents` maps an agent name to one. A session's agent
+  name comes from `PI_BOUNCER_AGENT`, then `PI_SUBAGENT_AGENT`, then
+  `PI_DADDY_DEFINITION`. A profile starts from the normal rules and may loosen
+  or tighten; the always-deny set still holds, and an untrusted project's
+  profiles only tighten. A missing or broken profile falls back to the normal
+  rules with a warning. A profile's `mode` applies only when no `--auto` or
+  `--yolo` is given. `/bouncer status` shows the profile, and the log records
+  it.
 - The `bouncer-escape` rule denies bash that starts `pi --yolo` or sets or
   clears `PI_BOUNCER_AGENT`, `PI_SUBAGENT_AGENT` or `PI_DADDY_DEFINITION`
   (`VAR=x cmd`, `export`, `env VAR=x`, `unset VAR`, `env -u VAR`, and `env -i`

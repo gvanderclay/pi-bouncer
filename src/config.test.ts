@@ -71,6 +71,7 @@ test("a missing route file is the built-in policy, with no problems", () => {
 		projectTrusted: true,
 		log: DEFAULT_LOG,
 		startMode: "off",
+		profiledAgents: new Set(),
 		files: [
 			{ path, loaded: false, problems: [] },
 			{

@@ -8,6 +8,7 @@ import { mergeProtect, validProtect } from "./protect.ts";
 import { type CustomRule, validRules } from "./rules/custom.ts";
 import type { Protect } from "./rules/filesystem.ts";
 
+/** The mode a session starts in; `config.ts` re-exports it. */
 export type StartMode = "off" | "auto";
 
 export type Profile = {

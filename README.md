@@ -134,6 +134,13 @@ folder from `rm -rf`, and adds a rule of your own:
 }
 ```
 
+A profile (`profiles`) is a named group of rule changes for one kind of
+session, and `agents` maps an agent name to a profile. A session started with
+`PI_BOUNCER_AGENT=scout`, or by a launcher that sets `PI_SUBAGENT_AGENT` or
+`PI_DADDY_DEFINITION`, runs the normal rules with that profile's changes on
+top; `/bouncer status` shows it. [`examples/profiles.json`](examples/profiles.json)
+has a read-only and a worker profile.
+
 A custom rule with an `instead` text is a steer rule: it blocks a command in
 every mode and tells the model what to run instead.
 [`examples/prefer-rg.json`](examples/prefer-rg.json) sends the model from
