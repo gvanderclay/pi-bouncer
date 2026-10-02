@@ -8,7 +8,7 @@ import {
 import { FIND_NAMES, findWith } from "./filesystem.ts";
 import type { Rule } from "./rule.ts";
 
-export const FIND_EXEC_ACTIONS: readonly string[] = [
+const FIND_EXEC_ACTIONS: readonly string[] = [
 	"-exec",
 	"-execdir",
 	"-ok",
@@ -24,8 +24,8 @@ export const findExec: Rule = {
 
 // `fdfind` is Debian's name for fd. fd 10.4.2's value-taking short options
 // (`fd --help`); a cluster letter after one of them is its value.
-export const FD_NAMES: ReadonlySet<string> = new Set(["fd", "fdfind"]);
-export const FD_VALUE_LETTERS = "dEteSoxXcjC";
+const FD_NAMES: ReadonlySet<string> = new Set(["fd", "fdfind"]);
+const FD_VALUE_LETTERS = "dEteSoxXcjC";
 
 export const fdExec: Rule = {
 	name: "fd-exec",

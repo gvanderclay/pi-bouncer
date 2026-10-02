@@ -199,5 +199,3 @@ export function withProfile(
 		startMode: layer.mode ?? normal.startMode,
 	};
 }
-
-export { chooseProfile, profiledAgents } from "./profile-resolve.ts";

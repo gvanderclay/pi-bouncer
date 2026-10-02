@@ -8,7 +8,7 @@ import {
 import type { Rule } from "./rule.ts";
 
 /** A git subcommand and the arguments after it. */
-export type GitCommand = {
+type GitCommand = {
 	readonly subcommand: string;
 	readonly args: readonly string[];
 };

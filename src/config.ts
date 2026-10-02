@@ -7,13 +7,12 @@ import { type JevSettings, jevPart } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
 import { validLevels } from "./levels.ts";
 import { effectivePolicy, ruleLevels } from "./policy.ts";
+import { chooseProfile, profiledAgents } from "./profile-resolve.ts";
 import {
 	type Agents,
-	chooseProfile,
 	type Normal,
 	type ProfileChoice,
 	type Profiles,
-	profiledAgents,
 	type StartMode,
 	validAgents,
 	validProfiles,
@@ -85,12 +84,12 @@ function isObject(value: unknown): value is Json {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-type Read =
+type FileRead =
 	| { readonly kind: "missing" }
 	| { readonly kind: "failed"; readonly problem: string }
 	| { readonly kind: "object"; readonly json: Json };
 
-function readFile(path: string): Read {
+function readFile(path: string): FileRead {
 	let text: string;
 	try {
 		text = readFileSync(path, "utf8");

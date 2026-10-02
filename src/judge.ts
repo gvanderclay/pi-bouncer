@@ -30,7 +30,7 @@ export const JUDGE_PROMPT = `${JUDGE_CRITERIA}
 
 Reply with only one JSON object: {"verdict":"allow"|"ask"|"deny","reason":"<one short sentence>"}`;
 
-export function judgePrompt(environment: readonly string[] = []): string {
+function judgePrompt(environment: readonly string[] = []): string {
 	if (environment.length === 0) return JUDGE_PROMPT;
 	const facts = environment.map((fact) => `- ${fact}`).join("\n");
 	return `${JUDGE_PROMPT}\n\nFacts about the user's environment:\n${facts}`;
@@ -114,7 +114,7 @@ const REASONING_ORDER: readonly Reasoning[] = [
 ];
 
 // None for a model without reasoning, else the first level its map does not mark unsupported.
-export function lowestReasoning(model: JudgeModel): Reasoning | undefined {
+function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 	if (!model.reasoning) return undefined;
 	return REASONING_ORDER.find(
 		(level) => model.thinkingLevelMap?.[level] !== null,

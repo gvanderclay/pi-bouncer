@@ -76,9 +76,7 @@ export type JevKeyLookup = {
 };
 
 // A registry that fails to look up the key throws.
-export async function jevKey(
-	registry: JevKeyLookup,
-): Promise<string | undefined> {
+async function jevKey(registry: JevKeyLookup): Promise<string | undefined> {
 	return (await registry.getApiKeyForProvider?.(JEV_PROVIDER)) || undefined;
 }
 

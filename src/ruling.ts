@@ -27,7 +27,7 @@ export type Ruling = JudgeResult & { readonly jev?: JevRecord };
 
 export type RulingRegistry = JudgeRegistry & JevKeyLookup;
 
-export type RulingRun = Omit<JudgeRun, "lineMs" | "registry"> & {
+type RulingRun = Omit<JudgeRun, "lineMs" | "registry"> & {
 	readonly registry: RulingRegistry;
 };
 

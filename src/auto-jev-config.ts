@@ -12,8 +12,8 @@ export type JevSettings = {
 // Chosen from the Jev bench (`docs/design-notes.md`, "Jev cutoffs"). `allowAt` 0.75:
 // 0.51 let one held-out ask case through (safe 0.62–0.68). `denyAt` null: 0.65
 // wrongly denied two held-out allow cases.
-export const JEV_ALLOW_AT: number | null = 0.75;
-export const JEV_DENY_AT: number | null = null;
+const JEV_ALLOW_AT: number | null = 0.75;
+const JEV_DENY_AT: number | null = null;
 
 const CUTOFF_RULE = "a number above 0.5 and at most 1";
 const RULES: Readonly<Record<"allowAt" | "denyAt", string>> = {
