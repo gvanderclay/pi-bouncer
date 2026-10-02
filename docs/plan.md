@@ -254,7 +254,9 @@ Current state: `package.json` in `~/workspace/pi-bouncer`. Changes:
   `"test": "node --test test/*.test.ts"`,
   `"check": "pnpm lint && pnpm typecheck && pnpm test"`,
   `"build": …` (step 2.5), and `"prepack": "pnpm build"`.
-- `"publishConfig": {"access": "public", "provenance": true}`.
+- `"publishConfig": {"access": "public"}`. `"provenance": true` waits for
+  `release.yml`: npm generates provenance only in CI, so it would make the
+  hand publish of 0.1.0 (D-8) fail.
 - Optional: `pi.image` for the gallery.
 
 ### CI (`.github/workflows/ci.yml`)

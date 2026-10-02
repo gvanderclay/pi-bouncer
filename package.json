@@ -1,11 +1,30 @@
 {
 	"name": "pi-bouncer",
 	"version": "0.1.0",
-	"description": "Catches a short, fixed list of dangerous bash actions, in normal, auto or YOLO mode",
+	"description": "Guards Pi's bash tool: asks before destructive commands, blocks catastrophic ones, with an optional model-judged auto mode",
 	"keywords": [
-		"pi-package"
+		"pi-package",
+		"pi",
+		"pi-extension",
+		"bash",
+		"safety",
+		"guardrails",
+		"permissions"
 	],
+	"license": "MIT",
+	"author": "Gage Vander Clay <gvanderclay@gmail.com>",
+	"homepage": "https://github.com/gvanderclay/pi-bouncer#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/gvanderclay/pi-bouncer.git"
+	},
+	"bugs": {
+		"url": "https://github.com/gvanderclay/pi-bouncer/issues"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.19.0"
+	},
 	"packageManager": "pnpm@10.33.0",
 	"pi": {
 		"extensions": [
@@ -20,10 +39,17 @@
 		"rules",
 		"scan",
 		"skills",
-		"README.md"
+		"README.md",
+		"LICENSE"
 	],
 	"scripts": {
-		"test": "node --test test/*.test.ts"
+		"lint": "biome ci .",
+		"typecheck": "tsc -p .",
+		"test": "node --test test/*.test.ts",
+		"check": "pnpm lint && pnpm typecheck && pnpm test"
+	},
+	"publishConfig": {
+		"access": "public"
 	},
 	"dependencies": {
 		"unbash": "4.0.11"
