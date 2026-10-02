@@ -1,6 +1,6 @@
 // Jev's failure stays out of the result's `tried` and joins the judge list's
 // failures only for the notices.
-import { type AutoSettings, judgeOrder } from "./config.ts";
+import { type AutoSettings, judgeOrder } from "./auto-config.ts";
 import { errorText } from "./error-text.ts";
 import {
 	classify,

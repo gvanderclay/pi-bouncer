@@ -80,7 +80,7 @@ the per-case spread. The price is fewer calls settled by Jev: 36 against 49 of
 the 123 held-out cases. No question was reworded and no case relabelled to
 improve these numbers.
 
-The code's summary in `src/auto-jev-config.ts` agrees: `allowAt` 0.75 and
+The code's summary in `src/auto-config.ts` agrees: `allowAt` 0.75 and
 `denyAt` `null`. Either is one line in the user config's `auto.jev`
 (`"allowAt": 0.51`, `"denyAt": 0.65`) to change.
 

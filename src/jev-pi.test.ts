@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { answersFor, fourFor } from "../test/jev-replies.ts";
-import type { AutoSettings } from "./config.ts";
+import type { AutoSettings } from "./auto-config.ts";
 import { jevAsker, jevStatus } from "./jev.ts";
 import { judgeRequest } from "./judge-request.ts";
 import {

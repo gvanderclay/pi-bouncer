@@ -2,7 +2,7 @@
 // By default Zen's jev-1.13 (Pi's opencode/jev-1.13) with the opencode-go key, since Pi
 // looks for that model's key under `opencode`; with `auto.jev.model`, that model and Pi's
 // own credentials. Never retried: a failed call goes to the judge list. Errors never hold the key.
-import type { JevSettings } from "./auto-jev-config.ts";
+import type { JevSettings } from "./auto-config.ts";
 import { errorText } from "./error-text.ts";
 import {
 	DENY_QUESTIONS,
