@@ -31,6 +31,7 @@ const asks: readonly Row[] = [
 
 const denies: readonly Row[] = [
 	["rm-root", "rm -rf /", "rm -rf /"],
+	["trash-root", "trash ~", "trash ~"],
 	[
 		"disk-format",
 		"diskutil eraseDisk APFS X disk2",

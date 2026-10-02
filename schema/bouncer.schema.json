@@ -41,6 +41,11 @@
 		"protect": {
 			"$ref": "#/definitions/protect"
 		},
+		"trashCommand": {
+			"type": "string",
+			"pattern": "^\\S+$",
+			"description": "The trash program a refused recursive rm suggests, as a name or path with no spaces, instead of the first of trash, trash-put or gio trash found on PATH. trash-root also covers it. User config only."
+		},
 		"trustAgentMade": {
 			"type": "boolean",
 			"default": true,
@@ -146,6 +151,10 @@
 					"enum": ["ask", "deny"],
 					"description": "recursive rm of the filesystem root, a system directory or your home directory. Built-in level: deny."
 				},
+				"trash-root": {
+					"enum": ["ask", "deny", "off"],
+					"description": "moving the filesystem root, a system directory or your home directory to the trash (trash, trash-put, gio trash, or trashCommand). Built-in level: deny."
+				},
 				"recursive-rm": {
 					"enum": ["ask", "deny", "off"],
 					"description": "recursive rm deletes whole directory trees. Built-in level: ask."
@@ -250,6 +259,7 @@
 								"unparseable",
 								"inline-too-deep",
 								"rm-root",
+								"trash-root",
 								"recursive-rm",
 								"find-delete",
 								"find-exec",
@@ -332,7 +342,7 @@
 		},
 		"protect": {
 			"type": "object",
-			"description": "More paths for rm-root to deny. Add-only: the built-in paths always stay, and a project config may add too, trusted or not.",
+			"description": "More paths for rm-root and trash-root to deny. Add-only: the built-in paths always stay, and a project config may add too, trusted or not.",
 			"additionalProperties": false,
 			"properties": {
 				"home": {

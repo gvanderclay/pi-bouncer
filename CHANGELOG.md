@@ -6,6 +6,17 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- When no one can answer a `recursive-rm` ask, the block reason suggests
+  moving the target to the trash instead, naming the first of `trash`,
+  `trash-put` and `gio trash` found on `PATH`, or the user config's new
+  `trashCommand`. With none found, it suggests nothing.
+- The `trash-root` rule (deny) refuses moving `/`, a system directory, your
+  home directory or a `protect`ed folder to the trash with `trash`,
+  `trash-put`, `gio trash` or `trashCommand`. This is a new deny: `"levels":
+  {"trash-root": "off"}` restores the old behaviour.
+
 ### Changed
 
 - A recursive `rm` of a folder the agent made earlier in the session (by a

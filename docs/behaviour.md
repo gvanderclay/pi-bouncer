@@ -68,9 +68,13 @@ no creation time, a folder deleted and remade between two of the agent's
 commands can still count.
 
 When an ask on a recursive `rm` blocks because no one can answer, the reason
-tells the agent to retry with the folder's full path written out.
-`"trustAgentMade": false` turns all this off, the system prompt section
-included (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
+tells the agent to retry with the folder's full path written out, and, when
+a trash program is found (see [`trashCommand`](configuration.md#trashcommand)),
+to move anything else to the trash, where the deletion can be undone.
+`trash-root` denies moving `/`, a system directory, your home directory or a
+protected folder to the trash. `"trustAgentMade": false` turns off the
+agent-made folders, their system prompt section and the retry advice, but
+not the trash advice (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
 and `bouncer-debug` replays do not know which folders the agent made.
 
 ## Which decision wins

@@ -67,6 +67,7 @@ import { read } from "./rank.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
 import type { Invocation } from "./scan/walk.ts";
 import { registerSessionLaunch } from "./session-launch.ts";
+import { findTrash } from "./trash.ts";
 
 export type ParserLoader = () => Promise<ParseFn>;
 
@@ -222,6 +223,9 @@ function startSession(
 	rt.session.lastFailure.clear();
 	clearHistory(rt.session.history);
 	rt.session.agentMade.clear();
+	const trash = findTrash(config.trashCommand, rt.env["PATH"]);
+	if (trash) rt.session.trash = trash;
+	else delete rt.session.trash;
 	rt.making.clear();
 	delete rt.lone.id;
 	if (config.auto) rt.session.remotes = readRemotes(ctx.cwd);
@@ -282,6 +286,7 @@ function callIn(
 		...callFrom(ctx, mode, judge),
 		...(trusted && { agentMade: rt.session.agentMade }),
 		...(lone && { lone }),
+		...(rt.session.trash && { trash: rt.session.trash }),
 		alwaysAsk,
 		paused,
 		redecide,
