@@ -23,6 +23,8 @@ follows [Semantic Versioning](https://semver.org/).
   running `pi`). Starting `pi` otherwise is still allowed. This is a new deny
   for anyone who ran `pi --yolo` from bash: `"levels": {"bouncer-escape":
   "off"}` restores the old behaviour, and `"ask"` asks instead.
+- A child started through `session:launch` gets its agent's profile, or its
+  parent's profile when its agent has none.
 
 ### Changed
 

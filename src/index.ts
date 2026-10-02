@@ -374,7 +374,7 @@ export default async function bouncer(
 	};
 	registerYolo(pi, holder, rt.switchMode);
 	registerAuto(pi, holder, rt.switchMode, rt.session);
-	registerSessionLaunch(pi, holder);
+	registerSessionLaunch(pi, holder, session);
 	registerBouncer(pi, { holder, session, parser, agentDir, logDir });
 	pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) =>
 		startSession(rt, event, ctx),
