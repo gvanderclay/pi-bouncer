@@ -53,9 +53,12 @@ export function validProtect(value: unknown, problems: string[]): Protect {
 	return protect;
 }
 
-export function mergeProtect(a: Protect, b: Protect): Protect {
-	return {
-		home: [...new Set([...a.home, ...b.home])],
-		paths: [...new Set([...a.paths, ...b.paths])],
-	};
+/** Both files' additions together; undefined when neither adds any. */
+export function mergeProtect(
+	a: Protect = NO_PROTECT,
+	b: Protect = NO_PROTECT,
+): Protect | undefined {
+	const home = [...new Set([...a.home, ...b.home])];
+	const paths = [...new Set([...a.paths, ...b.paths])];
+	return home.length > 0 || paths.length > 0 ? { home, paths } : undefined;
 }

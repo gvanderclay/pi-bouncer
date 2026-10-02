@@ -13,7 +13,12 @@ is done. 3.1–3.3 are done (2026-10-02): the schema test is
 3.4 is done: `ConfigLevel` in `verdict.ts`, and `ruleLevels` in `config.ts`
 lists off rules for `/bouncer` and the log. 3.5 is done: `protect` is
 parsed in `src/protect.ts`, and `loadConfig` swaps in `rmRootProtecting`
-only when a file adds paths, so `Where` is unchanged.
+only when a file adds paths, so `Where` is unchanged. 3.6 is done: custom
+rules live in `src/rules/custom.ts`, the effective policy in `src/policy.ts`
+(moved out of `config.ts` for biome's line cap), the find/fd command slots in
+`hiddenArgvs` (`src/rules/hidden-exec.ts`), and the grep recipe, which the
+tests load as `PREFER_RG`, in `examples/prefer-rg.json`. `RuleName` is now
+`string`.
 Auto mode's refusal does not point at `/bouncer init`, because `init` writes
 no judge list.
 
@@ -567,7 +572,7 @@ paths in the messages ("bouncer.json in the Pi agent dir") and without
 - Proof: `test/rm-root.test.ts` unchanged, plus new cases for configured
   additions, and for Linux defaults if D-2 adds them.
 
-**3.6 (F5) Custom rules, and grep moves into one.** [feature]
+**3.6 (F5) Custom rules, and grep moves into one.** [feature] Done.
 - Decisions D-1 and D-3.
 - Files: `config.ts` (the `rules` key replaces the "not supported yet" error
   at `config.ts:342-343`), a new `rules/custom.ts`, `verdict.ts`

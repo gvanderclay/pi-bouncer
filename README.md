@@ -18,13 +18,13 @@ recursive `rm` of `/`, a system directory, `~` or an important folder in it,
 and commands that cannot be parsed. A deny anywhere on a line wins. Each
 rule's level is built in and can be changed in the bouncer config.
 
-One steer rule, `grep`, blocks every `grep`, `egrep` or `fgrep` the scan
-finds, and grep in the command slot of `find -exec`/`-execdir`/`-ok`/`-okdir`
-and `fd -x`/`-X`, and tells the model to run the search with `rg` instead.
-It denies in every mode, including YOLO, with no dialog, no judge call and no
-warning, and every block is logged. Its level is fixed. A real deny on the same line wins
-with its warning; the grep block wins over every ask. It is built in for now
-and moves to a custom rule once the bouncer config supports them.
+You can add your own rules (see Configuration). A custom rule with an
+`instead` text is a steer rule: it blocks a command the model should replace
+and says what to run instead. It denies in every mode, including YOLO, with
+no dialog, no judge call and no warning, and every block is logged. A real
+deny on the same line wins with its warning; a steer block wins over every
+ask. `examples/prefer-rg.json` is one: it blocks `grep`, `egrep` and `fgrep`
+and sends the model to `rg`.
 
 ## Install
 
@@ -66,7 +66,7 @@ YOLO mode off, and the other way round.
 | --- | --- | --- |
 | normal (off) | none | every ask opens the dialog |
 | auto | `/auto`, `/auto on\|off\|status`, `pi --auto` | every ask no session allow covers goes to Jev first when the route sets `auto.jev`, then to the first model of the bouncer config's judge list that answers; an allow runs quietly, a deny blocks with the judge's one-line reason (or a fixed one when Jev denies), and a hand-off or no answer opens the dialog. Three denies in a row, or 20 in a session, Jev's included, pause it until you allow a call. It refuses to turn on when no list entry resolves |
-| YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set, unreadable commands and the `grep` steer rule still deny |
+| YOLO | `/yolo`, `/yolo on\|off`, `pi --yolo` | every ask is allowed with no dialog or judge. The always-deny set, unreadable commands and steer rules still deny |
 
 `--auto` with `--yolo` is an error. A dialog can also switch to either mode
 after allowing the current line.
@@ -106,10 +106,10 @@ unless you asked to keep it, but not anything that existed before the session,
 glob or age deletes in shared directories such as `/tmp`, a shared directory
 itself, or a variable target whose value it cannot see. A model that refuses the
 request under its provider's usage policy counts as a deny. Rule-level denies,
-the always-deny set, unparseable commands and the `grep` steer rule are denied
+the always-deny set, unparseable commands and steer rules are denied
 before any judge is asked, and `auto.alwaysAsk` prefixes always open the
-dialog unless the line holds a grep. A grep block never counts toward the
-pause.
+dialog unless a steer rule blocks the line. A steer block never counts toward
+the pause.
 
 With `auto.jev` in the route's `bouncer.json`, auto mode asks Jev first:
 TypeSafe's classifier, always called through Pi's classifier support with
@@ -144,7 +144,7 @@ aborting the turn aborts it. A failure is reported once per session, like a
 judge-list model's, and `/auto status` shows whether Jev is on, its cutoffs,
 and which provider it uses and whether its key resolves. Every Jev answer is in the call's log record.
 Jev never sees anything the judge list would not: rule-level denies, the
-always-deny set, unparseable commands, the `grep` steer rule,
+always-deny set, unparseable commands, steer rules,
 `auto.alwaysAsk` hits, a paused auto mode and lines session allows cover are
 decided before it is asked. Jev cannot turn auto mode on by itself:
 `auto.models` stays required.
@@ -165,8 +165,8 @@ a device and `rm-root` (a recursive `rm` of `/`, a system directory, `~` or an
 important folder in it such as `~/Documents`, `~/workspace` or `~/.ssh`;
 relative paths resolve against the session's working directory). YOLO and
 auto mode never allow it, nor unparseable commands, whatever the config says.
-A line with a grep and no real deny gets the `grep` steer block, with no
-dialog and no warning, however many asks it holds.
+A line with a steer rule's match and no real deny gets the steer block, with
+no dialog and no warning, however many asks it holds.
 `!` commands are never gated.
 
 ## Configuration
@@ -183,8 +183,8 @@ named in the session-start warning. The old `.pi/bouncer.json` is no longer
 read: the warning tells you to move it. `levels` sets any built-in
 rule to `ask`, `deny` or `off`, where `off` removes the rule. The always-deny
 set (`rm-root`, `disk-format`, `dd-device`, `power`, `privilege`) can be `ask`
-or `deny` but never `off`; the `grep` steer rule is `deny` or `off`; the
-unreadable-command denies are fixed; the route's file also carries `log` (the
+or `deny` but never `off`, and the unreadable-command denies are fixed. The
+route's file also carries `log` (the
 log's rotation size, generations kept and age pruning), `auto` (the judge list
 `models`, `alwaysAsk` prefixes, `environment` facts, `firstByProvider` and
 `jev`) and `startMode` (`off` or `auto`, see Modes).
@@ -192,6 +192,17 @@ Either file may add to `rm-root` with `protect`: `"protect": {"home":
 ["code"], "paths": ["/srv/data"]}` denies a recursive `rm` of `~/code`, of
 `/srv/data` and of anything directly in `/srv/data`. It only adds, so an
 untrusted project's `protect` applies too, and the built-in paths always stay.
+Either file may define custom rules under `rules`, a list of objects with a
+`name` (lowercase, not a built-in rule's), a `command` (a program name or a
+list of them; `/usr/bin/kubectl` matches `kubectl`), optional `args` that must
+all follow it in order, a `summary`, and a `level` (`ask`, the default, `deny`
+or `off`). `{"name": "kubectl-delete", "command": "kubectl", "args":
+["delete"], "level": "deny", "summary": "deletes cluster resources"}` denies
+`kubectl -n prod delete pod x`, also through wrappers, chains, `sh -c`, and
+the commands `find -exec` and `fd -x` run. An `instead` text makes the rule a
+steer rule (`deny` or `off`). Custom rules behave like built-in ones in every
+mode. A project may not reuse a user rule's name, and an untrusted project may
+add ask and deny rules but not steer rules, since steer text reaches the model.
 `auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
 and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
 `null`. Its optional `model` is a Pi classifier model as `provider/id`; absent,

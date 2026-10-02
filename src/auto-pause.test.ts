@@ -13,6 +13,7 @@ import {
 	bashCall,
 	type FakeRegistry,
 	type LoadedGate,
+	PREFER_RG,
 	verdict,
 } from "../test/harness.ts";
 
@@ -22,8 +23,9 @@ const ALLOW = verdict("allow", "Routine.");
 
 function gateAnswering(
 	replies: readonly string[],
+	extra: object = {},
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {
-	return listGate([JUDGE], { [JUDGE]: { reply: replies } });
+	return listGate([JUDGE], { [JUDGE]: { reply: replies } }, {}, {}, extra);
 }
 
 async function judge(
@@ -157,7 +159,7 @@ test("pausing and resuming write no record of their own", async () => {
 });
 
 test("auto mode blocks grep with no judge call and no notice", async () => {
-	const { gate, fake } = await gateAnswering([ALLOW]);
+	const { gate, fake } = await gateAnswering([ALLOW], PREFER_RG);
 	const ui = judgedUI(fake);
 	const result = await gate.handler(bashCall("grep x f"), ui.ctx);
 	assert.equal(result?.block, true);
@@ -168,7 +170,7 @@ test("auto mode blocks grep with no judge call and no notice", async () => {
 });
 
 test("grep blocks in a row do not pause auto mode", async () => {
-	const { gate, fake } = await gateAnswering([ALLOW]);
+	const { gate, fake } = await gateAnswering([ALLOW], PREFER_RG);
 	for (let i = 0; i < 4; i += 1) {
 		await gate.handler(bashCall("grep x f"), noUI(fake));
 	}

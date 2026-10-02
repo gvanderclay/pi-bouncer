@@ -13,40 +13,43 @@ _Avoid_: permission gate, permission system, guard
 
 **Rule level**:
 What the bouncer does when a rule matches: **ask** (the user decides in a
-dialog) or **deny** (a **hard deny**, with no dialog). The built-in policy
-assigns it, not the rule; the bouncer config may change it for any rule except
-the unreadable-command denies and the steer rules.
+dialog) or **deny** (a **hard deny**, with no dialog). A config may also set
+**off**, which leaves the rule out of the effective policy. The built-in
+policy assigns it, not the rule; the bouncer config may change it for any rule
+except the unreadable-command denies, and may not turn the always-deny set
+off. A steer rule is deny or off.
 _Avoid_: severity, mode
 
 **Built-in rule**:
-A rule that ships with the bouncer and recognises one kind of command by
-reading its parsed invocations: most recognise a dangerous command, and a
-**steer rule** recognises one the model should replace.
+A rule that ships with the bouncer and recognises one kind of dangerous
+command by reading its parsed invocations.
 _Avoid_: default rule, catalog rule
 
 **Steer rule**:
 A rule that blocks a command the model should replace with another, and tells
 the model what to run instead. It denies in every bouncer mode, with no
 dialog, judge call or warning. A real deny on the same line wins over it; it
-wins over every ask. `grep` is the one built-in steer rule: it sends the model
-to `rg`.
+wins over every ask. Steer rules are custom rules with an `instead` text;
+none is built in. The `examples/prefer-rg.json` recipe makes `grep` one, sending
+the model to `rg`.
 _Avoid_: soft deny, redirect, nudge
 
 **Custom rule**:
-A rule the user defines in the bouncer config: a program name plus arguments
-that must all appear in order, with a rule level.
+A rule the user defines under `rules` in the bouncer config: a program name
+plus arguments that must all appear in order, with a rule level, or with an
+`instead` text that makes it a steer rule.
 _Avoid_: user rule, pattern, extra rule
 
 **Built-in policy**:
-Every built-in rule, steer rule and unreadable-command deny, in evaluation
+Every built-in rule and unreadable-command deny, in evaluation
 order, each at the rule level the bouncer ships with.
 _Avoid_: catalog, defaults
 
 **Effective policy**:
 The rules a session's bouncer enforces, in evaluation order, each at its rule
-level: the built-in policy with the bouncer config applied, settled at session
-start. The unreadable-command denies and the steer rules are always in it, at
-deny.
+level: the built-in policy with the bouncer config applied, then the custom
+rules, with custom steer rules last; settled at session start. A rule set to
+off is not in it. The unreadable-command denies are always in it, at deny.
 _Avoid_: session policy, rulebook, levels
 
 **Unreadable-command deny**:

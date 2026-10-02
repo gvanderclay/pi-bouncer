@@ -6,6 +6,7 @@ import {
 	type LoadedGate,
 	loadGateSession,
 	type Notice,
+	PREFER_RG,
 	tempProjectDir,
 	uiContext,
 } from "../test/harness.ts";
@@ -61,7 +62,7 @@ test("/bouncer status names YOLO mode and a missing parser", async () => {
 });
 
 test("/bouncer rules lists every entry with its level and summary", async () => {
-	const gate = await started({ levels: { "git-clean": "deny" } });
+	const gate = await started({ ...PREFER_RG, levels: { "git-clean": "deny" } });
 	const lines = (await text(gate, "rules")).split("\n");
 	assert.equal(lines.length, 25);
 	assert.ok(
@@ -76,7 +77,11 @@ test("/bouncer rules lists every entry with its level and summary", async () => 
 });
 
 test("/bouncer status and rules show rules turned off", async () => {
-	const gate = await started({ levels: { "git-clean": "off", grep: "off" } });
+	const [grep] = PREFER_RG.rules;
+	const gate = await started({
+		levels: { "git-clean": "off" },
+		rules: [{ ...grep, level: "off" }],
+	});
 	const status = (await text(gate, "status")).split("\n");
 	assert.ok(status.includes("Off: git-clean, grep"), status.join("\n"));
 	assert.ok(!status.find((l) => l.startsWith("Ask: "))?.includes("git-clean"));

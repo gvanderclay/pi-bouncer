@@ -33,19 +33,28 @@ bouncer lived in its author's dotfiles.
   process with a UI while no user config exists. `/bouncer init`, or any
   `bouncer.json` in the Pi agent dir, silences it.
 - `"off"` as a level: `levels` can turn any rule off except the always-deny
-  set and the unreadable-command denies, and the `grep` steer rule takes
-  `deny` or `off`. A trusted project may turn rules off; an untrusted one may
-  not lower any level. `/bouncer status` gains an `Off:` line, and the log's
-  `config.levels` shows `off` rules. Setting `grep` to anything other than
-  `deny` or `off` now says so instead of "is always deny"; the tests pinning
-  that message were updated, deliberately.
+  set and the unreadable-command denies. A trusted project may turn rules
+  off; an untrusted one may not lower any level. `/bouncer status` gains an
+  `Off:` line, and the log's `config.levels` shows `off` rules.
 - `protect` adds folders below home (`home`) and absolute paths (`paths`)
   to `rm-root`. Both config files may set it, an untrusted project's
   included, because it only adds. `/bouncer status` lists the additions, and
   the log's `config.protect` records them.
+- Custom rules under `rules`: a `name`, a `command` (one program or a list),
+  optional `args` that must follow it in order, a `summary` and a `level`
+  (`ask` by default, `deny` or `off`). They match through wrappers, chains,
+  `sh -c`, and the commands `find -exec` and `fd -x` run. An `instead` text
+  makes a steer rule, denied in every mode with that text sent to the model.
+  An untrusted project may add ask and deny rules but not steer rules.
+  `examples/prefer-rg.json` is a recipe.
 
 ### Changed
 
+- The `grep` steer rule is no longer built in: grep runs untouched by default.
+  To get the old behaviour back, copy the rule in `examples/prefer-rg.json`
+  into your `bouncer.json`; it blocks `grep`, `egrep` and `fgrep` with the
+  same message, rule name and log entries. The grep tests now load that
+  file, deliberately; `levels` no longer accepts `grep`.
 - `rm-root` now also covers the Linux system directories `/home`, `/root`,
   `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap` and
   `/nix`, and their direct children. A recursive `rm` of one used to ask

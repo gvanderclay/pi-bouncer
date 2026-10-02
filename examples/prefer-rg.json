@@ -1,0 +1,12 @@
+{
+	"$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"rules": [
+		{
+			"name": "grep",
+			"command": ["grep", "egrep", "fgrep"],
+			"level": "deny",
+			"summary": "grep is not allowed here",
+			"instead": "Run the search with rg instead: it is recursive and uses regex by default; add -F for a fixed string and -n for line numbers."
+		}
+	]
+}

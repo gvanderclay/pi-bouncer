@@ -40,7 +40,6 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["remote-script", "ask"],
 	["publish", "ask"],
 	["gh-delete", "ask"],
-	["grep", "deny"],
 ];
 
 function rows(policy: Policy): (readonly [string, string])[] {
@@ -130,12 +129,6 @@ const problems: readonly (readonly [
 		{ privilege: "ask" },
 	],
 	[
-		"a steer rule at ask",
-		{ levels: { grep: "ask", privilege: "ask" } },
-		'levels: "grep" must be "deny" or "off"',
-		{ privilege: "ask" },
-	],
-	[
 		"an always-deny rule turned off",
 		{ levels: { privilege: "off", "git-clean": "deny" } },
 		'levels: "privilege" must be "ask" or "deny"; it is in the always-deny set, so it cannot be off',
@@ -166,9 +159,9 @@ const problems: readonly (readonly [
 		{ privilege: "ask" },
 	],
 	[
-		"a rules key",
-		{ rules: [], levels: { privilege: "ask" } },
-		'"rules" is not supported yet',
+		"a rules key that is not a list",
+		{ rules: {}, levels: { privilege: "ask" } },
+		'"rules" is not a list',
 		{ privilege: "ask" },
 	],
 ];
@@ -272,7 +265,7 @@ for (const [label, log, problem, limits] of logProblems) {
 
 test("every problem in one file is reported", () => {
 	const { agentDir, cwd } = route({
-		rules: [],
+		rules: {},
 		levels: { nope: "ask", privilege: "maybe" },
 		log: { generations: -2 },
 	});

@@ -9,6 +9,7 @@ import {
 	type LoadedGate,
 	type LogRecord,
 	loadGateSession,
+	PREFER_RG,
 	SESSION_FILE,
 	SESSION_ID,
 	type SessionReason,
@@ -29,8 +30,8 @@ const OFF_NOTICE = {
 	level: "info",
 };
 
-async function yoloGate(): Promise<LoadedGate> {
-	const gate = await loadGateSession();
+async function yoloGate(userConfig: object = {}): Promise<LoadedGate> {
+	const gate = await loadGateSession(undefined, undefined, { userConfig });
 	await gate.startSession("startup");
 	await gate.runCommand("yolo", "", uiContext().ctx);
 	return gate;
@@ -593,7 +594,7 @@ test("without --yolo, a session start leaves YOLO mode off", async () => {
 });
 
 test("YOLO mode blocks grep x f with the steer reason and no notice", async () => {
-	const { handler } = await yoloGate();
+	const { handler } = await yoloGate(PREFER_RG);
 	const { ctx, dialogs, notices } = scriptedUI();
 	const result = await handler(bashCall("grep x f"), ctx);
 	assert.equal(result?.block, true);

@@ -5,33 +5,8 @@ export type VerdictLevel = "deny" | "ask";
 // A level a config can set: "off" drops the rule from the policy.
 export type ConfigLevel = VerdictLevel | "off";
 
-export type RuleName =
-	| "parser-unavailable"
-	| "unparseable"
-	| "inline-too-deep"
-	| "rm-root"
-	| "recursive-rm"
-	| "find-delete"
-	| "find-exec"
-	| "fd-exec"
-	| "rg-pre"
-	| "opaque-exec"
-	| "disk-format"
-	| "dd-device"
-	| "power"
-	| "privilege"
-	| "git-clean"
-	| "git-reset-hard"
-	| "git-checkout-discard"
-	| "git-restore-worktree"
-	| "git-stash-destroy"
-	| "git-push-force"
-	| "git-push-delete"
-	| "remote-script"
-	| "publish"
-	| "gh-delete"
-	| "grep"
-	| "always-ask";
+// A built-in rule's name, a custom rule's name, or "always-ask".
+export type RuleName = string;
 
 export type Verdict = {
 	readonly level: VerdictLevel;

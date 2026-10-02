@@ -6,8 +6,9 @@ import {
 	expectAllow,
 	expectDeny,
 	fakeContext,
-	loadGate,
-	loadGateSession,
+	grepGate,
+	type Handler,
+	PREFER_RG,
 	scriptedUI,
 	uiContext,
 	verdict,
@@ -16,8 +17,12 @@ import {
 const STEER =
 	"Blocked by the user's bouncer (rule: grep): grep is not allowed here.";
 
+async function grepHandler(): Promise<Handler> {
+	return (await grepGate()).handler;
+}
+
 async function expectGrepBlock(command: string): Promise<void> {
-	const handler = await loadGate();
+	const handler = await grepHandler();
 	const result = await handler(bashCall(command), fakeContext());
 	const reason = result?.reason ?? "";
 	assert.equal(result?.block, true, `expected ${command} to be blocked`);
@@ -74,11 +79,19 @@ for (const command of denied) {
 }
 
 for (const command of allowed) {
-	test(`allow: ${command}`, () => expectAllow(command));
+	test(`allow: ${command}`, async () => {
+		const handler = await grepHandler();
+		const { ctx, notices } = uiContext();
+		const result = await handler(bashCall(command), ctx);
+		assert.equal(result, undefined, `${command}: ${result?.reason}`);
+		assert.deepEqual(notices, []);
+	});
 }
 
+test("with no config, grep runs untouched", () => expectAllow("grep x f"));
+
 test("the grep block's reason is short and reads exactly", async () => {
-	const handler = await loadGate();
+	const handler = await grepHandler();
 	const result = await handler(bashCall("grep -rn foo src"), fakeContext());
 	assert.deepEqual(result, {
 		block: true,
@@ -88,7 +101,7 @@ test("the grep block's reason is short and reads exactly", async () => {
 });
 
 test("with a UI, a grep block adds no notice and opens no dialog", async () => {
-	const handler = await loadGate();
+	const handler = await grepHandler();
 	const { ctx, dialogs, notices } = scriptedUI();
 	const result = await handler(bashCall("grep x f"), ctx);
 	assert.equal(result?.block, true);
@@ -98,9 +111,9 @@ test("with a UI, a grep block adds no notice and opens no dialog", async () => {
 });
 
 test("each grep block writes one call record naming grep", async () => {
-	const { handler, records } = await loadGateSession();
+	const { handler, records } = await grepGate();
 	const result = await handler(bashCall("ls | grep x"), fakeContext());
-	const all = records();
+	const all = records().filter((record) => record.type !== "session");
 	assert.equal(all.length, 1);
 	assert.equal(all[0]?.type, "call");
 	assert.equal(all[0]?.outcome, "blocked");
@@ -111,7 +124,7 @@ test("each grep block writes one call record naming grep", async () => {
 });
 
 test("a real deny on a grep line wins, with its warning", async () => {
-	const handler = await loadGate();
+	const handler = await grepHandler();
 	const { ctx, dialogs, notices } = scriptedUI();
 	const result = await handler(bashCall("grep x f && sudo ls"), ctx);
 	assert.equal(result?.block, true);
@@ -124,7 +137,7 @@ test("a real deny on a grep line wins, with its warning", async () => {
 });
 
 test("the grep block wins over an ask on the line, with no dialog", async () => {
-	const handler = await loadGate();
+	const handler = await grepHandler();
 	const { ctx, dialogs, notices } = scriptedUI();
 	const result = await handler(bashCall("grep x f && rm -rf build"), ctx);
 	assert.equal(result?.block, true);
@@ -139,8 +152,7 @@ const PRIVILEGE_NOTICE = {
 };
 
 test("in YOLO mode, a real deny on a grep line wins, with its warning", async () => {
-	const gate = await loadGateSession();
-	await gate.startSession("startup");
+	const gate = await grepGate();
 	await gate.runCommand("yolo", "", uiContext().ctx);
 	const { ctx, notices } = scriptedUI();
 	const result = await gate.handler(bashCall("grep x f && sudo ls"), ctx);
@@ -149,7 +161,13 @@ test("in YOLO mode, a real deny on a grep line wins, with its warning", async ()
 });
 
 test("in auto mode, a real deny on a grep line wins, with its warning", async () => {
-	const { gate, fake } = await judgedGate(verdict("allow", "fine"));
+	const { gate, fake } = await judgedGate(
+		verdict("allow", "fine"),
+		{},
+		undefined,
+		{},
+		PREFER_RG,
+	);
 	const ui = judgedUI(fake);
 	const result = await gate.handler(bashCall("grep x f && sudo ls"), ui.ctx);
 	assert.match(result?.reason ?? "", /\(rule: privilege\)/);
@@ -158,9 +176,13 @@ test("in auto mode, a real deny on a grep line wins, with its warning", async ()
 });
 
 test("in auto mode, an alwaysAsk prefix on a grep line gets the grep block", async () => {
-	const { gate, fake } = await judgedGate(verdict("allow", "fine"), {
-		alwaysAsk: ["grep"],
-	});
+	const { gate, fake } = await judgedGate(
+		verdict("allow", "fine"),
+		{ alwaysAsk: ["grep"] },
+		undefined,
+		{},
+		PREFER_RG,
+	);
 	const ui = judgedUI(fake);
 	const result = await gate.handler(bashCall("grep x f"), ui.ctx);
 	assert.ok(result?.reason?.startsWith(STEER), String(result?.reason));
@@ -180,7 +202,7 @@ for (const [command, rule] of slotAsks) {
 
 for (const command of ["find . -exec grep x {} \\;", "fd -x grep x"]) {
 	test(`grep in a command slot opens no dialog: ${command}`, async () => {
-		const handler = await loadGate();
+		const handler = await grepHandler();
 		const { ctx, dialogs, notices } = scriptedUI();
 		const result = await handler(bashCall(command), ctx);
 		assert.ok(result?.reason?.startsWith(STEER), String(result?.reason));
@@ -190,7 +212,7 @@ for (const command of ["find . -exec grep x {} \\;", "fd -x grep x"]) {
 }
 
 test("a real deny beside grep in find's command slot wins", async () => {
-	const handler = await loadGate();
+	const handler = await grepHandler();
 	const { ctx, notices } = scriptedUI();
 	const command = "find . -exec grep x {} \\; && sudo ls";
 	const result = await handler(bashCall(command), ctx);

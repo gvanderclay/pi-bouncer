@@ -278,11 +278,13 @@ test("a project config's parse problems come before its level refusals", async (
 test("a trusted project config can turn a rule off", async () => {
 	const gate = await loadGateSession();
 	const cwd = tempProjectDir();
-	writeProjectConfig(cwd, { levels: { "git-clean": "off", grep: "off" } });
+	writeProjectConfig(cwd, {
+		levels: { "git-clean": "off", "rm-root": "deny" },
+	});
 	const { ctx, notices } = uiContext(cwd, true);
 	await gate.startSession("startup", ctx);
 	assert.equal(notices.length, 0, JSON.stringify(notices));
-	for (const command of ["git clean -fd", "grep x f"]) {
+	for (const command of ["git clean -fd", "git clean -fdx"]) {
 		const call = scriptedUI([], cwd);
 		assert.equal(await gate.handler(bashCall(command), call.ctx), undefined);
 		assert.equal(call.dialogs.length, 0, command);
@@ -294,7 +296,7 @@ test("an untrusted project config cannot turn a rule off", async () => {
 	gate.writeRouteConfig({ levels: { "git-reset-hard": "off" } });
 	const cwd = tempProjectDir();
 	writeProjectConfig(cwd, {
-		levels: { "git-clean": "off", grep: "off", "git-reset-hard": "off" },
+		levels: { "git-clean": "off", "git-reset-hard": "off" },
 	});
 	const { ctx, notices } = uiContext(cwd, false);
 	await gate.startSession("startup", ctx);
@@ -304,17 +306,11 @@ test("an untrusted project config cannot turn a rule off", async () => {
 		[
 			"Bouncer config problems; these parts are ignored:",
 			`- ${path}: levels: "git-clean" would loosen the rule, and the project is not trusted`,
-			`- ${path}: levels: "grep" would loosen the rule, and the project is not trusted`,
 		].join("\n"),
 	);
 	const clean = scriptedUI(["Deny"], cwd);
 	await gate.handler(bashCall("git clean -fd"), clean.ctx);
 	assert.equal(clean.dialogs.length, 1);
-	const grep = await gate.handler(
-		bashCall("grep x f"),
-		scriptedUI([], cwd).ctx,
-	);
-	assert.match(grep?.reason ?? "", /\(rule: grep\)/);
 });
 
 test("an untrusted project config may raise a rule the user turned off", async () => {

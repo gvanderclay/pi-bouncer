@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "unbash";
 import {
+	PREFER_RG,
 	projectConfigPath,
 	tempAgentDir,
 	tempProjectDir,
@@ -17,8 +18,14 @@ import type { Inspection, ParseFn } from "./gate.ts";
 
 const RM_X = { rule: "recursive-rm", level: "ask", source: "rm -rf x" };
 
-function inspected(parser: ParseFn | undefined, command: string): Inspection {
-	return explain(parser, command, tempAgentDir(), {
+function inspected(
+	parser: ParseFn | undefined,
+	command: string,
+	userConfig?: object,
+): Inspection {
+	const agentDir = tempAgentDir();
+	if (userConfig) writeConfig(join(agentDir, "bouncer.json"), userConfig);
+	return explain(parser, command, agentDir, {
 		cwd: tempProjectDir(),
 		trusted: true,
 	}).inspection;
@@ -79,7 +86,7 @@ test("a deny after an ask wins with a UI", () => {
 
 test("grep alone is a steer block in every mode", () => {
 	const deny = { kind: "deny", rule: "grep" };
-	assert.deepEqual(inspected(parse, "grep y f"), {
+	assert.deepEqual(inspected(parse, "grep y f", PREFER_RG), {
 		matches: [{ rule: "grep", level: "deny", source: "grep y f" }],
 		withUI: deny,
 		withoutUI: deny,
@@ -90,7 +97,7 @@ test("grep alone is a steer block in every mode", () => {
 
 test("grep is a steer block in every mode", () => {
 	const deny = { kind: "deny", rule: "grep" };
-	assert.deepEqual(inspected(parse, "rm -rf x && grep y f"), {
+	assert.deepEqual(inspected(parse, "rm -rf x && grep y f", PREFER_RG), {
 		matches: [RM_X, { rule: "grep", level: "deny", source: "grep y f" }],
 		withUI: deny,
 		withoutUI: deny,
@@ -101,7 +108,7 @@ test("grep is a steer block in every mode", () => {
 
 test("a real deny after grep wins in every mode", () => {
 	const deny = { kind: "deny", rule: "privilege" };
-	assert.deepEqual(inspected(parse, "grep y f && sudo ls"), {
+	assert.deepEqual(inspected(parse, "grep y f && sudo ls", PREFER_RG), {
 		matches: [
 			{ rule: "grep", level: "deny", source: "grep y f" },
 			{ rule: "privilege", level: "deny", source: "sudo ls" },

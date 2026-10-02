@@ -42,9 +42,12 @@ says which trust state applied. A `<cwd>/.pi/bouncer.json` is never read;
 it shows up as a problem asking to move it. `levels` maps a built-in rule to
 `ask`, `deny` or `off` (`off` drops the rule, and the record's
 `config.levels` shows it as `off`); the always-deny set cannot be `off`,
-the `grep` steer rule is `deny` or `off`, and `unparseable`,
+and `unparseable`,
 `inline-too-deep` and `parser-unavailable` always deny. Setting a level a
-rule does not take is a config problem. An invalid part falls back to its built-in value. Edits apply
+rule does not take is a config problem. `rules` defines custom rules
+(name, command, optional args in order, summary, level, and `instead` for a
+steer rule); `config.levels` lists them too. `protect` adds paths to
+`rm-root` (`config.protect`). An invalid part falls back to its built-in value. Edits apply
 from the next session start, never mid-session. The route file alone may
 also set `auto` (auto mode's `models`, `alwaysAsk`, `environment`,
 `firstByProvider` and `jev`); a project file's `auto`, `jev` included, is
@@ -62,8 +65,9 @@ survives session starts and `/reload` and ends when the process exits.
 
 Even in YOLO mode the **always-deny set** (`privilege`, `power`,
 `disk-format`, `dd-device`, `rm-root`) and the unreadable-command denies
-still deny, with the usual reason and warning. The `grep` steer rule still
-denies too, with its `rg` reason and no warning. The set is fixed in code:
+still deny, with the usual reason and warning. Steer rules (custom rules with
+`instead`, such as a `grep` rule) still deny too, with their `instead` text
+and no warning. The set is fixed in code:
 YOLO mode ignores the bouncer config's `levels`, so a `privilege` lowered to
 `ask` still denies and a rule raised to `deny` is allowed. A session allow
 still answers its ask first.
@@ -88,7 +92,7 @@ model registry. Its lifetime is YOLO mode's.
   `Judge: <reason>` line). With no UI a hand-off blocks.
 - Denied before any judge call: rule-level denies (the effective policy's
   `deny`), the always-deny set whatever its level, the
-  unreadable-command denies, and the `grep` steer rule, which also wins over
+  unreadable-command denies, and steer rules, which also win over
   an `auto.alwaysAsk` prefix and never counts toward the pause.
 - Never judged: a command matching one of the route's `auto.alwaysAsk`
   prefixes gets the pseudo-rule `always-ask` and always opens the dialog.
@@ -185,7 +189,7 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
   - `matches`: every `{rule, level, source}` the bouncer found, in evaluation
     order. `level` is `ask` or `deny`; `source` is the part of the line that
     matched. A `deny` match ends the list: the bouncer stopped there. A
-    `grep` match does not: the steer rule is held while the rest of the line
+    steer rule's match does not: it is held while the rest of the line
     is scanned, and a later real deny wins over it.
   - `asks`: what happened to each ask, in order: `{rule, source, answer}`,
     plus `userReason` when the user typed one. The list ends at the first

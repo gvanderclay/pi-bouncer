@@ -11,7 +11,7 @@
 		},
 		"levels": {
 			"type": "object",
-			"description": "The level of a built-in rule: ask, deny or off. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege) cannot be off; grep is deny or off.",
+			"description": "The level of a built-in rule: ask, deny or off. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege) cannot be off. A custom rule's level is set in its definition under rules.",
 			"additionalProperties": false,
 			"properties": {
 				"rm-root": {
@@ -97,10 +97,6 @@
 				"gh-delete": {
 					"enum": ["ask", "deny", "off"],
 					"description": "deleting a GitHub repository or release destroys it for everyone. Built-in level: ask."
-				},
-				"grep": {
-					"enum": ["deny", "off"],
-					"description": "grep is not allowed here; the deny tells the model to use rg. Built-in level: deny."
 				}
 			}
 		},
@@ -125,6 +121,83 @@
 					"minimum": 1,
 					"description": "Delete rotated logs older than this. Absent: never by age."
 				}
+			}
+		},
+		"rules": {
+			"type": "array",
+			"description": "Custom rules. Each matches a program and, optionally, words that follow it in order. A project config that is not trusted may not add steer rules (those with instead).",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["name", "command", "summary"],
+				"properties": {
+					"name": {
+						"type": "string",
+						"pattern": "^[a-z0-9][a-z0-9-]*$",
+						"not": {
+							"enum": [
+								"always-ask",
+								"parser-unavailable",
+								"unparseable",
+								"inline-too-deep",
+								"rm-root",
+								"recursive-rm",
+								"find-delete",
+								"find-exec",
+								"fd-exec",
+								"rg-pre",
+								"opaque-exec",
+								"disk-format",
+								"dd-device",
+								"power",
+								"privilege",
+								"git-clean",
+								"git-reset-hard",
+								"git-checkout-discard",
+								"git-restore-worktree",
+								"git-stash-destroy",
+								"git-push-force",
+								"git-push-delete",
+								"remote-script",
+								"publish",
+								"gh-delete"
+							]
+						},
+						"description": "Shown in messages, dialogs and the log. Lowercase letters, digits and dashes; not a built-in rule's name."
+					},
+					"command": {
+						"description": "A program name, or a list of them. /usr/bin/grep matches grep.",
+						"oneOf": [
+							{ "type": "string", "pattern": "\\S" },
+							{
+								"type": "array",
+								"minItems": 1,
+								"items": { "type": "string", "pattern": "\\S" }
+							}
+						]
+					},
+					"args": {
+						"type": "array",
+						"items": { "type": "string", "pattern": "\\S" },
+						"description": "Words that must all follow the program, in this order, not necessarily next to each other."
+					},
+					"level": {
+						"enum": ["ask", "deny", "off"],
+						"description": "Default: ask, or deny for a steer rule. A steer rule is deny or off."
+					},
+					"summary": {
+						"type": "string",
+						"pattern": "\\S",
+						"description": "Why the rule exists, in a few words; shown in the deny and the dialog."
+					},
+					"instead": {
+						"type": "string",
+						"pattern": "\\S",
+						"description": "Makes this a steer rule: denied in every mode, with this text telling the model what to do instead."
+					}
+				},
+				"if": { "properties": { "instead": true }, "required": ["instead"] },
+				"then": { "properties": { "level": { "enum": ["deny", "off"] } } }
 			}
 		},
 		"protect": {

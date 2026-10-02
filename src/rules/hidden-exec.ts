@@ -5,7 +5,7 @@ import {
 	isLongOption,
 	optionArgs,
 } from "./argv.ts";
-import { findWith } from "./filesystem.ts";
+import { FIND_NAMES, findWith } from "./filesystem.ts";
 import type { Rule } from "./rule.ts";
 
 export const FIND_EXEC_ACTIONS: readonly string[] = [
@@ -77,3 +77,49 @@ export const opaqueExec: Rule = {
 	matches: (invocation: Invocation): boolean =>
 		TEMPLATE_RUNNERS.has(invocation.name),
 };
+
+// The argv after a find action, up to its `;` or `+`.
+function findArgvs(args: readonly string[]): string[][] {
+	return args.flatMap((arg, at) => {
+		if (!FIND_EXEC_ACTIONS.includes(arg)) return [];
+		const rest = args.slice(at + 1);
+		const end = rest.findIndex((word) => word === ";" || word === "+");
+		return [end === -1 ? rest : rest.slice(0, end)];
+	});
+}
+
+// fd's command is the slot's value and every argument after it.
+function fdArgv(args: readonly string[], at: number): string[] | undefined {
+	const arg = args[at] ?? "";
+	for (const name of ["exec", "exec-batch"]) {
+		if (!isLongOption(arg, name)) continue;
+		const equals = arg.indexOf("=");
+		if (equals === -1) return args.slice(at + 1);
+		return [arg.slice(equals + 1), ...args.slice(at + 1)];
+	}
+	if (!/^-[A-Za-z]/.test(arg)) return undefined;
+	for (let letter = 1; letter < arg.length; letter += 1) {
+		const char = arg.charAt(letter);
+		if ("xX".includes(char)) {
+			const inline = arg.slice(letter + 1);
+			const rest = args.slice(at + 1);
+			return inline ? [inline, ...rest] : rest;
+		}
+		if (FD_VALUE_LETTERS.includes(char)) return undefined;
+	}
+	return undefined;
+}
+
+/**
+ * The commands find (`-exec`, `-execdir`, `-ok`, `-okdir`) and fd (`-x`,
+ * `-X`, `--exec`, `--exec-batch`) run, which the scan does not peel.
+ */
+export function hiddenArgvs(invocation: Invocation): string[][] {
+	const { name, args } = invocation;
+	if (FIND_NAMES.has(name)) return findArgvs(args);
+	if (!FD_NAMES.has(name)) return [];
+	return optionArgs(args).flatMap((_, at) => {
+		const argv = fdArgv(args, at);
+		return argv && argv.length > 0 ? [argv] : [];
+	});
+}

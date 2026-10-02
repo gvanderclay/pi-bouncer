@@ -10,7 +10,7 @@ export function alwaysAskSummary(prefix: string): string {
 	return `"${prefix}" is on the user's auto.alwaysAsk list`;
 }
 
-function argvOf(invocation: Invocation): readonly string[] {
+export function argvOf(invocation: Invocation): readonly string[] {
 	const git = gitCommand(invocation);
 	if (git) return ["git", git.subcommand, ...git.args];
 	return [invocation.name, ...invocation.args];

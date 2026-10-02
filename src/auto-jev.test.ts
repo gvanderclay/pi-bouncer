@@ -18,6 +18,7 @@ import {
 	loadGateSession,
 	type ModelReply,
 	messageEntry,
+	PREFER_RG,
 	tempProjectDir,
 	uiContext,
 	verdict,
@@ -761,15 +762,16 @@ test("aborting the turn while Jev is out aborts its request", async (t) => {
 const NEVER_ASKED: readonly (readonly [
 	command: string,
 	rule: string,
-	levels?: object,
+	levels?: object | undefined,
+	extra?: object,
 ])[] = [
 	["sudo ls", "privilege"],
 	["rm -rf ~", "rm-root", { "rm-root": "ask" }],
 	["rm -rf dist", "recursive-rm", { "recursive-rm": "deny" }],
-	["grep -r TODO src", "grep"],
+	["grep -r TODO src", "grep", undefined, PREFER_RG],
 ];
 
-for (const [command, rule, levels] of NEVER_ASKED) {
+for (const [command, rule, levels, extra] of NEVER_ASKED) {
 	test(`${command} (${rule}) is denied without asking Jev`, async (t) => {
 		const sent = stubJev(t, () => jevReply(1, 0, 1));
 		const { gate, fake } = await judgedGate(
@@ -777,6 +779,7 @@ for (const [command, rule, levels] of NEVER_ASKED) {
 			{ jev: { allowAt: 0.9 } },
 			levels,
 			KEYS,
+			extra,
 		);
 		const result = await gate.handler(bashCall(command), judgedUI(fake).ctx);
 		assert.equal(result?.block, true);

@@ -5,9 +5,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Ajv } from "ajv";
-import { tempAgentDir, tempProjectDir, writeConfig } from "../test/harness.ts";
+import {
+	PREFER_RG,
+	tempAgentDir,
+	tempProjectDir,
+	writeConfig,
+} from "../test/harness.ts";
 import { loadConfig } from "./config.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
+import { policyEntryName } from "./rules/rule.ts";
 
 const schema = JSON.parse(
 	readFileSync(
@@ -38,8 +44,32 @@ const VALID: readonly unknown[] = [
 	fixture,
 	{ $schema: schema.$id, levels: {} },
 	{ levels: { "recursive-rm": "deny", "rm-root": "ask" } },
-	{ levels: { "recursive-rm": "off", grep: "off", "rm-root": "deny" } },
-	{ levels: { grep: "deny" } },
+	{ levels: { "recursive-rm": "off", "rm-root": "deny" } },
+	PREFER_RG,
+	{ rules: [] },
+	{
+		rules: [
+			{
+				name: "kubectl-delete",
+				command: "kubectl",
+				args: ["delete"],
+				summary: "deletes cluster resources",
+			},
+			{
+				name: "tf",
+				command: ["terraform", "tofu"],
+				level: "off",
+				summary: "s",
+			},
+			{
+				name: "y2",
+				command: "yarn",
+				summary: "s",
+				instead: "Use pnpm.",
+				level: "off",
+			},
+		],
+	},
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
 	{ protect: { home: ["code", ".secrets/keys"], paths: ["/srv/data"] } },
@@ -56,10 +86,26 @@ const VALID: readonly unknown[] = [
 	{ auto: { models: ["a/b"], jev: { denyAt: 0.9 } } },
 ];
 
-// Not covered by the schema: a firstByProvider value missing from models.
+// Not covered by the schema: a firstByProvider value missing from models,
+// and two rules with one name.
 const INVALID: readonly unknown[] = [
 	{ $schema: 1 },
-	{ rules: [] },
+	{ rules: {} },
+	{ rules: [{ name: "x", command: "x" }] },
+	{ rules: [{ name: "X", command: "x", summary: "s" }] },
+	{ rules: [{ name: "rm-root", command: "x", summary: "s" }] },
+	{ rules: [{ name: "always-ask", command: "x", summary: "s" }] },
+	{ rules: [{ name: "x", command: [], summary: "s" }] },
+	{ rules: [{ name: "x", command: " ", summary: "s" }] },
+	{ rules: [{ name: "x", command: "x", args: "delete", summary: "s" }] },
+	{ rules: [{ name: "x", command: "x", summary: "s", level: "allow" }] },
+	{
+		rules: [
+			{ name: "x", command: "x", summary: "s", instead: "i", level: "ask" },
+		],
+	},
+	{ rules: [{ name: "x", command: "x", summary: "s", other: 1 }] },
+	{ levels: { grep: "deny" } },
 	{ other: true },
 	{ levels: { grep: "ask" } },
 	{ levels: { grep: "off", unparseable: "ask" } },
@@ -116,4 +162,10 @@ test("the schema's levels are exactly the rules a config can set", () => {
 		entry.kind === "unreadable" ? [] : [entry.rule.name],
 	);
 	assert.deepEqual(Object.keys(schema.properties.levels.properties), names);
+});
+
+test("the schema refuses every built-in name for a custom rule", () => {
+	const names = ["always-ask", ...builtInPolicy.map(policyEntryName)];
+	const taken = schema.properties.rules.items.properties.name.not.enum;
+	assert.deepEqual(taken, names);
 });

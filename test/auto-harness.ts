@@ -37,9 +37,10 @@ export function allowingRegistry(): FakeRegistry {
 export async function listedGate(
 	models: readonly string[] = [JUDGE],
 	auto: object = {},
+	extra: object = {},
 ): Promise<LoadedGate> {
 	const gate = await loadGateSession();
-	gate.writeRouteConfig({ auto: { models, ...auto } });
+	gate.writeRouteConfig({ ...extra, auto: { models, ...auto } });
 	await gate.startSession("startup");
 	return gate;
 }
@@ -65,15 +66,18 @@ export async function judgedGate(
 	auto: object = {},
 	levels?: object,
 	keys: Readonly<Record<string, string>> = {},
+	/** More user config, such as PREFER_RG's rules. */
+	extra: object = {},
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {
 	const models =
 		typeof script === "object" && "reply" in script
 			? { [JUDGE]: script }
 			: { [JUDGE]: { reply: script } };
 	const fake = fakeRegistry(models, keys);
-	const gate = await listedGate([JUDGE], auto);
+	const gate = await listedGate([JUDGE], auto, extra);
 	if (levels) {
-		gate.writeRouteConfig({ auto: { models: [JUDGE], ...auto }, levels });
+		const config = { ...extra, auto: { models: [JUDGE], ...auto }, levels };
+		gate.writeRouteConfig(config);
 		await gate.startSession("startup");
 	}
 	await gate.runCommand("auto", "", registryUI(fake).ctx);
@@ -110,9 +114,11 @@ export async function listGate(
 	scripts: Readonly<Record<string, ModelScript>>,
 	auto: object = {},
 	keys: Readonly<Record<string, string>> = {},
+	/** More user config, such as PREFER_RG's rules. */
+	extra: object = {},
 ): Promise<{ gate: LoadedGate; fake: FakeRegistry }> {
 	const fake = fakeRegistry(scripts, keys);
-	const gate = await listedGate(models, auto);
+	const gate = await listedGate(models, auto, extra);
 	await gate.runCommand("auto", "", registryUI(fake).ctx);
 	assert.equal(gate.mode.mode, "auto");
 	return { gate, fake };

@@ -5,6 +5,7 @@ import {
 	bashCall,
 	fakeContext,
 	loadGateSession,
+	PREFER_RG,
 	scriptedUI,
 	tempProjectDir,
 	uiContext,
@@ -112,11 +113,11 @@ test("a broken route file warns once, falls back to built-in, and still logs", a
 
 test("every problem is listed in the one warning", async () => {
 	const gate = await loadGateSession();
-	gate.writeRouteConfig({ rules: [], levels: { unparseable: "ask" } });
+	gate.writeRouteConfig({ rules: {}, levels: { unparseable: "ask" } });
 	const { ctx, notices } = uiContext();
 	await gate.startSession("startup", ctx);
 	assert.equal(notices.length, 1);
-	assert.match(notices[0]?.message ?? "", /"rules" is not supported yet/);
+	assert.match(notices[0]?.message ?? "", /"rules" is not a list/);
 	assert.match(notices[0]?.message ?? "", /"unparseable" is always deny/);
 	const unreadable = await gate.handler(
 		bashCall("echo 'unterminated"),
@@ -149,34 +150,27 @@ test("the session's project file overrides the route's level", async () => {
 	assert.equal(dialogs.length, 1);
 });
 
-test("a route config setting levels.grep reports a problem, and grep stays blocked", async () => {
-	const { handler, startSession, writeRouteConfig, agentDir } =
-		await loadGateSession();
-	writeRouteConfig({ levels: { grep: "ask" } });
+test("levels cannot name a custom rule; its level is in its definition", async () => {
+	const { startSession, writeRouteConfig, agentDir } = await loadGateSession();
+	writeRouteConfig({ ...PREFER_RG, levels: { grep: "off" } });
 	const ui = uiContext();
 	await startSession("startup", ui.ctx);
 	const path = join(agentDir, "bouncer.json");
 	assert.ok(
 		ui.notices.some((notice) =>
-			notice.message.includes(
-				`${path}: levels: "grep" must be "deny" or "off"`,
-			),
+			notice.message.includes(`${path}: levels: unknown rule "grep"`),
 		),
 		JSON.stringify(ui.notices),
 	);
-	const { ctx, dialogs } = scriptedUI();
-	const result = await handler(bashCall("grep x f"), ctx);
-	assert.equal(dialogs.length, 0);
-	assert.match(result?.reason ?? "", /\(rule: grep\)/);
 });
 
 test("a route config turning a rule off lets its commands run without a dialog", async () => {
 	const { handler, startSession, writeRouteConfig } = await loadGateSession();
-	writeRouteConfig({ levels: { "recursive-rm": "off", grep: "off" } });
+	writeRouteConfig({ levels: { "recursive-rm": "off" } });
 	const ui = uiContext();
 	await startSession("startup", ui.ctx);
 	assert.deepEqual(ui.notices, []);
-	for (const command of ["rm -rf dist", "grep x f"]) {
+	for (const command of ["rm -rf dist", "rm -r build"]) {
 		const { ctx, dialogs } = scriptedUI();
 		assert.equal(await handler(bashCall(command), ctx), undefined, command);
 		assert.equal(dialogs.length, 0, command);

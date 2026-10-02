@@ -10,7 +10,6 @@ import {
 	gitStashDestroy,
 } from "./git.ts";
 import { gitPushDelete, gitPushForce } from "./git-push.ts";
-import { grep, grepInstead } from "./grep.ts";
 import { fdExec, findExec, opaqueExec, rgPre } from "./hidden-exec.ts";
 import { privilege } from "./privilege.ts";
 import { ghDelete, publish } from "./publish.ts";
@@ -43,7 +42,6 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: remoteScript, level: "ask" },
 	{ kind: "rule", rule: publish, level: "ask" },
 	{ kind: "rule", rule: ghDelete, level: "ask" },
-	{ kind: "steer", rule: grep, instead: grepInstead, level: "deny" },
 ];
 
 export const builtInEntries: ReadonlyMap<string, PolicyEntry> = new Map(

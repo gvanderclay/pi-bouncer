@@ -41,6 +41,7 @@
 		"!skills/**/*.test.ts",
 		"dist",
 		"schema",
+		"examples",
 		"README.md",
 		"LICENSE",
 		"CHANGELOG.md"

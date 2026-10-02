@@ -11,7 +11,6 @@ import {
 	type GateConfig,
 	loadConfig,
 	routeConfigFile,
-	ruleLevels,
 } from "./config.ts";
 import { errorText } from "./error-text.ts";
 import { asText } from "./explain.ts";
@@ -19,8 +18,9 @@ import { inspect, type ParseFn } from "./gate.ts";
 import { logFile } from "./log.ts";
 import type { ModeHolder } from "./mode.ts";
 import type { SessionState } from "./mode-switch.ts";
+import { ruleLevels } from "./policy.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
-import { type Policy, policyEntryName } from "./rules/rule.ts";
+import { type Policy, policyEntryName, type Rule } from "./rules/rule.ts";
 
 export const SCHEMA_URL =
 	"https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json";
@@ -43,6 +43,10 @@ const UNREADABLE: Readonly<Record<string, string>> = {
 
 function policyOf(parts: BouncerParts): Policy {
 	return parts.session.config?.policy ?? builtInPolicy;
+}
+
+function offOf(parts: BouncerParts): readonly Rule[] {
+	return parts.session.config?.off ?? [];
 }
 
 function trusted(parts: BouncerParts): boolean {
@@ -81,7 +85,7 @@ function protectLines(config: GateConfig | undefined): string[] {
 
 function status(parts: BouncerParts): string {
 	const { config } = parts.session;
-	const levels = Object.entries(ruleLevels(policyOf(parts)));
+	const levels = Object.entries(ruleLevels(policyOf(parts), offOf(parts)));
 	const byLevel = (level: string): string =>
 		levels
 			.filter(([, at]) => at === level)
@@ -106,16 +110,15 @@ function status(parts: BouncerParts): string {
 }
 
 function rules(parts: BouncerParts): string {
-	const levels = ruleLevels(policyOf(parts));
-	return builtInPolicy
-		.map((entry) => {
-			const name = policyEntryName(entry);
-			const summary =
-				entry.kind === "unreadable" ? UNREADABLE[name] : entry.rule.summary;
-			const steer = entry.kind === "steer" ? `; ${entry.instead}` : "";
-			return `${name} (${levels[name]}): ${summary}${steer}`;
-		})
-		.join("\n");
+	const active = policyOf(parts).map((entry) => {
+		const name = policyEntryName(entry);
+		const summary =
+			entry.kind === "unreadable" ? UNREADABLE[name] : entry.rule.summary;
+		const steer = entry.kind === "steer" ? `; ${entry.instead}` : "";
+		return `${name} (${entry.level}): ${summary}${steer}`;
+	});
+	const off = offOf(parts).map((rule) => `${rule.name} (off): ${rule.summary}`);
+	return [...active, ...off].join("\n");
 }
 
 function explainCommand(

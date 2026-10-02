@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type JevSettings, jevPart } from "./auto-jev-config.ts";
 import { errorText } from "./error-text.ts";
+import { effectivePolicy, ruleLevels } from "./policy.ts";
 import {
 	type ConfigFile,
 	type Levels,
@@ -12,18 +13,11 @@ import {
 	projectLevels,
 	routeOnlyProblem,
 } from "./project-config.ts";
-import { mergeProtect, NO_PROTECT, validProtect } from "./protect.ts";
-import {
-	alwaysDenySet,
-	builtInEntries,
-	builtInPolicy,
-} from "./rules/built-in-policy.ts";
-import { type Protect, rmRootProtecting } from "./rules/filesystem.ts";
-import {
-	type Policy,
-	type PolicyEntry,
-	policyEntryName,
-} from "./rules/rule.ts";
+import { mergeProtect, validProtect } from "./protect.ts";
+import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
+import { type CustomRule, projectRules, validRules } from "./rules/custom.ts";
+import type { Protect } from "./rules/filesystem.ts";
+import type { Policy, Rule } from "./rules/rule.ts";
 import type { ConfigLevel, RuleName } from "./verdict.ts";
 
 export type LogLimits = {
@@ -49,6 +43,8 @@ export type StartMode = "off" | "auto";
 
 export type GateConfig = {
 	readonly policy: Policy;
+	/** Rules a config turned off, built-in and custom; absent when none. */
+	readonly off?: readonly Rule[];
 	/** What both files add to rm-root's protected paths; absent when none. */
 	readonly protect?: Protect;
 	readonly projectTrusted: boolean;
@@ -292,6 +288,7 @@ type Parsed = {
 	readonly auto?: AutoSettings;
 	readonly startMode?: StartMode;
 	readonly protect?: Protect;
+	readonly rules?: readonly CustomRule[];
 };
 
 function validStartMode(
@@ -338,9 +335,8 @@ function parseKey(
 	} else if (key === "$schema") {
 		// For editors only: points at schema/bouncer.schema.json.
 		if (typeof value !== "string") problems.push('"$schema" must be a string');
-	} else if (key === "rules") {
-		problems.push('"rules" is not supported yet and is ignored');
-	} else problems.push(`unknown key "${key}"`);
+	} else if (key === "rules") parts.rules = validRules(value, problems);
+	else problems.push(`unknown key "${key}"`);
 }
 
 /** Sets `parts[key]` only when `value` is defined, so an invalid part is absent. */
@@ -371,29 +367,6 @@ export function routeConfigFile(agentDir: string): string {
 	return join(agentDir, "bouncer.json");
 }
 
-// A rule set to "off" leaves the policy.
-function effectivePolicy(levels: Levels, protect?: Protect): Policy {
-	return builtInPolicy.flatMap((entry): PolicyEntry[] => {
-		if (entry.kind === "unreadable") return [entry];
-		const level = levels[entry.rule.name] ?? entry.level;
-		if (level === "off") return [];
-		if (entry.kind === "steer") return [entry];
-		const rule =
-			protect && entry.rule.name === "rm-root"
-				? rmRootProtecting(protect)
-				: entry.rule;
-		return [{ ...entry, rule, level }];
-	});
-}
-
-// Every built-in entry's level under `policy`: "off" when it left the policy.
-export function ruleLevels(policy: Policy): Record<RuleName, ConfigLevel> {
-	const levels = {} as Record<RuleName, ConfigLevel>;
-	for (const entry of builtInPolicy) levels[policyEntryName(entry)] = "off";
-	for (const entry of policy) levels[policyEntryName(entry)] = entry.level;
-	return levels;
-}
-
 export type Project = { readonly cwd: string; readonly trusted: boolean };
 
 // Project levels override the route (user config) entry by entry, but never loosen
@@ -406,20 +379,29 @@ export function loadConfig(agentDir: string, project: Project): GateConfig {
 		routeFile.levels,
 		project.trusted,
 	);
+	const userRules = routeFile.rules ?? [];
+	const refused: string[] = [];
+	const custom = [
+		...userRules,
+		...projectRules(
+			projectFile.rules ?? [],
+			userRules,
+			project.trusted,
+			refused,
+		),
+	];
+	const { file } = projectConfig;
 	const files = [
 		routeFile.file,
-		projectConfig.file,
+		{ ...file, problems: [...file.problems, ...refused] },
 		...oldProjectFile(project.cwd),
 	];
-	const merged = mergeProtect(
-		routeFile.protect ?? NO_PROTECT,
-		projectFile.protect ?? NO_PROTECT,
-	);
-	const added = merged.home.length > 0 || merged.paths.length > 0;
-	const protect = added ? merged : undefined;
+	const protect = mergeProtect(routeFile.protect, projectFile.protect);
 	const levels = { ...routeFile.levels, ...projectConfig.levels };
+	const { policy, off } = effectivePolicy(levels, protect, custom);
 	return {
-		policy: effectivePolicy(levels, protect),
+		policy,
+		...(off.length > 0 && { off }),
 		...(protect && { protect }),
 		projectTrusted: project.trusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
@@ -456,7 +438,7 @@ export function configRecord(config: GateConfig): ConfigRecord {
 	const base = {
 		files,
 		projectTrusted,
-		levels: ruleLevels(config.policy),
+		levels: ruleLevels(config.policy, config.off),
 		log,
 		...(protect && { protect }),
 	};

@@ -329,6 +329,25 @@ export async function loadGate(loadParser?: ParserLoader): Promise<Handler> {
 	return (await loadGateSession(loadParser)).handler;
 }
 
+/** The "prefer rg" recipe: the grep steer rule that used to be built in. */
+export const PREFER_RG: { readonly rules: readonly object[] } = JSON.parse(
+	readFileSync(new URL("../examples/prefer-rg.json", import.meta.url), "utf8"),
+);
+
+/** A started session whose user config holds the prefer-rg grep rule. */
+export async function grepGate(
+	options: GateOptions = {},
+	config: object = {},
+): Promise<LoadedGate> {
+	const userConfig = { ...PREFER_RG, ...config };
+	const gate = await loadGateSession(undefined, tempLogDir(), {
+		...options,
+		userConfig,
+	});
+	await gate.startSession("startup");
+	return gate;
+}
+
 export type Notice = { readonly message: string; readonly level: string };
 
 export type Statuses = Record<string, string | undefined>;
