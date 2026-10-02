@@ -122,7 +122,7 @@ export function autoRefusal(
 ): string | undefined {
 	const models = config?.auto?.models ?? [];
 	if (models.length === 0) {
-		return `Auto mode stays off: the route's bouncer config has no judge list (auto.models). The ${SKILL} skill can make one.`;
+		return `Auto mode stays off: the user config (bouncer.json in the Pi agent dir) has no judge list (auto.models). The ${SKILL} skill can make one.`;
 	}
 	const registry = registryOf(ctx);
 	const failures: string[] = [];
@@ -409,7 +409,7 @@ export function registerAuto(
 	});
 	pi.registerCommand("auto", {
 		description:
-			"Bouncer auto mode: a model from the route's judge list rules on each ask (on, off, status, or toggle)",
+			"Bouncer auto mode: a model from the judge list (auto.models) rules on each ask (on, off, status, or toggle)",
 		handler: async (args: string, ctx: ExtensionContext): Promise<void> =>
 			autoCommand(args, holder, switchMode, session, ctx),
 	});

@@ -35,6 +35,17 @@ bouncer lived in its author's dotfiles.
   API did not return an answer for safety` instead of `reply has no safety
   answer`. The Jev tests in `src/auto-jev.test.ts` and the bench tests were
   updated to match, deliberately.
+- On a Pi without project trust (`ctx.isProjectTrusted`), the bouncer warns
+  that Pi is too old and treats the project as untrusted, instead of failing
+  at session start.
+- When the bash parser cannot load, the deny now says to reinstall the
+  package or run `npm install` in the package's directory, instead of
+  `pnpm install` in the old dotfiles path. `src/fail-closed.test.ts` was
+  updated to match, deliberately.
+- Messages no longer say "route": "the user's auto.alwaysAsk list", "only
+  the user config (bouncer.json in the Pi agent dir) sets …", and auto
+  mode's refusal names the user config. The log's values are unchanged. The
+  tests asserting these strings were updated, deliberately.
 - `auto.jev.model` is no longer an unknown key; a value that is not
   `provider/id` is a config problem and leaves Jev off.
 

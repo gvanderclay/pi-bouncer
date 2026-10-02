@@ -1,3 +1,5 @@
+import { dirname } from "node:path";
+
 export type VerdictLevel = "deny" | "ask";
 
 export type RuleName =
@@ -57,11 +59,14 @@ export function clip(command: string): string {
 	return truncate(command, REASON_LIMIT);
 }
 
+// The package root, one level above this file in src/.
+const PACKAGE_DIR = dirname(import.meta.dirname);
+
 export function parserUnavailable(command: string): Verdict {
 	return {
 		level: "deny",
 		rule: "parser-unavailable",
-		reason: `${PREFIX} (rule: parser-unavailable): the bouncer could not load its bash parser, so every bash command is blocked. Tell the user to run \`pnpm install\` in pi/extensions/bouncer.`,
+		reason: `${PREFIX} (rule: parser-unavailable): the bouncer could not load its bash parser (unbash), so every bash command is blocked. Tell the user to reinstall the package (\`pi install npm:pi-bouncer\`), or for a local checkout to run \`npm install\` in ${PACKAGE_DIR}.`,
 		command,
 	};
 }

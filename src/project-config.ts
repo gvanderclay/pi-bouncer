@@ -72,10 +72,10 @@ export function projectLevels(
 }
 
 const ROUTE_ONLY: Readonly<Record<string, string>> = {
-	log: '"log" is ignored in a project file: only the route sets log limits',
-	auto: '"auto" is ignored in a project file: only the route sets auto mode',
+	log: '"log" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets log limits',
+	auto: '"auto" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets auto mode',
 	startMode:
-		'"startMode" is ignored in a project file: only the route sets the start mode',
+		'"startMode" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets the start mode',
 };
 
 export function routeOnlyProblem(key: string): string | undefined {

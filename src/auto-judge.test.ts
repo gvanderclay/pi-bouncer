@@ -495,7 +495,7 @@ test("aborting the turn aborts the outstanding judge call", async () => {
 });
 
 const ALWAYS_ASK_TITLE = (source: string, prefix: string): string =>
-	`Bouncer: "${prefix}" is on the route's always-ask list (rule: always-ask)\n${source}`;
+	`Bouncer: "${prefix}" is on the user's auto.alwaysAsk list (rule: always-ask)\n${source}`;
 
 test("an alwaysAsk prefix opens the dialog with no judge call, though no rule matched", async () => {
 	const { gate, fake } = await judgedGate(verdict("allow", "ok"), {
@@ -577,7 +577,7 @@ test("an alwaysAsk hit without a UI blocks with the no-UI reason", async () => {
 	const result = await gate.handler(bashCall("terraform apply"), noUI(fake));
 	assert.equal(
 		result?.reason,
-		`Blocked by the user's bouncer (rule: always-ask): "terraform apply" is on the route's always-ask list. Command: \`terraform apply\`. ${HARD_DENY_TAIL}`,
+		`Blocked by the user's bouncer (rule: always-ask): "terraform apply" is on the user's auto.alwaysAsk list. Command: \`terraform apply\`. ${HARD_DENY_TAIL}`,
 	);
 	assert.deepEqual(fake.requests, []);
 });

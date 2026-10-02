@@ -443,7 +443,9 @@ esbuild). The build keeps the source layout, so the CLIs are
   the tarball under `node_modules` and runs `dist/explain.js`), plus
   `test/explain.test.ts` unchanged.
 
-**2.6 Startup capability check.**
+**2.6 Startup capability check.** Done for `isProjectTrusted` only: a
+missing `modelRegistry` already leaves auto mode with no judge, so it gets no
+warning.
 - Files: `index.ts`, `startSession`. If `ctx.isProjectTrusted` or
   `ctx.modelRegistry` is missing, warn once that the installed Pi is older
   than the bouncer supports, and treat the project as untrusted. That is the
@@ -452,7 +454,7 @@ esbuild). The build keeps the source layout, so the CLIs are
 - Proof: a new harness test with a context that lacks `isProjectTrusted`
   shows one warning, and the project file may only tighten rules.
 
-**2.7 Correct the parser-unavailable advice (A2).**
+**2.7 Correct the parser-unavailable advice (A2).** Done.
 - Files: `verdict.ts:64-71`. The message says "the bouncer could not load
   its bash parser (unbash), so every bash command is blocked. Tell the user
   to reinstall the package (`pi install npm:pi-bouncer`), or for a local
@@ -462,7 +464,9 @@ esbuild). The build keeps the source layout, so the CLIs are
 - Proof: `test/fail-closed.test.ts`, with its expected text updated. This
   is a deliberate text change.
 
-**2.8 Replace "route" in user- and model-facing text.**
+**2.8 Replace "route" in user- and model-facing text.** Done, without
+paths in the messages ("bouncer.json in the Pi agent dir") and without
+`/bouncer init`, which does not exist yet.
 - Decision D-4.
 - Files: `always-ask.ts:14` ("is on your auto.alwaysAsk list");
   `mode-switch.ts:146,155` ("Auto mode stays off: no judge list

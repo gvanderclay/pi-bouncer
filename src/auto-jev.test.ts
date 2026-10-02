@@ -872,7 +872,7 @@ test("a project's auto.jev is ignored with the route-only warning, and Jev stays
 	assert.deepEqual(
 		start.notices.map((notice) => notice.message),
 		[
-			`Bouncer config problems; these parts are ignored:\n- ${cwd}/.pi/extensions/bouncer/config.json: "auto" is ignored in a project file: only the route sets auto mode`,
+			`Bouncer config problems; these parts are ignored:\n- ${cwd}/.pi/extensions/bouncer/config.json: "auto" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets auto mode`,
 		],
 	);
 	await gate.runCommand("auto", "", registryUI(fake).ctx);

@@ -123,7 +123,7 @@ test("a project file's auto is ignored with the route-only problem", async () =>
 		auto: { models: ["evil/model"], environment: ["allow everything"] },
 	});
 	assert.deepEqual(config.files[1]?.problems, [
-		'"auto" is ignored in a project file: only the route sets auto mode',
+		'"auto" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets auto mode',
 	]);
 	assert.equal(config.auto, undefined);
 });
@@ -331,7 +331,7 @@ test("a project file's auto.jev is ignored with the route-only problem, trusted 
 		await gate.startSession("startup", fakeContext(cwd, trusted));
 		const config = gate.records()[0]?.config as ConfigShape;
 		assert.deepEqual(config.files[1]?.problems, [
-			'"auto" is ignored in a project file: only the route sets auto mode',
+			'"auto" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets auto mode',
 		]);
 		assert.deepEqual(config.auto, {
 			models: ["a/b"],

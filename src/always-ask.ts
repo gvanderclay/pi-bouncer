@@ -7,7 +7,7 @@ import type { Invocation } from "./scan/walk.ts";
 export const ALWAYS_ASK = "always-ask";
 
 export function alwaysAskSummary(prefix: string): string {
-	return `"${prefix}" is on the route's always-ask list`;
+	return `"${prefix}" is on the user's auto.alwaysAsk list`;
 }
 
 function argvOf(invocation: Invocation): readonly string[] {

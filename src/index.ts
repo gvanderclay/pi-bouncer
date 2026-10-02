@@ -140,6 +140,18 @@ function warnAboutConfig(config: GateConfig, ctx: ExtensionContext): void {
 	);
 }
 
+// A Pi without project trust gets a strict bouncer, not a crash at startup.
+// A missing model registry needs no check: auto mode then finds no judge.
+function trustedIfKnown(ctx: ExtensionContext): boolean {
+	if (typeof ctx.isProjectTrusted === "function") return ctx.isProjectTrusted();
+	if (ctx.hasUI)
+		ctx.ui.notify(
+			"This Pi is older than the bouncer supports: it cannot say whether this project is trusted, so a project bouncer config may only tighten rules. Update Pi.",
+			"warning",
+		);
+	return false;
+}
+
 type Runtime = {
 	readonly pi: ExtensionAPI;
 	readonly gate: ReturnType<typeof createGate>;
@@ -166,7 +178,7 @@ function startSession(
 	// The flags need the config: `--auto` checks the judge list.
 	const config = loadConfig(rt.agentDir, {
 		cwd: ctx.cwd,
-		trusted: ctx.isProjectTrusted(),
+		trusted: trustedIfKnown(ctx),
 	});
 	rt.session.config = config;
 	applyStartFlags(rt.pi, holder, rt.switchMode, config, ctx);

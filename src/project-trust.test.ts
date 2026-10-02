@@ -139,6 +139,25 @@ test("an untrusted project config setting git-push-force to ask is ignored with 
 	);
 });
 
+test("a Pi without isProjectTrusted warns once and treats the project as untrusted", async () => {
+	const gate = await loadGateSession();
+	gate.writeRouteConfig({ levels: { "git-push-force": "deny" } });
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { levels: { "git-push-force": "ask" } });
+	const { ctx, notices } = uiContext(cwd, true);
+	delete (ctx as { isProjectTrusted?: unknown }).isProjectTrusted;
+	await gate.startSession("startup", ctx);
+	const result = await gate.handler(
+		bashCall("git push --force"),
+		scriptedUI([], cwd).ctx,
+	);
+	assert.equal(result?.block, true);
+	assert.equal(notices.length, 2, JSON.stringify(notices));
+	assert.match(notices[0]?.message ?? "", /older than the bouncer supports/);
+	assert.match(notices[1]?.message ?? "", /the project is not trusted/);
+	assert.equal(projectTrusted(gate.records()), false);
+});
+
 test("an untrusted project config raising an ask rule to deny applies", async () => {
 	const gate = await loadGateSession();
 	const cwd = tempProjectDir();
@@ -206,9 +225,9 @@ test("a project config's route-only keys are each ignored with their own message
 		notices[0]?.message,
 		[
 			"Bouncer config problems; these parts are ignored:",
-			`- ${path}: "log" is ignored in a project file: only the route sets log limits`,
-			`- ${path}: "auto" is ignored in a project file: only the route sets auto mode`,
-			`- ${path}: "startMode" is ignored in a project file: only the route sets the start mode`,
+			`- ${path}: "log" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets log limits`,
+			`- ${path}: "auto" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets auto mode`,
+			`- ${path}: "startMode" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets the start mode`,
 		].join("\n"),
 	);
 });

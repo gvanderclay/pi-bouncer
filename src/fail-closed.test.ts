@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { dirname } from "node:path";
 import { test } from "node:test";
 import { bashCall, fakeContext, loadGate, toolCall } from "../test/harness.ts";
+
+const PACKAGE_DIR = dirname(import.meta.dirname);
 
 const failingLoader = (): Promise<never> =>
 	Promise.reject(new Error("Cannot find package 'unbash'"));
@@ -11,8 +14,12 @@ for (const command of ["ls", "echo hi", "git status", ""]) {
 		const result = await handler(bashCall(command), fakeContext());
 		assert.equal(result?.block, true);
 		assert.match(result?.reason ?? "", /\(rule: parser-unavailable\)/);
-		assert.match(result?.reason ?? "", /pnpm install/);
-		assert.match(result?.reason ?? "", /pi\/extensions\/bouncer/);
+		assert.ok(
+			result?.reason?.includes(
+				`(\`pi install npm:pi-bouncer\`), or for a local checkout to run \`npm install\` in ${PACKAGE_DIR}.`,
+			),
+			String(result?.reason),
+		);
 		assert.equal(result?.terminate, undefined);
 	});
 }

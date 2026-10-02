@@ -295,7 +295,7 @@ export function jevReport(
 }
 
 const USAGE =
-	"usage: node bench.ts jev [--agent-dir <route>] [--samples N] [--model provider/id]\n" +
+	"usage: node bench.ts jev [--agent-dir <agent dir>] [--samples N] [--model provider/id]\n" +
 	"Asks Jev about every bench and held-out case N times (default 3); spends real quota.\n" +
 	"--model is a Pi classifier model, as in auto.jev.model; without it, OpenCode Zen with the opencode-go key.\n";
 
@@ -378,7 +378,7 @@ export async function jevMain(
 		);
 	} catch (error) {
 		process.stderr.write(
-			`jev: ${errorText(error)} for route ${parsed.route}\n`,
+			`jev: ${errorText(error)} for agent dir ${parsed.route}\n`,
 		);
 		process.exitCode = 1;
 		return;

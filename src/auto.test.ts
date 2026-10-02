@@ -74,7 +74,7 @@ test("/auto with no judge list refuses and names the skill", async () => {
 	assert.deepEqual(notices, [
 		{
 			message:
-				"Auto mode stays off: the route's bouncer config has no judge list (auto.models). The auto-judge-list skill can make one.",
+				"Auto mode stays off: the user config (bouncer.json in the Pi agent dir) has no judge list (auto.models). The auto-judge-list skill can make one.",
 			level: "warning",
 		},
 	]);
