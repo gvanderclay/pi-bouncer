@@ -58,6 +58,12 @@ test("a profile that denies recursive-rm denies it with no dialog; without the a
 	assert.equal((await call(plain, "rm -rf build", [undefined])).dialogs, 1);
 });
 
+test("an agent with no profile runs the normal rules: rm -rf build still asks", async () => {
+	const wanderer = await started(READONLY, { PI_SUBAGENT_AGENT: "wanderer" });
+	const asked = await call(wanderer, "rm -rf build", [undefined]);
+	assert.equal(asked.dialogs, 1);
+});
+
 test("PI_BOUNCER_AGENT wins over PI_SUBAGENT_AGENT", async () => {
 	const config = {
 		profiles: {

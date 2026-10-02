@@ -22,10 +22,15 @@ so `/trust` applies after a restart or `/reload`. What a project file may do:
   or add a steer rule, because steer text is sent to the model.
 - A trusted project may also lower levels and turn rules off.
 - No project file, trusted or not, may loosen the always-deny set, or set
-  `log`, `auto` or `startMode`; only the user config can.
+  `log`, `auto` or `startMode`; only the user config can. The one exception
+  is a profile's `mode`: a trusted project's profile may set `"off"` or
+  `"auto"`, an untrusted one only `"off"`.
 - A project rule may not reuse the name of a user rule.
-- A project file's `profiles` and `agents` follow the same rules: see
-  [`profiles`](#profiles) and [`agents`](#agents).
+- A project file's `profiles` and `agents` follow the same rules. An
+  untrusted project's profile only tightens, and its `agents` entry applies
+  only to an agent the user config does not map, naming a profile the user
+  config does not define. A trusted project's `agents` entry overrides the
+  user's. See [`profiles`](#profiles) and [`agents`](#agents).
 
 An entry the bouncer refuses or cannot read falls back to its built-in value.
 One warning at session start lists every problem, and `/bouncer check`
