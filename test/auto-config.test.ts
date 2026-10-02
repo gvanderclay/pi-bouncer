@@ -1,5 +1,5 @@
 // The bouncer config's route-only `auto` keys, seen through the session record:
-// the validated settings, the problems, and the seeded daily route file.
+// the validated settings, the problems, and a full example config.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -143,19 +143,11 @@ test("a project auto never replaces the route's", async () => {
 	});
 });
 
-// The daily route's seeded file, the only judge list in the repo.
-const SEEDED = join(
-	import.meta.dirname,
-	"..",
-	"..",
-	"..",
-	".pi",
-	"agent",
-	"bouncer.json",
-);
+// A realistic full config: start mode, judge list, firstByProvider and Jev.
+const EXAMPLE = join(import.meta.dirname, "fixtures", "example-config.json");
 
-test("the daily route's seeded judge list loads with no problems", async () => {
-	const config = await sessionConfig(readFileSync(SEEDED, "utf8"));
+test("a full example config with a judge list loads with no problems", async () => {
+	const config = await sessionConfig(readFileSync(EXAMPLE, "utf8"));
 	assert.deepEqual(routeProblems(config), []);
 });
 
