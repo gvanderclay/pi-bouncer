@@ -174,9 +174,10 @@ async function main(): Promise<void> {
 			cwd,
 			trusted: trust.trusted,
 		},
-		values.agent === undefined
-			? undefined
-			: { name: values.agent, variable: "--agent" },
+		// Trimmed, and blank means none, as agentFrom reads the live variables.
+		values.agent?.trim()
+			? { name: values.agent.trim(), variable: "--agent" }
+			: undefined,
 	);
 	const record = { ...inspection, config: configRecord(config), trust };
 	const output = values.json

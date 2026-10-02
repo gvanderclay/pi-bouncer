@@ -489,3 +489,28 @@ test("explain.ts --agent replays under that agent's profile", () => {
 		name: "readonly",
 	});
 });
+
+test("explain.ts --agent is trimmed, and a blank one means no agent", () => {
+	const agentDir = routeWith({
+		profiles: { readonly: { levels: { "recursive-rm": "deny" } } },
+		agents: { scout: "readonly" },
+	});
+	const where = ["--agent-dir", agentDir, "--cwd", tempProjectDir()];
+	const padded = runArgs([
+		...where,
+		"--agent",
+		" scout ",
+		"--json",
+		"rm -rf build",
+	]);
+	assert.equal(padded.status, 0, padded.stderr);
+	assert.deepEqual(JSON.parse(padded.stdout).withUI, {
+		kind: "deny",
+		rule: "recursive-rm",
+	});
+	const blank = runArgs([...where, "--agent", " ", "--json", "rm -rf build"]);
+	assert.equal(blank.status, 0, blank.stderr);
+	const json = JSON.parse(blank.stdout);
+	assert.deepEqual(json.withUI, { kind: "ask" });
+	assert.equal(json.config.profile, undefined);
+});

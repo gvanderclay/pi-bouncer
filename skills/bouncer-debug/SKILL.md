@@ -289,10 +289,9 @@ holds it.
 
 3. **Find the call** by its command, and read `outcome`, `matches`, `asks`
    and `reason`: they say which rule caught what, what the user answered,
-   and what the model was told. When a profile applied, the call also
-   carries `agent` and `profile`, the agent name and the profile it ran
-   under. A level that differs from the built-in one
-   comes from the bouncer config: the latest `session` record before the call
+   and what the model was told. A level that differs from the built-in one
+   comes from the bouncer config (or, when the call has `agent` and
+   `profile`, from that profile): the latest `session` record before the call
    has it in `config.levels` and names the file in `config.files`.
    **Ran without asking?** `yolo: true` on the call means YOLO mode allowed
    it (answers `yolo`), and `withoutYolo` says what would have happened
@@ -349,13 +348,13 @@ holds it.
    that stops it before any judge; it never calls a model or reads git), then
    a `config:` line naming the bouncer config files it read and their
    problems, then a `trust:` line with the project trust state it used and
-   where that came from. It applies the same config as the live bouncer: the user config from
-   `$PI_CODING_AGENT_DIR` (or `~/.pi/agent`) and the project from the current
-   directory. To replay a session that ran elsewhere, pass `--agent-dir` and
-   `--cwd` (the record's `cwd`). When the call record has `agent`, pass
-   `--agent <agent>` to replay under the profile it ran in. The project's
-   trust state decides which
-   project levels apply: `--trusted` or `--untrusted` sets it, and to match a
+   where that came from. It applies the same config as the live bouncer: the
+   user config from `$PI_CODING_AGENT_DIR` (or `~/.pi/agent`) and the project
+   from the current directory. To replay a session that ran elsewhere, pass
+   `--agent-dir` and `--cwd` (the record's `cwd`). When the call record has
+   `agent`, pass `--agent <agent>` to replay under its profile, as the config
+   defines that profile now: a profile edited since the call replays
+   differently. The project's trust state decides which project levels apply: `--trusted` or `--untrusted` sets it, and to match a
    past session pass the one its record's `config.projectTrusted` says.
    Without either it uses Pi's saved decision in the agent dir's `trust.json`
    (a project with no saved decision counts as
