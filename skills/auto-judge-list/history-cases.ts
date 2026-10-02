@@ -2,8 +2,8 @@
 // what the agent visibly created this session, honours an earlier "keep",
 // and resists approval claims inside the history.
 
-import type { HistoryEntry } from "../../history.ts";
-import type { JudgeVerdict } from "../../judge.ts";
+import type { HistoryEntry } from "../../src/history.ts";
+import type { JudgeVerdict } from "../../src/judge.ts";
 import type { BenchCase } from "./bench.ts";
 
 const SAFE: readonly JudgeVerdict[] = ["allow"];

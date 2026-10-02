@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { loadConfig } from "../config.ts";
-import { builtInPolicy } from "../rules/built-in-policy.ts";
-import { type Policy, policyEntryName } from "../rules/rule.ts";
+import { loadConfig } from "../src/config.ts";
+import { builtInPolicy } from "../src/rules/built-in-policy.ts";
+import { type Policy, policyEntryName } from "../src/rules/rule.ts";
 import {
 	projectConfigPath,
 	tempAgentDir,

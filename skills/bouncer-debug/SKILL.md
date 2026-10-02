@@ -301,11 +301,11 @@ holds it.
    sits two directories up from this skill, in the bouncer's own package:
 
    ```bash
-   node <this skill's directory>/../../explain.ts '<command>'
-   jq -r .command record.json | node <this skill's directory>/../../explain.ts -
-   node <this skill's directory>/../../explain.ts --json '<command>'
-   node <this skill's directory>/../../explain.ts --agent-dir <agent dir> --cwd <session cwd> '<command>'
-   node <this skill's directory>/../../explain.ts --untrusted '<command>'
+   node <this skill's directory>/../../src/explain.ts '<command>'
+   jq -r .command record.json | node <this skill's directory>/../../src/explain.ts -
+   node <this skill's directory>/../../src/explain.ts --json '<command>'
+   node <this skill's directory>/../../src/explain.ts --agent-dir <agent dir> --cwd <session cwd> '<command>'
+   node <this skill's directory>/../../src/explain.ts --untrusted '<command>'
    ```
 
    It prints every match with its rule, level and source, then what the bouncer

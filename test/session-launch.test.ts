@@ -4,7 +4,7 @@
 // event bus (`test/harness.ts`).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createModeHolder, type GateMode } from "../mode.ts";
+import { createModeHolder, type GateMode } from "../src/mode.ts";
 import { type LoadedGate, loadGateSession } from "./harness.ts";
 
 /** The bouncer loaded with `mode` already on, as a session in that mode. */

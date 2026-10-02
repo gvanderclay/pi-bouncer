@@ -28,16 +28,14 @@
 	"packageManager": "pnpm@10.33.0",
 	"pi": {
 		"extensions": [
-			"./index.ts"
+			"./src/index.ts"
 		],
 		"skills": [
 			"./skills"
 		]
 	},
 	"files": [
-		"*.ts",
-		"rules",
-		"scan",
+		"src",
 		"skills",
 		"README.md",
 		"LICENSE"

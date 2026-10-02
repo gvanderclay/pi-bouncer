@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "unbash";
-import { explain } from "../explain.ts";
-import type { Inspection, ParseFn } from "../gate.ts";
+import { explain } from "../src/explain.ts";
+import type { Inspection, ParseFn } from "../src/gate.ts";
 import {
 	projectConfigPath,
 	tempAgentDir,
@@ -288,7 +288,7 @@ for (const [label, command, config, expected] of autoRows) {
 	});
 }
 
-const EXPLAIN = fileURLToPath(new URL("../explain.ts", import.meta.url));
+const EXPLAIN = fileURLToPath(new URL("../src/explain.ts", import.meta.url));
 
 /** `node explain.ts` on `command` under a route whose bouncer config is `config`. */
 function run(command: string, config: object, json = false): string {

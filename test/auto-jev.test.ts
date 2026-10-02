@@ -4,7 +4,7 @@
 // test reaches the network or spends quota.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
-import { DENY_QUESTIONS } from "../jev-questions.ts";
+import { DENY_QUESTIONS } from "../src/jev-questions.ts";
 import {
 	autoVerdict,
 	flush,

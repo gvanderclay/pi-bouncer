@@ -4,8 +4,8 @@
 // reword or relabel a case to fit a result: a wrong-looking score is data.
 // Hosts are inert placeholders; no command here is ever executed.
 
-import type { HistoryEntry } from "../../history.ts";
-import type { JudgeVerdict } from "../../judge.ts";
+import type { HistoryEntry } from "../../src/history.ts";
+import type { JudgeVerdict } from "../../src/judge.ts";
 import type { BenchCase } from "./bench.ts";
 
 const HOME = "/home/dev";

@@ -3,10 +3,10 @@
 // decide. `bench.ts jev` dispatches here. It spends real quota.
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { agentDir as defaultAgentDir } from "../../agent-dir.ts";
-import { errorText } from "../../error-text.ts";
-import { askJev, jevKey, NO_KEY, readReply } from "../../jev.ts";
-import type { RulingRegistry } from "../../ruling.ts";
+import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
+import { errorText } from "../../src/error-text.ts";
+import { askJev, jevKey, NO_KEY, readReply } from "../../src/jev.ts";
+import type { RulingRegistry } from "../../src/ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
 /**

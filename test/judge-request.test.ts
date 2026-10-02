@@ -3,14 +3,14 @@
 // Nothing of the project is mocked.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { HistoryEntry } from "../history.ts";
+import { type BenchCase, requestFor } from "../skills/auto-judge-list/bench.ts";
+import type { HistoryEntry } from "../src/history.ts";
 import {
 	type JudgeFields,
 	jevState,
 	judgeInput,
 	judgeRequest,
-} from "../judge-request.ts";
-import { type BenchCase, requestFor } from "../skills/auto-judge-list/bench.ts";
+} from "../src/judge-request.ts";
 
 const APP = "/home/dev/workspace/app";
 const ASKS = [

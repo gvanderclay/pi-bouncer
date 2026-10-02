@@ -45,7 +45,7 @@ Once it is published, install it by name instead:
 pi install npm:pi-bouncer
 ```
 
-The `pi` manifest loads `./index.ts` and `./skills`, and the tests under
+The `pi` manifest loads `./src/index.ts` and `./skills`, and the tests under
 `test/` are neither loaded by Pi nor included in the npm tarball.
 
 ## Requirements

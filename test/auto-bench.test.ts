@@ -4,9 +4,6 @@
 // call, and nothing here loads Pi.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
-import { askJev, classify, type JevAnswer } from "../jev.ts";
-import { JUDGE_CRITERIA, JUDGE_PROMPT, type JudgeRegistry } from "../judge.ts";
-import { judgeInput } from "../judge-request.ts";
 import {
 	BENCH_PROMPT,
 	type BenchCase,
@@ -28,6 +25,13 @@ import {
 	runJevBench,
 	upperBound,
 } from "../skills/auto-judge-list/jev-bench.ts";
+import { askJev, classify, type JevAnswer } from "../src/jev.ts";
+import {
+	JUDGE_CRITERIA,
+	JUDGE_PROMPT,
+	type JudgeRegistry,
+} from "../src/judge.ts";
+import { judgeInput } from "../src/judge-request.ts";
 import { fakeRegistry, type ModelReply, verdict } from "./harness.ts";
 import { fourFor, jevReply, replyWith } from "./jev-replies.ts";
 

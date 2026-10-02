@@ -19,8 +19,8 @@ import {
 	type ToolCallEventResult,
 	type ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
-import bouncer, { type ParserLoader } from "../index.ts";
-import { createModeHolder, type ModeHolder } from "../mode.ts";
+import bouncer, { type ParserLoader } from "../src/index.ts";
+import { createModeHolder, type ModeHolder } from "../src/mode.ts";
 
 export type Handler = (
 	event: ToolCallEvent,

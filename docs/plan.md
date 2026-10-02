@@ -31,7 +31,9 @@ are not needed to carry it out.
   under `docs/` (packages.md, extensions.md, security.md, models.md) were
   read for this plan.
 - Unless a path says otherwise, every `path:line` below is relative to
-  `~/workspace/pi-bouncer` as of `a4e8f94`.
+  `~/workspace/pi-bouncer` as of `a4e8f94`. The source has since moved
+  under `src/` (for example `config.ts` is now `src/config.ts`); `test/`,
+  `skills/` and the root files stayed where they were.
 
 ## Goal and scope
 

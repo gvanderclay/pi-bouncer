@@ -17,18 +17,18 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parse } from "unbash";
-import { agentDir as defaultAgentDir } from "../../agent-dir.ts";
-import { loadConfig } from "../../config.ts";
-import type { HistoryEntry } from "../../history.ts";
+import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
+import { loadConfig } from "../../src/config.ts";
+import type { HistoryEntry } from "../../src/history.ts";
 import {
 	JUDGE_PROMPT,
 	type JudgeRegistry,
 	type JudgeVerdict,
 	runJudge,
-} from "../../judge.ts";
-import { type JudgeRequest, judgeRequest } from "../../judge-request.ts";
-import { rankAuto, read } from "../../rank.ts";
-import { builtInPolicy } from "../../rules/built-in-policy.ts";
+} from "../../src/judge.ts";
+import { type JudgeRequest, judgeRequest } from "../../src/judge-request.ts";
+import { rankAuto, read } from "../../src/rank.ts";
+import { builtInPolicy } from "../../src/rules/built-in-policy.ts";
 import { historyCases } from "./history-cases.ts";
 
 /** The prompt the bench judges with: the bouncer's own, never a copy. */

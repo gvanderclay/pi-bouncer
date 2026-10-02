@@ -19,8 +19,8 @@ const REQUIRED = [
 	"package.json",
 	"README.md",
 	"LICENSE",
-	"index.ts",
-	"explain.ts",
+	"src/index.ts",
+	"src/explain.ts",
 	"skills/bouncer-debug/SKILL.md",
 	"skills/auto-judge-list/SKILL.md",
 ];
