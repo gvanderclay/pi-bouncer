@@ -31,6 +31,7 @@ import {
 	type JudgeSent,
 	recordEntry,
 } from "./history.ts";
+import { judgeFor } from "./judge-wiring.ts";
 import {
 	appendRecord,
 	callRecord,
@@ -46,7 +47,6 @@ import {
 	applyStartFlags,
 	autoRefusal,
 	createModeSwitch,
-	judgeFor,
 	type ModeSwitch,
 	registerAuto,
 	registerYolo,
