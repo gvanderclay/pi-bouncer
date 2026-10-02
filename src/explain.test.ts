@@ -462,3 +462,30 @@ test("explain.ts with both trust flags is a usage error", () => {
 	assert.equal(result.status, 2);
 	assert.match(result.stderr, /--trusted/);
 });
+
+test("explain.ts --agent replays under that agent's profile", () => {
+	const agentDir = routeWith({
+		profiles: { readonly: { levels: { "recursive-rm": "deny" } } },
+		agents: { scout: "readonly" },
+	});
+	const where = ["--agent-dir", agentDir, "--cwd", tempProjectDir()];
+	const plain = runArgs([...where, "--json", "rm -rf build"]);
+	assert.equal(plain.status, 0, plain.stderr);
+	assert.deepEqual(JSON.parse(plain.stdout).withUI, { kind: "ask" });
+	const profiled = runArgs([
+		...where,
+		"--agent",
+		"scout",
+		"--json",
+		"rm -rf build",
+	]);
+	assert.equal(profiled.status, 0, profiled.stderr);
+	const json = JSON.parse(profiled.stdout);
+	assert.deepEqual(json.withUI, { kind: "deny", rule: "recursive-rm" });
+	assert.deepEqual(json.config.profile, {
+		state: "profile",
+		agent: "scout",
+		from: "--agent",
+		name: "readonly",
+	});
+});

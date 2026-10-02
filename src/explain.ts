@@ -5,17 +5,20 @@
 //   jq -r .command record.json | node explain.ts -
 //   node explain.ts --json 'sudo ls'
 //   node explain.ts --agent-dir "$HOME/.pi/agent" --cwd /repo 'sudo ls'
+//   node explain.ts --agent scout 'rm -rf x'
 //   node explain.ts --untrusted 'git push --force'
 //
 // Agent dir: `PI_CODING_AGENT_DIR` or `~/.pi/agent`; project: the current
 // directory, unless `--agent-dir` or `--cwd` say otherwise. Trust: `--trusted` or
 // `--untrusted`, else Pi's saved decision in the agent dir's `trust.json` (none
-// is untrusted); without Pi's package it refuses to guess.
+// is untrusted); without Pi's package it refuses to guess. Profile: `--agent
+// <name>` replays under that agent's profile; without it the normal rules run.
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { agentDir } from "./agent-dir.ts";
+import type { AgentSource } from "./agent-env.ts";
 import {
 	type ConfigFile,
 	configRecord,
@@ -43,8 +46,9 @@ export function explain(
 	command: string,
 	agentDir: string,
 	project: Project,
+	agent?: AgentSource,
 ): Explanation {
-	const config = loadConfig(agentDir, project);
+	const config = loadConfig(agentDir, project, agent);
 	const where = { cwd: project.cwd, home: homedir() };
 	const alwaysAsk = config.auto?.alwaysAsk ?? [];
 	const inspection = inspect(parse, command, config.policy, where, alwaysAsk);
@@ -128,13 +132,14 @@ async function resolveTrust(
 }
 
 const USAGE =
-	"usage: node explain.ts [--json] [--agent-dir <path>] [--cwd <path>] [--trusted | --untrusted] <command | ->\n";
+	"usage: node explain.ts [--json] [--agent <name>] [--agent-dir <path>] [--cwd <path>] [--trusted | --untrusted] <command | ->\n";
 
 async function main(): Promise<void> {
 	const { values, positionals } = parseArgs({
 		allowPositionals: true,
 		options: {
 			json: { type: "boolean", default: false },
+			agent: { type: "string" },
 			"agent-dir": { type: "string" },
 			cwd: { type: "string" },
 			trusted: { type: "boolean", default: false },
@@ -161,10 +166,18 @@ async function main(): Promise<void> {
 		process.exitCode = 2;
 		return;
 	}
-	const { inspection, config } = explain(await loadParser(), command, route, {
-		cwd,
-		trusted: trust.trusted,
-	});
+	const { inspection, config } = explain(
+		await loadParser(),
+		command,
+		route,
+		{
+			cwd,
+			trusted: trust.trusted,
+		},
+		values.agent === undefined
+			? undefined
+			: { name: values.agent, variable: "--agent" },
+	);
 	const record = { ...inspection, config: configRecord(config), trust };
 	const output = values.json
 		? JSON.stringify(record, null, 2)
