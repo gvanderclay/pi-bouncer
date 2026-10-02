@@ -21,7 +21,9 @@ tests load as `PREFER_RG`, in `examples/prefer-rg.json`. `RuleName` is now
 `string`.
 4.1–4.3 are done (2026-10-02): `src/schema.test.ts` loads every
 `examples/*.json`, and GitHub private vulnerability reporting is on for
-`SECURITY.md`.
+`SECURITY.md`. 4.4 is done: 0.1.0 is on npm (2026-10-02), published by
+`.github/workflows/release.yml` with `npm stage publish` and approved with
+2FA, because the owner's npm token is stage-only.
 Auto mode's refusal does not point at `/bouncer init`, because `init` writes
 no judge list.
 
