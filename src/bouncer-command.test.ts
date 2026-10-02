@@ -80,6 +80,7 @@ test("/bouncer status and rules show rules turned off", async () => {
 	const status = (await text(gate, "status")).split("\n");
 	assert.ok(status.includes("Off: git-clean, grep"), status.join("\n"));
 	assert.ok(!status.find((l) => l.startsWith("Ask: "))?.includes("git-clean"));
+	assert.ok(!status.some((l) => l.startsWith("rm-root also protects")));
 	const rules = (await text(gate, "rules")).split("\n");
 	assert.equal(rules.length, 25);
 	assert.ok(
@@ -88,6 +89,14 @@ test("/bouncer status and rules show rules turned off", async () => {
 		),
 	);
 	assert.match(rules.at(-1) ?? "", /^grep \(off\): /);
+});
+
+test("/bouncer status lists the paths protect adds", async () => {
+	const gate = await started({
+		protect: { home: ["code"], paths: ["/srv/x"] },
+	});
+	const status = (await text(gate, "status")).split("\n");
+	assert.ok(status.includes("rm-root also protects: ~/code, /srv/x"));
 });
 
 test("/bouncer explain replays a command under the session's config", async () => {

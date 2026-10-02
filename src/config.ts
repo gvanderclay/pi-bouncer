@@ -12,11 +12,13 @@ import {
 	projectLevels,
 	routeOnlyProblem,
 } from "./project-config.ts";
+import { mergeProtect, NO_PROTECT, validProtect } from "./protect.ts";
 import {
 	alwaysDenySet,
 	builtInEntries,
 	builtInPolicy,
 } from "./rules/built-in-policy.ts";
+import { type Protect, rmRootProtecting } from "./rules/filesystem.ts";
 import {
 	type Policy,
 	type PolicyEntry,
@@ -47,6 +49,8 @@ export type StartMode = "off" | "auto";
 
 export type GateConfig = {
 	readonly policy: Policy;
+	/** What both files add to rm-root's protected paths; absent when none. */
+	readonly protect?: Protect;
 	readonly projectTrusted: boolean;
 	readonly log: LogLimits;
 	readonly startMode: StartMode;
@@ -287,6 +291,7 @@ type Parsed = {
 	readonly log?: LogLimits;
 	readonly auto?: AutoSettings;
 	readonly startMode?: StartMode;
+	readonly protect?: Protect;
 };
 
 function validStartMode(
@@ -327,6 +332,7 @@ function parseKey(
 	if (key === "levels") parts.levels = validLevels(value, problems);
 	else if (key === "log") assign(parts, "log", validLog(value, problems));
 	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
+	else if (key === "protect") parts.protect = validProtect(value, problems);
 	else if (key === "startMode") {
 		assign(parts, "startMode", validStartMode(value, problems));
 	} else if (key === "$schema") {
@@ -366,12 +372,17 @@ export function routeConfigFile(agentDir: string): string {
 }
 
 // A rule set to "off" leaves the policy.
-function effectivePolicy(levels: Levels): Policy {
+function effectivePolicy(levels: Levels, protect?: Protect): Policy {
 	return builtInPolicy.flatMap((entry): PolicyEntry[] => {
 		if (entry.kind === "unreadable") return [entry];
 		const level = levels[entry.rule.name] ?? entry.level;
 		if (level === "off") return [];
-		return entry.kind === "rule" ? [{ ...entry, level }] : [entry];
+		if (entry.kind === "steer") return [entry];
+		const rule =
+			protect && entry.rule.name === "rm-root"
+				? rmRootProtecting(protect)
+				: entry.rule;
+		return [{ ...entry, rule, level }];
 	});
 }
 
@@ -389,8 +400,9 @@ export type Project = { readonly cwd: string; readonly trusted: boolean };
 // the always-deny set, and an untrusted project only makes a rule stricter.
 export function loadConfig(agentDir: string, project: Project): GateConfig {
 	const routeFile = parseFile(routeConfigFile(agentDir), "route");
+	const projectFile = parseFile(projectConfigFile(project.cwd), "project");
 	const projectConfig = projectLevels(
-		parseFile(projectConfigFile(project.cwd), "project"),
+		projectFile,
 		routeFile.levels,
 		project.trusted,
 	);
@@ -399,8 +411,16 @@ export function loadConfig(agentDir: string, project: Project): GateConfig {
 		projectConfig.file,
 		...oldProjectFile(project.cwd),
 	];
+	const merged = mergeProtect(
+		routeFile.protect ?? NO_PROTECT,
+		projectFile.protect ?? NO_PROTECT,
+	);
+	const added = merged.home.length > 0 || merged.paths.length > 0;
+	const protect = added ? merged : undefined;
+	const levels = { ...routeFile.levels, ...projectConfig.levels };
 	return {
-		policy: effectivePolicy({ ...routeFile.levels, ...projectConfig.levels }),
+		policy: effectivePolicy(levels, protect),
+		...(protect && { protect }),
 		projectTrusted: project.trusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
 		startMode: routeFile.startMode ?? "off",
@@ -417,6 +437,8 @@ export type ConfigRecord = {
 	readonly projectTrusted: boolean;
 	readonly levels: Readonly<Record<RuleName, ConfigLevel>>;
 	readonly log: LogLimits;
+	/** Only when a file adds protected paths. */
+	readonly protect?: Protect;
 	/** The route's auto settings, with only a count of environment facts. */
 	readonly auto?: {
 		readonly models: readonly string[];
@@ -430,9 +452,15 @@ export type ConfigRecord = {
 };
 
 export function configRecord(config: GateConfig): ConfigRecord {
-	const levels = ruleLevels(config.policy);
-	const { files, log, auto, projectTrusted } = config;
-	if (!auto) return { files, projectTrusted, levels, log };
+	const { files, log, auto, projectTrusted, protect } = config;
+	const base = {
+		files,
+		projectTrusted,
+		levels: ruleLevels(config.policy),
+		log,
+		...(protect && { protect }),
+	};
+	if (!auto) return base;
 	const { models, alwaysAsk, environment, firstByProvider, jev } = auto;
 	const counted = {
 		models,
@@ -441,5 +469,5 @@ export function configRecord(config: GateConfig): ConfigRecord {
 		...(Object.keys(firstByProvider).length > 0 && { firstByProvider }),
 		...(jev && { jev }),
 	};
-	return { files, projectTrusted, levels, log, auto: counted };
+	return { ...base, auto: counted };
 }

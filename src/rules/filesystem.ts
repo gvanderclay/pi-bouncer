@@ -20,7 +20,7 @@ export const recursiveRm: Rule = {
 	matches: isRecursiveRm,
 };
 
-// Fixed: the bouncer config cannot extend it.
+// A config's `protect` adds to these lists and never removes from them.
 const SYSTEM_DIRS: readonly string[] = [
 	"/usr",
 	"/etc",
@@ -33,6 +33,17 @@ const SYSTEM_DIRS: readonly string[] = [
 	"/Applications",
 	"/Users",
 	"/private",
+	"/home",
+	"/root",
+	"/boot",
+	"/lib",
+	"/lib64",
+	"/srv",
+	"/dev",
+	"/proc",
+	"/sys",
+	"/snap",
+	"/nix",
 ];
 
 const HOME_DIRS: readonly string[] = [
@@ -56,11 +67,20 @@ const HOME_DIRS: readonly string[] = [
 	".docker",
 ];
 
-function isProtected(path: string, home: string): boolean {
+/** Added by config: `home` names below the home directory, `paths` absolute. */
+export type Protect = {
+	readonly home: readonly string[];
+	readonly paths: readonly string[];
+};
+
+// A system directory and its direct children; a home folder itself.
+function isProtected(path: string, home: string, extra: Protect): boolean {
 	if (path === "/" || path === home) return true;
 	const parent = posix.dirname(path);
-	if (SYSTEM_DIRS.includes(path) || SYSTEM_DIRS.includes(parent)) return true;
-	return parent === home && HOME_DIRS.includes(posix.basename(path));
+	const system = [...SYSTEM_DIRS, ...extra.paths];
+	if (system.includes(path) || system.includes(parent)) return true;
+	const folders = [...HOME_DIRS, ...extra.home];
+	return folders.some((name) => posix.join(home, name) === path);
 }
 
 const HOME_PREFIX = /^(?:~|\$HOME|\$\{HOME\})(?=\/|$)/;
@@ -71,27 +91,35 @@ function resolved(operand: string, { cwd, home }: Where): string {
 	return posix.resolve(cwd, expanded);
 }
 
-function targetsProtected(operand: string, where: Where): boolean {
+function targetsProtected(
+	operand: string,
+	where: Where,
+	extra: Protect,
+): boolean {
 	const home = posix.resolve(where.home);
 	const glob = /(?:^|\/)\*$/.test(operand);
 	const path = resolved(glob ? operand.slice(0, -1) || "." : operand, where);
-	return isProtected(path, home);
+	return isProtected(path, home, extra);
 }
 
-export const rmRoot: Rule = {
-	name: "rm-root",
-	summary:
-		"recursive rm of the filesystem root, a system directory or your home directory",
-	matches: (invocation: Invocation, where: Where): boolean => {
-		if (!isRecursiveRm(invocation)) return false;
-		const { args } = invocation;
-		if (args.includes("--no-preserve-root")) return true;
-		const { operands, afterDashDash = [] } = parseArgs(args);
-		return [...operands, ...afterDashDash].some((operand) =>
-			targetsProtected(operand, where),
-		);
-	},
-};
+export function rmRootProtecting(extra: Protect): Rule {
+	return {
+		name: "rm-root",
+		summary:
+			"recursive rm of the filesystem root, a system directory or your home directory",
+		matches: (invocation: Invocation, where: Where): boolean => {
+			if (!isRecursiveRm(invocation)) return false;
+			const { args } = invocation;
+			if (args.includes("--no-preserve-root")) return true;
+			const { operands, afterDashDash = [] } = parseArgs(args);
+			return [...operands, ...afterDashDash].some((operand) =>
+				targetsProtected(operand, where, extra),
+			);
+		},
+	};
+}
+
+export const rmRoot: Rule = rmRootProtecting({ home: [], paths: [] });
 
 export const FIND_NAMES: ReadonlySet<string> = new Set(["find", "gfind"]);
 

@@ -11,7 +11,9 @@ is done. 3.1–3.3 are done (2026-10-02): the schema test is
 `src/schema.test.ts` with a pinned `ajv`, and the command test is
 `src/bouncer-command.test.ts`, which also holds the first-run notice tests.
 3.4 is done: `ConfigLevel` in `verdict.ts`, and `ruleLevels` in `config.ts`
-lists off rules for `/bouncer` and the log.
+lists off rules for `/bouncer` and the log. 3.5 is done: `protect` is
+parsed in `src/protect.ts`, and `loadConfig` swaps in `rmRootProtecting`
+only when a file adds paths, so `Where` is unchanged.
 Auto mode's refusal does not point at `/bouncer init`, because `init` writes
 no judge list.
 
@@ -553,7 +555,7 @@ paths in the messages ("bouncer.json in the Pi agent dir") and without
 - Proof: new cases in `test/config-levels.test.ts` and
   `test/project-trust.test.ts` for `off`.
 
-**3.5 (F6) Extendable protected paths, and Linux defaults.** [feature]
+**3.5 (F6) Extendable protected paths, and Linux defaults.** [feature] Done.
 - Decision D-2.
 - Files: `rules/filesystem.ts:23-66` takes the lists from `Where` (or the
   policy) instead of module constants; `rules/rule.ts` (`Where` gains

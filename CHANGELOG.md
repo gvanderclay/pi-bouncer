@@ -39,9 +39,19 @@ bouncer lived in its author's dotfiles.
   `config.levels` shows `off` rules. Setting `grep` to anything other than
   `deny` or `off` now says so instead of "is always deny"; the tests pinning
   that message were updated, deliberately.
+- `protect` adds folders below home (`home`) and absolute paths (`paths`)
+  to `rm-root`. Both config files may set it, an untrusted project's
+  included, because it only adds. `/bouncer status` lists the additions, and
+  the log's `config.protect` records them.
 
 ### Changed
 
+- `rm-root` now also covers the Linux system directories `/home`, `/root`,
+  `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap` and
+  `/nix`, and their direct children. A recursive `rm` of one used to ask
+  (`recursive-rm`); it is now denied, and YOLO mode no longer allows it.
+  `"levels": {"rm-root": "ask"}` brings back the dialog in normal mode, for
+  every `rm-root` path; YOLO mode still denies them (decision D-2).
 - Jev is now always called through Pi's classifier support (Pi's
   `opencode/jev-1.13`, handed the opencode-go key, when `auto.jev.model` is
   absent), still with no retries and a 5 s budget. The address, model and key

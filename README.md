@@ -188,6 +188,10 @@ unreadable-command denies are fixed; the route's file also carries `log` (the
 log's rotation size, generations kept and age pruning), `auto` (the judge list
 `models`, `alwaysAsk` prefixes, `environment` facts, `firstByProvider` and
 `jev`) and `startMode` (`off` or `auto`, see Modes).
+Either file may add to `rm-root` with `protect`: `"protect": {"home":
+["code"], "paths": ["/srv/data"]}` denies a recursive `rm` of `~/code`, of
+`/srv/data` and of anything directly in `/srv/data`. It only adds, so an
+untrusted project's `protect` applies too, and the built-in paths always stay.
 `auto.jev` is an object that turns Jev on (see Modes). Its optional `allowAt`
 and `denyAt` are numbers above 0.5 and at most 1; `denyAt` may also be
 `null`. Its optional `model` is a Pi classifier model as `provider/id`; absent,

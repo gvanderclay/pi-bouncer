@@ -127,6 +127,26 @@
 				}
 			}
 		},
+		"protect": {
+			"type": "object",
+			"description": "More paths for rm-root to deny. Add-only: the built-in paths always stay, and a project config may add too, trusted or not.",
+			"additionalProperties": false,
+			"properties": {
+				"home": {
+					"type": "array",
+					"description": "Folders below your home directory, such as code for ~/code. The folder itself is protected, not what is inside it.",
+					"items": {
+						"type": "string",
+						"pattern": "^(?![/~])(?!(?:.*/)?\\.\\.(?:/|$))(?=.*\\S)"
+					}
+				},
+				"paths": {
+					"type": "array",
+					"description": "Absolute paths, such as /srv/data. The path and its direct children are protected.",
+					"items": { "type": "string", "pattern": "^/" }
+				}
+			}
+		},
 		"startMode": {
 			"enum": ["off", "auto"],
 			"default": "off",

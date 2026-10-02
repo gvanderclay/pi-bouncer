@@ -9,6 +9,9 @@ import {
 	loadGate,
 	loadGateSession,
 	scriptedUI,
+	tempProjectDir,
+	uiContext,
+	writeProjectConfig,
 } from "../../test/harness.ts";
 
 const HOME = homedir();
@@ -49,6 +52,20 @@ const denied = [
 	"rm -rf /private",
 	"rm -rf /private/tmp",
 	"rm -rf /usr/local/..",
+	"rm -rf /home",
+	"rm -rf /home/someone",
+	"rm -rf /root",
+	"rm -rf /boot",
+	"rm -rf /lib",
+	"rm -rf /lib64",
+	"rm -rf /srv",
+	"rm -rf /srv/www",
+	"rm -rf /dev",
+	"rm -rf /proc",
+	"rm -rf /sys",
+	"rm -rf /snap",
+	"rm -rf /nix",
+	"rm -rf /nix/store",
 	"rm -rf ~/Desktop",
 	"rm -rf ~/Documents",
 	"rm -rf ~/Documents/",
@@ -110,6 +127,8 @@ const stillRecursiveRm = [
 	"rm -rf ~/workspace/project",
 	"rm -rf ~/Documents/old",
 	"rm -rf /tmp/x",
+	"rm -rf /home/someone/project",
+	"rm -rf /srv/www/cache",
 	"rm -rf ~other",
 ];
 
@@ -201,4 +220,57 @@ test("a route config lowering rm-root to ask opens a dialog naming it", async ()
 		dialogs[0]?.title.includes("(rule: rm-root)"),
 		String(dialogs[0]?.title),
 	);
+});
+
+test("protect adds home folders and paths to rm-root, from either config file", async () => {
+	const gate = await loadGateSession();
+	gate.writeRouteConfig({ protect: { home: ["code", "notes/"] } });
+	const cwd = tempProjectDir();
+	writeProjectConfig(cwd, { protect: { paths: ["/data/"] } });
+	// Adding is stricter, so an untrusted project's additions apply.
+	const ui = uiContext(cwd, false);
+	await gate.startSession("startup", ui.ctx);
+	assert.deepEqual(ui.notices, []);
+	const ruleOf = async (command: string): Promise<string> => {
+		const result = await gate.handler(
+			bashCall(command),
+			scriptedUI(["Deny"], cwd).ctx,
+		);
+		return /\(rule: ([a-z-]+)\)/.exec(result?.reason ?? "")?.[1] ?? "";
+	};
+	assert.equal(await ruleOf("rm -rf ~/code"), "rm-root");
+	assert.equal(await ruleOf("rm -rf ~/notes"), "rm-root");
+	assert.equal(await ruleOf("rm -rf /data"), "rm-root");
+	assert.equal(await ruleOf("rm -rf /data/sets"), "rm-root");
+	assert.equal(await ruleOf("rm -rf ~/code/old"), "recursive-rm");
+	assert.equal(await ruleOf("rm -rf /data/sets/old"), "recursive-rm");
+	// The built-in paths stay.
+	assert.equal(await ruleOf("rm -rf ~/.ssh"), "rm-root");
+});
+
+test("protect entries that are not paths are problems; the rest apply", async () => {
+	const gate = await loadGateSession();
+	gate.writeRouteConfig({
+		protect: {
+			home: ["/abs", "../up", "~/x", "", "ok"],
+			paths: ["rel", 1],
+			x: [],
+		},
+	});
+	const ui = uiContext();
+	await gate.startSession("startup", ui.ctx);
+	const message = ui.notices[0]?.message ?? "";
+	for (const problem of [
+		'"protect.home" entry "/abs" must be a path below the home directory',
+		'"protect.home" entry "../up" must be',
+		'"protect.home" entry "~/x" must be',
+		'"protect.home" entry "" must be',
+		'"protect.paths" entry "rel" must be an absolute path',
+		'"protect.paths" entry 1 must be an absolute path',
+		'"protect": unknown key "x"',
+	]) {
+		assert.ok(message.includes(problem), `${problem}\n${message}`);
+	}
+	const result = await gate.handler(bashCall("rm -rf ~/ok"), scriptedUI().ctx);
+	assert.match(result?.reason ?? "", /\(rule: rm-root\)/);
 });

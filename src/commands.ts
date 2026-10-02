@@ -73,6 +73,12 @@ function autoLine(config: GateConfig | undefined): string {
 	return `Auto mode: ${count} judge-list entr${count === 1 ? "y" : "ies"}${jev}; /auto status has more`;
 }
 
+function protectLines(config: GateConfig | undefined): string[] {
+	const { home = [], paths = [] } = config?.protect ?? {};
+	const added = [...home.map((name) => `~/${name}`), ...paths];
+	return added.length > 0 ? [`rm-root also protects: ${added.join(", ")}`] : [];
+}
+
 function status(parts: BouncerParts): string {
 	const { config } = parts.session;
 	const levels = Object.entries(ruleLevels(policyOf(parts)));
@@ -92,6 +98,7 @@ function status(parts: BouncerParts): string {
 		`Deny: ${byLevel("deny")}`,
 		`Ask: ${byLevel("ask")}`,
 		`Off: ${byLevel("off")}`,
+		...protectLines(config),
 		`Log: ${logFile(parts.logDir)}`,
 		autoLine(config),
 		"/bouncer rules explains each rule.",
