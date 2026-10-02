@@ -1,8 +1,10 @@
 name: Release
 
-# Publishes to npm when a version tag such as v0.1.0 is pushed. npm trusts
-# this workflow through trusted publishing once the package's npm settings
-# name it; until then (the first release) it uses the NPM_TOKEN secret.
+# Stages a release on npm when a version tag such as v0.1.0 is pushed. It goes
+# live only when a maintainer approves it with 2FA, on npmjs.com (Staged
+# Packages) or with `npm stage approve <stage-id>`. npm trusts this workflow
+# through trusted publishing once the package's npm settings name it; until
+# then it uses the NPM_TOKEN secret.
 on:
   push:
     tags: ["v*"]
@@ -21,7 +23,7 @@ jobs:
         with:
           node-version: 24.x
           registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or later; pinned to 11 so a new
+      # Staged publishing needs npm 11.15.0 or later; pinned to 11 so a new
       # major cannot change the publish step unannounced.
       - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
@@ -36,7 +38,7 @@ jobs:
           pnpm test
       - run: pnpm build
       - run: node scripts/check-pack.mjs
-      # prepack rebuilds dist/ inside npm publish.
-      - run: npm publish --provenance --access public
+      # prepack rebuilds dist/ inside npm stage publish.
+      - run: npm stage publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
