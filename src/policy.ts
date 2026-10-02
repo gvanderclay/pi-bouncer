@@ -3,7 +3,11 @@
 import type { Levels } from "./project-config.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
 import { type CustomRule, customEntry, customRule } from "./rules/custom.ts";
-import { type Protect, rmRootProtecting } from "./rules/filesystem.ts";
+import {
+	type Protect,
+	rmRootProtecting,
+	trashRootFor,
+} from "./rules/filesystem.ts";
 import {
 	type Policy,
 	type PolicyEntry,
@@ -14,12 +18,28 @@ import type { ConfigLevel, RuleName } from "./verdict.ts";
 
 type Effective = { readonly policy: Policy; readonly off: readonly Rule[] };
 
+const NO_PROTECT: Protect = { home: [], paths: [] };
+
+// The built-in rules the config's `protect` and `trashCommand` widen.
+function configured(
+	rule: Rule,
+	protect: Protect | undefined,
+	trashCommand: string | undefined,
+): Rule {
+	if (protect && rule.name === "rm-root") return rmRootProtecting(protect);
+	if ((protect || trashCommand) && rule.name === "trash-root") {
+		return trashRootFor(protect ?? NO_PROTECT, trashCommand);
+	}
+	return rule;
+}
+
 // A rule set to "off" leaves the policy. Custom rules follow the built-ins,
 // and custom steer rules come last.
 export function effectivePolicy(
 	levels: Levels,
 	protect: Protect | undefined,
 	custom: readonly CustomRule[],
+	trashCommand?: string,
 ): Effective {
 	const off: Rule[] = [];
 	const policy: PolicyEntry[] = [];
@@ -31,11 +51,11 @@ export function effectivePolicy(
 		if (level === "off" && entry.kind !== "unreadable") off.push(entry.rule);
 		else if (entry.kind !== "rule" || level === "off") policy.push(entry);
 		else {
-			const rule =
-				protect && entry.rule.name === "rm-root"
-					? rmRootProtecting(protect)
-					: entry.rule;
-			policy.push({ ...entry, rule, level });
+			policy.push({
+				...entry,
+				rule: configured(entry.rule, protect, trashCommand),
+				level,
+			});
 		}
 	}
 	const entries = custom.flatMap((rule) => {

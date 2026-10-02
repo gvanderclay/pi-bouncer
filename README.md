@@ -34,6 +34,12 @@ Pi installs the bash parser, `unbash`, with the package. A local checkout is
 not installed for you, so run `npm install` in it once; without the parser,
 the bouncer denies every `bash` call and says so.
 
+When no one can answer a dialog, a refused `rm -rf` tells the agent to move
+the folder to the trash instead, so the deletion can be undone. macOS has a
+`trash` command built in. On Linux, install
+[trash-cli](https://github.com/andreafrancia/trash-cli) for `trash-put`, or
+use a desktop with `gio`; `trashCommand` names any other program.
+
 ## Quick start
 
 Start Pi. With no config file, the first session shows "Bouncer is on: it
@@ -88,6 +94,7 @@ Each rule has a level: `ask` opens the dialog, `deny` blocks with no dialog.
 | `power` ✱ | deny | shutdown and reboot |
 | `disk-format` ✱ | deny | formatting, erasing or repartitioning a disk |
 | `dd-device` ✱ | deny | `dd` writing to a `/dev` path |
+| `trash-root` | deny | moving `/`, a system directory, `~`, or a folder such as `~/Documents` to the trash |
 | `recursive-rm` | ask | any other recursive `rm`, except of a folder the agent made this session |
 | `find-delete` | ask | `find -delete` |
 | `find-exec` | ask | `find -exec`, `-execdir`, `-ok`, `-okdir` |

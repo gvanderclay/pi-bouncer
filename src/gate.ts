@@ -86,6 +86,8 @@ export type Call = {
 	readonly agentMade?: AgentMade;
 	/** The only tool call in its assistant message: no sibling runs beside it. */
 	readonly lone?: true;
+	/** The trash program to suggest when a recursive rm is refused. */
+	readonly trash?: string;
 	readonly mode: GateMode;
 	/** Auto mode's judge; without one, auto mode hands every ask to the user. */
 	readonly judge?: Judge;
@@ -124,19 +126,23 @@ function denied(ranking: Ranking & { readonly kind: "deny" }): Outcome {
 export const AGENT_MADE_HINT =
 	" Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
 
+export function trashHint(trash: string): string {
+	return ` To delete something you did not make, move it to the trash instead with \`${trash} <path>\`: that can be undone, and does not ask.`;
+}
+
 // No one can answer: the ask's block, which says how a recursive rm of a
-// folder the agent made gets through.
+// folder the agent made gets through, and what to use for anything else.
 function unanswered(
 	ranking: Ranking & { readonly kind: "ask" },
 	call: Call,
 ): Outcome {
 	const { fallback } = ranking;
-	const rm = ranking.asks.some((ask) => ask.rule === "recursive-rm");
-	if (!(call.agentMade && rm)) return blocked(fallback);
-	return blocked({
-		...fallback,
-		reason: `${fallback.reason}${AGENT_MADE_HINT}`,
-	});
+	if (!ranking.asks.some((ask) => ask.rule === "recursive-rm")) {
+		return blocked(fallback);
+	}
+	const made = call.agentMade ? AGENT_MADE_HINT : "";
+	const trash = call.trash ? trashHint(call.trash) : "";
+	return blocked({ ...fallback, reason: `${fallback.reason}${made}${trash}` });
 }
 
 function askingFor(command: string, call: Call, allowed: Set<string>): Asking {

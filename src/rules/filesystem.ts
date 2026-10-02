@@ -125,6 +125,41 @@ export function rmRootProtecting(extra: Protect): Rule {
 
 export const rmRoot: Rule = rmRootProtecting({ home: [], paths: [] });
 
+// macOS's built-in `trash` (also trash-cli's alias), trash-cli's `trash-put`.
+const TRASH_NAMES: readonly string[] = ["trash", "trash-put"];
+
+// `gio trash` is GLib's; `trash-dir` is trash-cli's one option with a value.
+function trashOperands(
+	invocation: Invocation,
+	names: ReadonlySet<string>,
+): readonly string[] {
+	const { name, args } = invocation;
+	const gio = name === "gio" && args[0] === "trash";
+	if (!gio && !names.has(name)) return [];
+	const rest = gio ? args.slice(1) : args;
+	const { operands, afterDashDash = [] } = parseArgs(rest, {
+		longValues: ["trash-dir"],
+	});
+	return [...operands, ...afterDashDash];
+}
+
+/** `command`: the config's `trashCommand`, a program name or path. */
+export function trashRootFor(extra: Protect, command?: string): Rule {
+	const names = new Set(TRASH_NAMES);
+	if (command) names.add(posix.basename(command));
+	return {
+		name: "trash-root",
+		summary:
+			"moving the filesystem root, a system directory or your home directory to the trash",
+		matches: (invocation: Invocation, where: Where): boolean =>
+			trashOperands(invocation, names).some((operand) =>
+				targetsProtected(operand, where, extra),
+			),
+	};
+}
+
+export const trashRoot: Rule = trashRootFor({ home: [], paths: [] });
+
 export const FIND_NAMES: ReadonlySet<string> = new Set(["find", "gfind"]);
 
 // `gfind` is GNU findutils from Homebrew.

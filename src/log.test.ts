@@ -363,6 +363,7 @@ const BUILT_IN_LEVELS = {
 	unparseable: "deny",
 	"inline-too-deep": "deny",
 	"rm-root": "deny",
+	"trash-root": "deny",
 	"recursive-rm": "ask",
 	"find-delete": "ask",
 	"find-exec": "ask",

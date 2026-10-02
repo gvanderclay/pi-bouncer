@@ -58,6 +58,8 @@ export type GateConfig = {
 	readonly projectTrusted: boolean;
 	/** `false`: a recursive rm of a directory the agent made still asks. */
 	readonly trustAgentMade?: false;
+	/** The user config's trash program, used instead of the one found on PATH. */
+	readonly trashCommand?: string;
 	readonly log: LogLimits;
 	/** The profile's mode when it sets one, else the user config's. */
 	readonly startMode: StartMode;
@@ -156,6 +158,7 @@ type Parsed = {
 	readonly startMode?: StartMode;
 	readonly protect?: Protect;
 	readonly trustAgentMade?: boolean;
+	readonly trashCommand?: string;
 	readonly rules?: readonly CustomRule[];
 	readonly profiles?: Profiles;
 	readonly agents?: Agents;
@@ -189,8 +192,8 @@ function parseKey(
 	else if (key === "log") assign(parts, "log", validLog(value, problems));
 	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
 	else if (key === "protect") parts.protect = validProtect(value, problems);
-	else if (key === "trustAgentMade") {
-		assign(parts, key, validTrust(value, problems));
+	else if (key === "trustAgentMade" || key === "trashCommand") {
+		assign(parts, key, VALIDATE[key](value, problems));
 	} else if (key === "startMode") {
 		assign(parts, "startMode", validStartMode(value, '"startMode"', problems));
 	} else if (key === "profiles") {
@@ -203,18 +206,25 @@ function parseKey(
 	else problems.push(`unknown key "${key}"`);
 }
 
-function validTrust(value: unknown, problems: string[]): boolean | undefined {
-	if (typeof value === "boolean") return value;
-	problems.push('"trustAgentMade" must be true or false');
-	return undefined;
-}
+const VALIDATE = {
+	trustAgentMade: (value: unknown, problems: string[]): boolean | undefined => {
+		if (typeof value === "boolean") return value;
+		problems.push('"trustAgentMade" must be true or false');
+		return undefined;
+	},
+	trashCommand: (value: unknown, problems: string[]): string | undefined => {
+		if (typeof value === "string" && /^\S+$/.test(value)) return value;
+		problems.push(
+			'"trashCommand" must be one program name or path, with no spaces',
+		);
+		return undefined;
+	},
+};
 
 /** Sets `parts[key]` only when `value` is defined, so an invalid part is absent. */
-function assign<K extends "log" | "auto" | "startMode" | "trustAgentMade">(
-	parts: Mutable<Omit<Parsed, "file">>,
-	key: K,
-	value: Parsed[K],
-): void {
+function assign<
+	K extends "log" | "auto" | "startMode" | "trustAgentMade" | "trashCommand",
+>(parts: Mutable<Omit<Parsed, "file">>, key: K, value: Parsed[K]): void {
 	if (value !== undefined) parts[key] = value;
 	else delete parts[key];
 }
@@ -288,6 +298,7 @@ export function loadConfig(
 		applied.levels,
 		protect,
 		applied.rules,
+		routeFile.trashCommand,
 	);
 	const { file } = projectConfig;
 	const files = [
@@ -302,6 +313,7 @@ export function loadConfig(
 		// Either file can turn it off; neither can turn the other's off back on.
 		...((routeFile.trustAgentMade === false ||
 			projectFile.trustAgentMade === false) && { trustAgentMade: false }),
+		...(routeFile.trashCommand && { trashCommand: routeFile.trashCommand }),
 		projectTrusted: project.trusted,
 		log: routeFile.log ?? BUILT_IN_LOG_LIMITS,
 		startMode: applied.startMode,

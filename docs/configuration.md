@@ -64,7 +64,8 @@ auto mode deny it whatever its level. The unreadable-command denies
 
 ## `protect`
 
-`protect` adds paths to `rm-root`, so a recursive `rm` of them is denied.
+`protect` adds paths to `rm-root` and `trash-root`, so a recursive `rm` of
+them, or moving them to the trash, is denied.
 `home` names folders below your home directory (relative, no `~`); `paths`
 are absolute, and anything directly inside one is protected too. It only
 adds: the built-in paths always stay, so an untrusted project's `protect`
@@ -87,6 +88,20 @@ neither can turn it back on.
 
 ```json
 { "trustAgentMade": false }
+```
+
+## `trashCommand`
+
+When no one can answer a dialog, a refused recursive `rm` suggests moving the
+target to the trash. The bouncer suggests the first of `trash` (built into
+macOS), `trash-put` ([trash-cli](https://github.com/andreafrancia/trash-cli))
+and `gio trash` it finds on `PATH` at session start, and none if it finds
+none. `trashCommand` names the program to suggest instead: one name or path,
+with no spaces. `trash-root` also denies it moving a protected folder. Only
+the user config may set it.
+
+```json
+{ "trashCommand": "/opt/bin/mytrash" }
 ```
 
 ## `rules`

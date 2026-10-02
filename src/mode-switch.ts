@@ -187,6 +187,8 @@ export function registerYolo(
 export type SessionState = {
 	config?: GateConfig;
 	readonly agentMade: AgentMade;
+	/** The trash program a refused recursive rm suggests, if any. */
+	trash?: string;
 	readonly history: ToolHistory;
 	readonly reported: Set<string>;
 	readonly lastFailure: Map<string, string>;

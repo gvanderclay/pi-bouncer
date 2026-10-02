@@ -2,7 +2,7 @@
 
 import type { RuleName } from "../verdict.ts";
 import { bouncerEscape } from "./bouncer-escape.ts";
-import { findDelete, recursiveRm, rmRoot } from "./filesystem.ts";
+import { findDelete, recursiveRm, rmRoot, trashRoot } from "./filesystem.ts";
 import {
 	gitCheckoutDiscard,
 	gitClean,
@@ -23,6 +23,7 @@ export const builtInPolicy: Policy = [
 	{ kind: "unreadable", name: "unparseable", level: "deny" },
 	{ kind: "unreadable", name: "inline-too-deep", level: "deny" },
 	{ kind: "rule", rule: rmRoot, level: "deny" },
+	{ kind: "rule", rule: trashRoot, level: "deny" },
 	{ kind: "rule", rule: recursiveRm, level: "ask" },
 	{ kind: "rule", rule: findDelete, level: "ask" },
 	{ kind: "rule", rule: findExec, level: "ask" },
