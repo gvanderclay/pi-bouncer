@@ -21,8 +21,9 @@ jobs:
         with:
           node-version: 24.x
           registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or later.
-      - run: npm install -g npm@latest
+      # Trusted publishing needs npm 11.5.1 or later; pinned to 11 so a new
+      # major cannot change the publish step unannounced.
+      - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
       - name: the tag matches package.json
         run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"

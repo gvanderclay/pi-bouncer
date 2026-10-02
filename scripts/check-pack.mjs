@@ -7,11 +7,15 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
-const packed = JSON.parse(
-	execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
-		encoding: "utf8",
-	}),
-)[0].files.map((file) => file.path);
+// npm 11 prints a list of results, npm 12 an object keyed by package name.
+const result = Object.values(
+	JSON.parse(
+		execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
+			encoding: "utf8",
+		}),
+	),
+)[0];
+const packed = result.files.map((file) => file.path);
 const files = new Set(packed);
 
 const problems = [];
