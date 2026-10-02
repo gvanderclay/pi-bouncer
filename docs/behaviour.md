@@ -63,8 +63,9 @@ deleted without an ask, including one you or another program put in the
 folder, or one made since then elsewhere and moved in. So can files a
 background command is still moving in when the `rm` runs. A `mkdir` that
 failed on a line that still succeeded (`mkdir /tmp/x; true`) counts as having
-made the folder, and on a filesystem that reuses inode numbers, a folder
-deleted and remade between two of the agent's commands can still count.
+made the folder, and on a filesystem that reuses inode numbers and records
+no creation time, a folder deleted and remade between two of the agent's
+commands can still count.
 
 When an ask on a recursive `rm` blocks because no one can answer, the reason
 tells the agent to retry with the folder's full path written out.

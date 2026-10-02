@@ -13,10 +13,13 @@ import type { Invocation } from "./scan/walk.ts";
  */
 export type AgentMade = Map<string, Made>;
 
+// `born` as well as the inode: Linux filesystems hand a deleted directory's
+// inode number straight to the next one made.
 type Made = {
 	readonly since: number;
 	readonly dev: number;
 	readonly ino: number;
+	readonly born: number;
 };
 
 /** Told to the agent at the start of every run, so it deletes the way that needs no ask. */
@@ -91,17 +94,18 @@ export function recordMade(
 		try {
 			const stat = lstatSync(path);
 			if (!stat.isDirectory()) continue;
-			made.set(realpathSync(path), { since, dev: stat.dev, ino: stat.ino });
+			const { dev, ino, birthtimeMs: born } = stat;
+			made.set(realpathSync(path), { since, dev, ino, born });
 		} catch {
 			// Gone already: nothing to record.
 		}
 	}
 }
 
-function isSame(dir: string, { dev, ino }: Made): boolean {
+function isSame(dir: string, { dev, ino, born }: Made): boolean {
 	try {
 		const stat = lstatSync(dir);
-		return stat.dev === dev && stat.ino === ino;
+		return stat.dev === dev && stat.ino === ino && stat.birthtimeMs === born;
 	} catch {
 		return false;
 	}
