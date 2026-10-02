@@ -2,7 +2,9 @@
 
 A Pi extension that guards the `bash` tool. Words the code and docs use are
 defined in `docs/glossary.md`; use them, and not the words it lists to avoid.
-The productionizing plan, with its decisions, is `docs/plan.md`.
+The productionizing plan, with its decisions, is `docs/plan.md`. The
+architecture overview is `docs/architecture.md`, and the step-by-step plan
+that fixes its findings is `docs/refactor-plan.md`.
 
 ## Layout
 
