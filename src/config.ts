@@ -307,6 +307,9 @@ function parseKey(
 	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
 	else if (key === "startMode") {
 		assign(parts, "startMode", validStartMode(value, problems));
+	} else if (key === "$schema") {
+		// For editors only: points at schema/bouncer.schema.json.
+		if (typeof value !== "string") problems.push('"$schema" must be a string');
 	} else if (key === "rules") {
 		problems.push('"rules" is not supported yet and is ignored');
 	} else problems.push(`unknown key "${key}"`);

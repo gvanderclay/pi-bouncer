@@ -197,10 +197,13 @@ score. Jev denies only when the route sets `denyAt`; with `denyAt` `null` a
 high deny score goes to the judge list. An invalid `auto.jev`
 is a config problem and leaves Jev off; a project file's `auto` is ignored.
 An invalid part falls back to its built-in value, and one warning lists every
-problem. Without this file the built-in levels apply.
+problem. Without this file the built-in levels apply. Either file may set
+`"$schema"` to the JSON Schema in `schema/bouncer.schema.json`, as below, for
+completion and checks in your editor.
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
   "levels": { "privilege": "ask" },
   "log": { "rotateAboveMiB": 5, "generations": 5, "maxAgeDays": 90 }
 }

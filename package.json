@@ -40,6 +40,7 @@
 		"skills",
 		"!skills/**/*.test.ts",
 		"dist",
+		"schema",
 		"README.md",
 		"LICENSE",
 		"CHANGELOG.md"
@@ -62,6 +63,7 @@
 		"@biomejs/biome": "2.5.14",
 		"@earendil-works/pi-coding-agent": "1.0.0",
 		"@types/node": "26.6.3",
+		"ajv": "8.20.0",
 		"typescript": "7.0.2"
 	},
 	"peerDependencies": {

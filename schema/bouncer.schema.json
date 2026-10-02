@@ -1,0 +1,199 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
+	"title": "pi-bouncer config",
+	"description": "The user config (bouncer.json in the Pi agent dir) or a project config (.pi/extensions/bouncer/config.json). A project config reads only levels.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"levels": {
+			"type": "object",
+			"description": "The level of a built-in rule: ask or deny.",
+			"additionalProperties": false,
+			"properties": {
+				"rm-root": {
+					"enum": ["ask", "deny"],
+					"description": "recursive rm of the filesystem root, a system directory or your home directory. Built-in level: deny."
+				},
+				"recursive-rm": {
+					"enum": ["ask", "deny"],
+					"description": "recursive rm deletes whole directory trees. Built-in level: ask."
+				},
+				"find-delete": {
+					"enum": ["ask", "deny"],
+					"description": "find -delete deletes every file it matches. Built-in level: ask."
+				},
+				"find-exec": {
+					"enum": ["ask", "deny"],
+					"description": "find -exec, -execdir, -ok and -okdir run arbitrary commands. Built-in level: ask."
+				},
+				"fd-exec": {
+					"enum": ["ask", "deny"],
+					"description": "fd -x and -X run arbitrary commands. Built-in level: ask."
+				},
+				"rg-pre": {
+					"enum": ["ask", "deny"],
+					"description": "rg --pre runs an arbitrary preprocessor command. Built-in level: ask."
+				},
+				"opaque-exec": {
+					"enum": ["ask", "deny"],
+					"description": "parallel, rush and rust-parallel run commands built from templates, so what runs cannot be judged. Built-in level: ask."
+				},
+				"disk-format": {
+					"enum": ["ask", "deny"],
+					"description": "formatting, erasing or repartitioning a disk destroys its data. Built-in level: deny."
+				},
+				"dd-device": {
+					"enum": ["ask", "deny"],
+					"description": "dd writing to a /dev path overwrites a raw device. Built-in level: deny."
+				},
+				"power": {
+					"enum": ["ask", "deny"],
+					"description": "shutting down or rebooting takes the user's machine down. Built-in level: deny."
+				},
+				"privilege": {
+					"enum": ["ask", "deny"],
+					"description": "the agent must not run anything with elevated privileges. Built-in level: deny."
+				},
+				"git-clean": {
+					"enum": ["ask", "deny"],
+					"description": "git clean deletes untracked files for good. Built-in level: ask."
+				},
+				"git-reset-hard": {
+					"enum": ["ask", "deny"],
+					"description": "git reset --hard discards uncommitted changes. Built-in level: ask."
+				},
+				"git-checkout-discard": {
+					"enum": ["ask", "deny"],
+					"description": "checking out paths or forcing a checkout discards working-tree changes. Built-in level: ask."
+				},
+				"git-restore-worktree": {
+					"enum": ["ask", "deny"],
+					"description": "git restore of the working tree discards uncommitted changes. Built-in level: ask."
+				},
+				"git-stash-destroy": {
+					"enum": ["ask", "deny"],
+					"description": "git stash drop and clear destroy stashed work. Built-in level: ask."
+				},
+				"git-push-force": {
+					"enum": ["ask", "deny"],
+					"description": "a force or mirror push overwrites history on the remote. Built-in level: ask."
+				},
+				"git-push-delete": {
+					"enum": ["ask", "deny"],
+					"description": "deleting or pruning remote refs destroys branches and tags on the remote. Built-in level: ask."
+				},
+				"remote-script": {
+					"enum": ["ask", "deny"],
+					"description": "a downloaded script fed into a shell or interpreter runs unreviewed code. Built-in level: ask."
+				},
+				"publish": {
+					"enum": ["ask", "deny"],
+					"description": "publishing releases a package publicly, which cannot be undone. Built-in level: ask."
+				},
+				"gh-delete": {
+					"enum": ["ask", "deny"],
+					"description": "deleting a GitHub repository or release destroys it for everyone. Built-in level: ask."
+				}
+			}
+		},
+		"log": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"rotateAboveMiB": {
+					"type": "number",
+					"exclusiveMinimum": 0,
+					"default": 5,
+					"description": "Rotate the log above this size, in MiB."
+				},
+				"generations": {
+					"type": "integer",
+					"minimum": 0,
+					"default": 5,
+					"description": "How many rotated logs to keep."
+				},
+				"maxAgeDays": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Delete rotated logs older than this. Absent: never by age."
+				}
+			}
+		},
+		"startMode": {
+			"enum": ["off", "auto"],
+			"default": "off",
+			"description": "The mode a session starts in. YOLO mode starts only with pi --yolo or /yolo."
+		},
+		"auto": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["models"],
+			"description": "Auto mode: a model judges each ask.",
+			"properties": {
+				"models": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string",
+						"pattern": "^[^/\\s]+/\\S+$",
+						"description": "A model as provider/id."
+					},
+					"description": "The judge list, in priority order."
+				},
+				"alwaysAsk": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "\\S"
+					},
+					"description": "Command prefixes auto mode always asks about."
+				},
+				"environment": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "\\S"
+					},
+					"description": "Facts about your environment the judge is told."
+				},
+				"firstByProvider": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string",
+						"pattern": "^[^/\\s]+/\\S+$",
+						"description": "A model as provider/id."
+					},
+					"description": "The judge to try first when the session model is from this provider. Each value must be in models."
+				},
+				"jev": {
+					"type": "object",
+					"additionalProperties": false,
+					"description": "A classifier that settles clear cases before the judge list.",
+					"properties": {
+						"allowAt": {
+							"type": "number",
+							"exclusiveMinimum": 0.5,
+							"maximum": 1,
+							"default": 0.75
+						},
+						"denyAt": {
+							"type": ["number", "null"],
+							"exclusiveMinimum": 0.5,
+							"maximum": 1,
+							"default": null
+						},
+						"model": {
+							"type": "string",
+							"pattern": "^[^/\\s]+/\\S+$",
+							"description": "A model as provider/id."
+						}
+					}
+				}
+			}
+		}
+	}
+}

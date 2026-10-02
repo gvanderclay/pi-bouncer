@@ -27,6 +27,7 @@ const REQUIRED = [
 	"dist/skills/auto-judge-list/bench.js",
 	"skills/bouncer-debug/SKILL.md",
 	"skills/auto-judge-list/SKILL.md",
+	"schema/bouncer.schema.json",
 ];
 for (const path of REQUIRED) {
 	if (!files.has(path)) problems.push(`missing: ${path}`);

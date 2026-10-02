@@ -24,6 +24,9 @@ bouncer lived in its author's dotfiles.
   pack), and they find Pi's package through the `pi` on `PATH` or
   `$PI_PACKAGE_DIR` when it is not installed beside them. The skills call the
   built files; a git checkout can run `pnpm build` once or the `.ts` files.
+- A JSON Schema for both config files, `schema/bouncer.schema.json`, and a
+  top-level `"$schema"` key that points an editor at it. `$schema` was
+  reported as an unknown key before.
 
 ### Changed
 
