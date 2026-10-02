@@ -6,7 +6,12 @@ D-9. D-10: keep the short history. D-1 and D-3 were decided together (2026-10-02
 out of the code into a custom rule, so custom rules ship in 0.1.0 with the
 steer form. D-7 is done (`github.com/gvanderclay/pi-bouncer`). License: MIT.
 Phase 1 and 2.1 are done. Decided 2026-10-02: 2.2 is skipped and 3.7 is
-deferred until someone asks; 3.8 is done and absorbed 2.3 (D-9).
+deferred until someone asks; 3.8 is done and absorbed 2.3 (D-9). Phase 2
+is done. 3.1–3.3 are done (2026-10-02): the schema test is
+`src/schema.test.ts` with a pinned `ajv`, and the command test is
+`src/bouncer-command.test.ts`, which also holds the first-run notice tests.
+Auto mode's refusal does not point at `/bouncer init`, because `init` writes
+no judge list.
 
 Paths starting with `~/workspace/dotfiles/` point into the owner's dotfiles
 repository, where the bouncer used to live; they are evidence for the plan and
