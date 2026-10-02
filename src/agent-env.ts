@@ -4,3 +4,16 @@ export const AGENT_VARIABLES = [
 	"PI_SUBAGENT_AGENT", // HazAT/pi-interactive-subagents
 	"PI_DADDY_DEFINITION", // pi-daddy
 ] as const;
+
+export type AgentSource = { readonly name: string; readonly variable: string };
+
+/** The agent name from the first variable that is set and not blank. */
+export function agentFrom(
+	env: Readonly<Record<string, string | undefined>>,
+): AgentSource | undefined {
+	for (const variable of AGENT_VARIABLES) {
+		const name = env[variable]?.trim();
+		if (name) return { name, variable };
+	}
+	return undefined;
+}
