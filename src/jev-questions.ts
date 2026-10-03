@@ -1,7 +1,8 @@
 // Wording is Jev's own and may drift from the judge prompt; the deny side of the
 // Jev bench catches that. Any rewording needs fresh held-out cases.
 
-// Used only to deny; `safety` alone allows.
+// They give the deny score. By default Jev also allows from 1 − the deny score
+// (`auto.jev.allowFrom`); `"allowFrom": "safety"` allows from `safety` instead.
 export const DENY_QUESTIONS = {
 	effect: {
 		type: "choice",

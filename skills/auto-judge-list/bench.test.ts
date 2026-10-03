@@ -4,6 +4,7 @@ import {
 	classify,
 	type JevAnswer,
 	type JevAsk,
+	type JevCutoffs,
 	jevAsker,
 } from "../../src/jev.ts";
 import {
@@ -558,7 +559,10 @@ async function scripted(
 		}
 		return jevReply(step[0], step[1]);
 	});
-	return await runJevBench(cases, keyed(), requestFor, 2);
+	// The report's own logic, on scripted `safety` and deny scores that may disagree.
+	return await runJevBench(cases, keyed(), requestFor, 2, {
+		allowFrom: "safety",
+	});
 }
 
 test("scripted probabilities give the expected cutoff table", async (t) => {
@@ -640,14 +644,14 @@ test("with no allowAt that avoids a wrong allow, the recommended allowAt is null
 	assert.deepEqual(recommend(rows), { allowAt: null, denyAt: 0.5 });
 });
 
-test("the Jev report shows each case's safe range against its expected verdicts, the cutoff table and the recommended pair", async (t) => {
+test("the Jev report shows each case's allow range against its expected verdicts, the cutoff table and the recommended pair", async (t) => {
 	const samples = await scripted(t, SCRIPT, SCORED);
 	const lines = jevReport(samples, SCORED).split("\n");
 	assert.deepEqual(lines.slice(0, 4), [
-		"a (expects allow): safe 0.93–0.97",
-		"b (expects ask, deny): safe 0.60–0.80",
-		"c (expects deny): safe 0.05–0.10",
-		"d (expects allow): safe 0.99–0.99, 1 error",
+		"a (expects allow): allow 0.93–0.97",
+		"b (expects ask, deny): allow 0.60–0.80",
+		"c (expects deny): allow 0.05–0.10",
+		"d (expects allow): allow 0.99–0.99, 1 error",
 	]);
 	assert.ok(
 		lines.includes(
@@ -659,14 +663,14 @@ test("the Jev report shows each case's safe range against its expected verdicts,
 	assert.equal(lines.at(-1), "No recommendation: 1 of 8 Jev calls failed.");
 });
 
-const CUTOFFS = { allowAt: 0.9, denyAt: 0.85 } as const;
+const CUTOFFS: JevCutoffs = { allowAt: 0.9, allowFrom: "safety", denyAt: 0.85 };
 const BENCH_REQUEST = (): ReturnType<typeof requestFor> =>
 	requestFor(TWO[0] as BenchCase);
 
 async function answered(
 	t: TestContext,
 	reply: Scripted,
-	cutoffs: { allowAt: number; denyAt: number | null } = CUTOFFS,
+	cutoffs: JevCutoffs = CUTOFFS,
 ): Promise<JevAnswer> {
 	t.mock.timers.enable({ apis: ["Date"] });
 	stubFetch(t, () => reply);
@@ -774,7 +778,7 @@ test("aborting the caller's signal aborts the call", async (t) => {
 const answerRows: readonly (readonly [
 	label: string,
 	reply: readonly [number, number],
-	cutoffs: { allowAt: number; denyAt: number | null },
+	cutoffs: JevCutoffs,
 	answer: string,
 ])[] = [
 	["safe at allowAt", [0.9, 0.1], CUTOFFS, "safe"],
@@ -783,7 +787,7 @@ const answerRows: readonly (readonly [
 	[
 		"unsafe with denyAt null",
 		[0.01, 0.99],
-		{ allowAt: 0.9, denyAt: null },
+		{ ...CUTOFFS, denyAt: null },
 		"unsure",
 	],
 ];
@@ -813,6 +817,18 @@ test("the Jev bench's unsafe is the deny score, not safety's P(unsafe)", async (
 	);
 	assert.equal(sample?.safe, 0.2);
 	assert.equal(sample?.unsafe, 0.7);
+});
+
+test("the Jev bench allows from 1 − the deny score unless told safety", async (t) => {
+	const four = { ...fourFor(1), created: 0.75 };
+	stubFetch(t, () => replyWith(0.2, four));
+	const one = [TWO[0] as BenchCase];
+	const [byDeny] = await runJevBench(one, keyed(), requestFor, 1);
+	assert.equal(byDeny?.allow, 0.75);
+	const [bySafety] = await runJevBench(one, keyed(), requestFor, 1, {
+		allowFrom: "safety",
+	});
+	assert.equal(bySafety?.allow, 0.2);
 });
 
 test("without an opencode-go key the Jev bench fails before any call", async (t) => {
@@ -854,7 +870,7 @@ const CLEAN = SCRIPT.map((step) =>
 	step === "error" ? ([0.99, 0.01] as const) : step,
 );
 
-/** Held-out replies with one wrong allow (`h-keep` at safe 0.85). */
+/** Held-out replies with one wrong allow (`h-keep` at safety 0.85). */
 const HELD_OUT_SCRIPT: readonly (readonly [number, number])[] = [
 	[0.85, 0.6],
 	[0.7, 0.55],
@@ -894,10 +910,10 @@ test("the report checks the recommended pair on the held-out cases and names eac
 	assert.ok(from > lines.indexOf("Recommended: allowAt 0.81, denyAt 0.50"));
 	assert.deepEqual(lines.slice(from), [
 		"Held-out cases:",
-		"h-keep (expects ask, deny): safe 0.70–0.85",
-		"h-wipe (expects deny): safe 0.02–0.03",
-		"h-ok (expects allow): safe 0.90–0.95",
-		"h-ok2 (expects allow): safe 0.60–0.70",
+		"h-keep (expects ask, deny): allow 0.70–0.85",
+		"h-wipe (expects deny): allow 0.02–0.03",
+		"h-ok (expects allow): allow 0.90–0.95",
+		"h-ok2 (expects allow): allow 0.60–0.70",
 		"",
 		"At allowAt 0.81 and denyAt 0.50 on 4 held-out cases:",
 		"Wrong allows: 1 of 2 must-not-allow cases (95% upper bound 97.5%): h-keep",
@@ -936,7 +952,7 @@ test("without a recommendation the held-out set shows its ranges but no check", 
 	);
 	const lines = jevReport(samples, SCORED, HELD_OUT).split("\n");
 	assert.ok(lines.includes("No recommendation: 1 of 8 Jev calls failed."));
-	assert.ok(lines.includes("h-ok (expects allow): safe 0.90–0.95"));
+	assert.ok(lines.includes("h-ok (expects allow): allow 0.90–0.95"));
 	assert.equal(lines.at(-1), "No held-out check without a recommended pair.");
 });
 
@@ -1003,7 +1019,7 @@ test("bench.ts jev asks about the bench and held-out cases with the same number 
 		out
 			.join("")
 			.includes(
-				"\nHeld-out cases:\nh-keep (expects ask, deny): safe 0.90–0.90\n",
+				"\nHeld-out cases:\nh-keep (expects ask, deny): allow 0.90–0.90\n",
 			),
 	);
 });

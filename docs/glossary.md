@@ -115,10 +115,10 @@ _Avoid_: model list, fallback list
 **Jev**:
 The classifier (TypeSafe's `jev-1.13`, reached through OpenCode Zen) auto mode
 asks before the judge list when the user config has `auto.jev`. It sees what
-the judge sees and answers five questions in one call, which give two numbers:
-a safe probability from its `safety` question, used only to allow, and a deny
-score combined in code from four short questions, used only to deny. It
-decides only above its cutoffs: a safe probability at or above `allowAt`
+the judge sees and answers five questions in one call. Four short questions
+give a deny score, combined in code; the allow score is 1 minus it, or, with
+`"allowFrom": "safety"`, the safe probability from its `safety` question. It
+decides only above its cutoffs: an allow score at or above `allowAt`
 allows the call; a deny score at or above `denyAt`, unless `denyAt` is `null`,
 denies it in the ordinary hard-deny form with a reason that names no judge,
 and the deny counts toward auto mode's pause like a judge's; anything else,

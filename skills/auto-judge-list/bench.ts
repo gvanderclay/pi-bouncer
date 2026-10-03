@@ -400,8 +400,10 @@ async function main(): Promise<void> {
 	if (process.argv[2] === "jev") {
 		const { jevMain } = await import("./jev-bench.ts");
 		const { HELDOUT_CASES } = await import("./heldout-cases.ts");
+		const { HELDOUT3_CASES } = await import("./heldout-cases-3.ts");
+		const heldOut = [...HELDOUT_CASES, ...HELDOUT3_CASES];
 		const args = process.argv.slice(3);
-		return await jevMain(args, piRegistry, CASES, requestFor, HELDOUT_CASES);
+		return await jevMain(args, piRegistry, CASES, requestFor, heldOut);
 	}
 	const { values, positionals } = parseArgs({
 		allowPositionals: true,
