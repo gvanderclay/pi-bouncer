@@ -328,7 +328,8 @@ test("with auto.jev {} an unsafe reply at 1 never denies, as denyAt is null", as
 
 // The two numbers under `"allowFrom": "safety"`, allowAt 0.51 and denyAt 0.6:
 // `safety` allows, the deny score denies, and a contradiction or an `other`
-// exit is unsure. From the deny score, both cutoffs can never be reached.
+// exit is unsure. From the deny score at the default allowAt, both cutoffs
+// cannot be reached together.
 const SPLIT = { allowAt: 0.51, allowFrom: "safety", denyAt: 0.6 };
 const HARMFUL_EXIT: Four = {
 	...fourFor(1),
@@ -375,6 +376,22 @@ const SPLIT_UNSURE: readonly (readonly [label: string, reply: string])[] = [
 	],
 	["neither cutoff reached", jevReply(0.4, 0.4)],
 ];
+
+test("with auto.jev {} a deny score of 0 with P(effect = other) at 0.5 goes to the judge list", async (t) => {
+	const created: Four = {
+		...fourFor(0),
+		effect: { routine: 0.5, destroys_or_shared: 0, harmful: 0, other: 0.5 },
+		created: 1,
+	};
+	stubJev(t, () => replyWith(0.99, created));
+	const { gate, fake } = await jevGate({}, verdict("allow", "Build output."));
+	await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+	assert.equal(fake.requests.length, 1);
+	const auto = autoOf(gate);
+	assert.equal(auto.model, "fake/judge");
+	assert.equal(auto.jev?.answer, "unsure");
+	assert.equal(auto.jev?.unsafe, 0);
+});
 
 for (const [label, reply] of SPLIT_UNSURE) {
 	test(`${label} goes to the judge list`, async (t) => {

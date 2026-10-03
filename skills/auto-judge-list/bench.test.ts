@@ -26,6 +26,7 @@ import {
 	score,
 } from "./bench.ts";
 import { HELDOUT_CASES } from "./heldout-cases.ts";
+import { HELDOUT3_CASES } from "./heldout-cases-3.ts";
 import {
 	type CutoffRow,
 	cutoffTable,
@@ -981,26 +982,34 @@ test("with denyAt null the held-out check says Jev denies nothing instead of pri
 	]);
 });
 
+const HELD_OUT_SETS = [HELDOUT_CASES, HELDOUT3_CASES] as const;
+
 test("every held-out case is one the bouncer would send to a judge", () => {
-	for (const c of HELDOUT_CASES) assert.doesNotThrow(() => requestFor(c), c.id);
+	for (const c of HELD_OUT_SETS.flat()) {
+		assert.doesNotThrow(() => requestFor(c), c.id);
+	}
 });
 
-test("the held-out set has fresh ids and at least 55 allow-expected and 55 must-not-allow cases, 20 of them deny-labelled", () => {
+test("each held-out set has fresh ids and at least 55 allow-expected and 55 must-not-allow cases, 20 of them deny-labelled", () => {
 	const ids = new Set(CASES.map((c) => c.id));
-	for (const c of HELDOUT_CASES) {
+	for (const set of HELD_OUT_SETS) heldOutShape(set, ids);
+});
+
+function heldOutShape(cases: readonly BenchCase[], ids: Set<string>): void {
+	for (const c of cases) {
 		assert.ok(!ids.has(c.id), `duplicate id ${c.id}`);
 		ids.add(c.id);
 		assert.ok(c.expected.length > 0, c.id);
 		for (const v of c.expected) assert.ok(VERDICTS.includes(v), c.id);
 	}
-	const allow = HELDOUT_CASES.filter((c) => c.expected.includes("allow"));
+	const allow = cases.filter((c) => c.expected.includes("allow"));
 	assert.ok(allow.every((c) => c.expected.length === 1));
-	const notAllow = HELDOUT_CASES.filter((c) => !c.expected.includes("allow"));
+	const notAllow = cases.filter((c) => !c.expected.includes("allow"));
 	assert.ok(allow.length >= 55, `${allow.length} allow-expected`);
 	assert.ok(notAllow.length >= 55, `${notAllow.length} must-not-allow`);
 	const denyFirst = notAllow.filter((c) => c.expected[0] === "deny");
 	assert.ok(denyFirst.length >= 20, `${denyFirst.length} deny-labelled`);
-});
+}
 
 test("bench.ts jev asks about the bench and held-out cases with the same number of samples", async (t) => {
 	const sent = stubFetch(t, () => jevReply(0.9, 0.1));
@@ -1022,4 +1031,41 @@ test("bench.ts jev asks about the bench and held-out cases with the same number 
 				"\nHeld-out cases:\nh-keep (expects ask, deny): allow 0.90–0.90\n",
 			),
 	);
+});
+
+for (const [label, args, range] of [
+	["by default from 1 − the deny score", [], "allow 0.50–0.50"],
+	[
+		"with --allow-from safety from safety",
+		["--allow-from", "safety"],
+		"allow 0.90–0.90",
+	],
+] as const) {
+	test(`bench.ts jev reports the allow score ${label}`, async (t) => {
+		stubFetch(t, () => jevReply(0.9, 0.5));
+		const out: string[] = [];
+		t.mock.method(process.stdout, "write", (text: string) => out.push(text));
+		t.mock.method(process.stderr, "write", () => true);
+		await jevMain(
+			["--samples", "1", ...args],
+			async () => keyed(),
+			SCORED,
+			requestFor,
+		);
+		assert.ok(out.join("").includes(`a (expects allow): ${range}\n`));
+	});
+}
+
+test("bench.ts jev refuses an unknown --allow-from with exit 2 and calls nothing", async (t) => {
+	const sent = stubFetch(t, () => jevReply(0.9, 0.1));
+	t.mock.method(process.stderr, "write", () => true);
+	await jevMain(
+		["--allow-from", "judge"],
+		async () => keyed(),
+		SCORED,
+		requestFor,
+	);
+	assert.equal(process.exitCode, 2);
+	process.exitCode = 0;
+	assert.equal(sent.length, 0);
 });
