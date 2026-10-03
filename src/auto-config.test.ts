@@ -223,18 +223,18 @@ test("a valid auto.jev has no problems and is in the record", async () => {
 		models: ["a/b"],
 		alwaysAsk: [],
 		environment: 0,
-		jev: { allowAt: 0.9, denyAt: 0.95 },
+		jev: { allowAt: 0.9, allowFrom: "deny-score", denyAt: 0.95 },
 	});
 });
 
-test("auto.jev {} takes the default cutoffs: allowAt 0.75 and denyAt null", async () => {
+test("auto.jev {} takes the defaults: allowAt 0.9 from the deny score and denyAt null", async () => {
 	const config = await sessionConfig({ auto: { models: ["a/b"], jev: {} } });
 	assert.deepEqual(routeProblems(config), []);
 	assert.deepEqual(config.auto, {
 		models: ["a/b"],
 		alwaysAsk: [],
 		environment: 0,
-		jev: { allowAt: 0.75, denyAt: null },
+		jev: { allowAt: 0.9, allowFrom: "deny-score", denyAt: null },
 	});
 });
 
@@ -245,6 +245,7 @@ test("auto.jev with denyAt null and allowAt 1 is valid", async () => {
 	assert.deepEqual(routeProblems(config), []);
 	assert.deepEqual((config.auto as { jev?: unknown }).jev, {
 		allowAt: 1,
+		allowFrom: "deny-score",
 		denyAt: null,
 	});
 });
@@ -258,9 +259,22 @@ test("auto.jev.model takes a Pi classifier model as provider/id", async () => {
 	});
 	assert.deepEqual(routeProblems(config), []);
 	assert.deepEqual((config.auto as { jev?: unknown }).jev, {
-		allowAt: 0.75,
+		allowAt: 0.9,
+		allowFrom: "deny-score",
 		denyAt: null,
 		model: "openrouter/typesafe/jev-1.13",
+	});
+});
+
+test("auto.jev.allowFrom safety brings back allowing from the safety question", async () => {
+	const config = await sessionConfig({
+		auto: { models: ["a/b"], jev: { allowAt: 0.75, allowFrom: "safety" } },
+	});
+	assert.deepEqual(routeProblems(config), []);
+	assert.deepEqual((config.auto as { jev?: unknown }).jev, {
+		allowAt: 0.75,
+		allowFrom: "safety",
+		denyAt: null,
 	});
 });
 
@@ -305,6 +319,11 @@ const badJev: readonly (readonly [
 		"a model without a provider",
 		{ allowAt: 0.9, model: "jev-2" },
 		['auto.jev.model must be "provider/id"'],
+	],
+	[
+		"an unknown allowFrom",
+		{ allowFrom: "judge" },
+		['auto.jev.allowFrom must be "deny-score" or "safety"'],
 	],
 ];
 

@@ -137,25 +137,27 @@ Only when the user asks to measure Jev (`jev-1.13`, the classifier on
 OpenCode Zen's SystemOne endpoint, or the Pi classifier model the user config's
 `auto.jev.model` names). **This spends real quota** on the agent dir's key for
 that provider: one call per case per sample. With the 37 bench cases and the
-123 held-out cases in `heldout-cases.ts`, that is 480 calls at the default 3
-samples. Tell the user the count and wait for their go-ahead.
+243 held-out cases in `heldout-cases.ts` and `heldout-cases-3.ts`, that is 840
+calls at the default 3 samples. Tell the user the count and wait for their go-ahead.
 
 ```bash
-node <skill dir>/../../dist/skills/auto-judge-list/bench.js jev --agent-dir "$AGENT_DIR" [--samples N] [--model provider/id]
+node <skill dir>/../../dist/skills/auto-judge-list/bench.js jev --agent-dir "$AGENT_DIR" [--samples N] [--model provider/id] [--allow-from deny-score|safety]
 ```
 
 It asks Jev about every bench and held-out case `N` times (default 3) through the
 bouncer's own Jev client (through Pi), with the same fields the judge sees and
 Pi's opencode-go key, or, with `--model` (pass the user config's
-`auto.jev.model`), through that Pi classifier model. Without a key it stops
+`auto.jev.model`), through that Pi classifier model. Its allow side is the
+allow score `auto.jev.allowFrom` picks: 1 − the deny score unless
+`--allow-from safety` is passed. Without a key it stops
 before any call;
 `--help` prints usage and calls nothing. Progress goes to stderr; stdout
 shows:
 
-- per case, Jev's safe-probability range across the samples against the
+- per case, Jev's allow-score range across the samples against the
   verdicts the case expects, and how many calls failed;
 - a table of candidate cutoffs from 0.50 to 0.99: wrong allows (cases that
-  should not be allowed with any sample's safe probability at the cutoff),
+  should not be allowed with any sample's allow score at the cutoff),
   cases allowed (every sample at the cutoff), and the same for denies
   against the deny score from Jev's four deny questions;
 - the recommended pair: the lowest `allowAt` with no wrong allow and the
@@ -176,9 +178,10 @@ rate (wrong allows over the cases that must not be allowed, wrong denies over
 those that must not be denied). Zero errors in `n` cases bounds the rate at
 1 − 0.05^(1/n), about 3/n: zero in 60 still allows up to about 5%.
 
-The held-out set was written once, from `JUDGE_CRITERIA` alone, by a session
+Each held-out file was written once, from `JUDGE_CRITERIA` alone, by a session
 that had not seen Jev's questions or any result. Never reword or relabel its
 cases to fit a result, and never tune Jev's questions or cutoffs on it. A new
-round of question wording needs a fresh held-out set, written the same way.
+round of question wording needs a fresh held-out file, written the same way;
+`docs/design-notes.md` records which rounds have already used each file.
 
 Show the output in chat. It changes no file.

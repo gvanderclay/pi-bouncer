@@ -191,15 +191,16 @@ Jev is TypeSafe's classifier, always called through Pi's classifier support
 with no retries. It sees exactly what the judge sees, under the same budgets,
 and answers five questions in one call. Two numbers come out of them:
 
-- The `safety` question, built from the judge's own criteria, gives a safe
-  probability, used only to allow.
 - Four short questions (what kind of change the command makes, whether the
   agent created its target, what the user asked for, and whether it deletes
-  a risky target) give a deny score, combined in code and used only to deny.
-  The strongest reason to refuse (harmful, asked to keep, risky target) caps
-  the strongest reason to allow (routine, created, asked for).
+  a risky target) give a deny score, combined in code. The strongest reason
+  to refuse (harmful, asked to keep, risky target) caps the strongest reason
+  to allow (routine, created, asked for).
+- The allow score is 1 minus the deny score. With `"allowFrom": "safety"` it
+  is instead the safe probability from the `safety` question, built from the
+  judge's own criteria.
 
-A safe probability at or above `allowAt` runs the line quietly with no
+An allow score at or above `allowAt` runs the line quietly with no
 judge-list call. A deny score at or above `denyAt`, when `denyAt` is not
 `null`, blocks it with no judge-list call and a fixed reason that names no
 judge; it counts toward the pause like a judge deny, and a Jev allow ends a

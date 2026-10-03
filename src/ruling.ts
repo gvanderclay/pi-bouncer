@@ -48,7 +48,7 @@ async function callJev(
 }
 
 /**
- * With `auto.jev`: a safe answer at `allowAt` allows, an unsafe one at `denyAt`
+ * With `auto.jev`: an allow score at `allowAt` allows, a deny score at `denyAt`
  * denies, anything else goes to the judge list with what is left of the line's
  * budget (counted from before Jev's key lookup).
  */

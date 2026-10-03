@@ -47,6 +47,17 @@ follows [Semantic Versioning](https://semver.org/).
   and list a path the user's config protects, instead of naming only `/`,
   system directories and the home directory, which misled the agent when a
   `protect`ed path matched. The tests pinning the old text were updated.
+- Jev now allows from 1 minus its deny score, at a new default `allowAt` of
+  0.9, instead of from its `safety` question at 0.75. Measured on 120 fresh
+  held-out cases, it allows slightly more (34 against 32) with no wrong
+  allow, and its cutoff, picked on the bench alone, held on the held-out set
+  where `safety`'s did not. A user config that sets its own `allowAt` now
+  applies it to the new score. `"allowFrom": "safety", "allowAt": 0.75`
+  under `auto.jev` restores the old behaviour. The tests pinning the old
+  default were updated.
+- The `auto-judge-list` skill's Jev bench reports and recommends `allowAt`
+  from that allow score (`--allow-from safety` for the old one), and checks
+  it on a second held-out set of 120 cases as well.
 
 ## [0.2.0] - 2026-10-02
 

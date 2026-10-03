@@ -3,14 +3,17 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
+import type { AllowFrom } from "../../src/auto-config.ts";
 import { errorText } from "../../src/error-text.ts";
-import { jevAsker, readReply } from "../../src/jev.ts";
+import { allowScore, jevAsker, readReply } from "../../src/jev.ts";
 import type { RulingRegistry } from "../../src/ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
 export type JevSample = {
 	readonly id: string;
 	readonly sample: number;
+	/** The number `allowAt` applies to, per `allowFrom`. */
+	readonly allow?: number;
 	readonly safe?: number;
 	readonly unsafe?: number;
 	readonly confidence?: number;
@@ -18,15 +21,25 @@ export type JevSample = {
 	readonly ms: number;
 };
 
-// Without a key it throws before any call. `model` is a Pi classifier model, as in
-// `auto.jev.model`; absent is OpenCode Zen with the opencode-go key.
+export type JevBenchOptions = {
+	readonly onSample?: (sample: JevSample) => void;
+	/** A Pi classifier model, as in `auto.jev.model`; absent is OpenCode Zen with the opencode-go key. */
+	readonly model?: string;
+	/** As in `auto.jev.allowFrom`. */
+	readonly allowFrom?: AllowFrom;
+};
+
+// Without a key it throws before any call.
 export async function runJevBench(
 	cases: readonly BenchCase[],
 	registry: RulingRegistry,
 	build: typeof requestFor,
 	samples = 3,
-	onSample: (sample: JevSample) => void = () => {},
-	model?: string,
+	{
+		onSample = (): void => {},
+		model,
+		allowFrom = "deny-score",
+	}: JevBenchOptions = {},
 ): Promise<JevSample[]> {
 	const ask = await jevAsker(registry, model);
 	if (typeof ask === "string")
@@ -43,6 +56,7 @@ export async function runJevBench(
 					: {
 							id: c.id,
 							sample,
+							allow: allowScore(reading, allowFrom),
 							safe: reading.safe,
 							unsafe: reading.unsafe,
 							confidence: reading.confidence,
@@ -57,7 +71,7 @@ export async function runJevBench(
 
 export type CutoffRow = {
 	readonly cutoff: number;
-	/** Cases that should not be allowed with a sample's safe probability at the cutoff. */
+	/** Cases that should not be allowed with a sample's allow score at the cutoff. */
 	readonly wrongAllows: number;
 	/** Cases every sample of which is allowed. */
 	readonly allowed: number;
@@ -77,7 +91,7 @@ const CANDIDATES: readonly number[] = Array.from(
 function values(
 	samples: readonly JevSample[],
 	id: string,
-	side: "safe" | "unsafe",
+	side: "allow" | "unsafe",
 ): (number | undefined)[] {
 	return samples.filter((s) => s.id === id).map((s) => s[side]);
 }
@@ -94,21 +108,21 @@ export function cutoffTable(
 ): CutoffRow[] {
 	const count = (
 		cutoff: number,
-		side: "safe" | "unsafe",
+		side: "allow" | "unsafe",
 		wrong: boolean,
 	): number =>
 		cases.filter((c) => {
 			const all = values(samples, c.id, side);
 			if (!wrong) return all.length > 0 && all.every((v) => reaches(v, cutoff));
-			const verdict = side === "safe" ? "allow" : "deny";
+			const verdict = side === "allow" ? "allow" : "deny";
 			return (
 				!c.expected.includes(verdict) && all.some((v) => reaches(v, cutoff))
 			);
 		}).length;
 	return CANDIDATES.map((cutoff) => ({
 		cutoff,
-		wrongAllows: count(cutoff, "safe", true),
-		allowed: count(cutoff, "safe", false),
+		wrongAllows: count(cutoff, "allow", true),
+		allowed: count(cutoff, "allow", false),
 		wrongDenies: count(cutoff, "unsafe", true),
 		denied: count(cutoff, "unsafe", false),
 		cases: cases.length,
@@ -129,12 +143,12 @@ export function recommend(rows: readonly CutoffRow[]): JevRecommendation {
 
 function caseLine(c: BenchCase, samples: readonly JevSample[]): string {
 	const mine = samples.filter((s) => s.id === c.id);
-	const safe = mine.flatMap((s) => (s.safe === undefined ? [] : [s.safe]));
-	const errors = mine.length - safe.length;
+	const allow = mine.flatMap((s) => (s.allow === undefined ? [] : [s.allow]));
+	const errors = mine.length - allow.length;
 	const range =
-		safe.length === 0
+		allow.length === 0
 			? "no answer"
-			: `safe ${Math.min(...safe).toFixed(2)}–${Math.max(...safe).toFixed(2)}`;
+			: `allow ${Math.min(...allow).toFixed(2)}–${Math.max(...allow).toFixed(2)}`;
 	const failed =
 		errors === 0 ? "" : `, ${errors} error${errors > 1 ? "s" : ""}`;
 	return `${c.id} (expects ${c.expected.join(", ")}): ${range}${failed}`;
@@ -169,7 +183,7 @@ export function upperBound(errors: number, n: number): number {
 function reached(
 	samples: readonly JevSample[],
 	cases: readonly BenchCase[],
-	side: "safe" | "unsafe",
+	side: "allow" | "unsafe",
 	cutoff: number | null,
 ): BenchCase[] {
 	if (cutoff === null) return [];
@@ -217,9 +231,9 @@ function heldOutCheck(
 ): string[] {
 	const mayNotAllow = cases.filter((c) => !c.expected.includes("allow"));
 	const mayNotDeny = cases.filter((c) => !c.expected.includes("deny"));
-	const wrongAllows = reached(samples, mayNotAllow, "safe", allowAt);
+	const wrongAllows = reached(samples, mayNotAllow, "allow", allowAt);
 	const wrongDenies = reached(samples, mayNotDeny, "unsafe", denyAt);
-	const decided = (side: "safe" | "unsafe", cutoff: number | null): number =>
+	const decided = (side: "allow" | "unsafe", cutoff: number | null): number =>
 		cutoff === null
 			? 0
 			: cases.filter((c) => {
@@ -242,7 +256,7 @@ function heldOutCheck(
 			mayNotDeny,
 			"must-not-deny",
 		),
-		`Decided: ${decided("safe", allowAt)} of ${cases.length} allowed, ${decided("unsafe", denyAt)} of ${cases.length} denied`,
+		`Decided: ${decided("allow", allowAt)} of ${cases.length} allowed, ${decided("unsafe", denyAt)} of ${cases.length} denied`,
 		denySplit(samples, cases, denyAt),
 	];
 }
@@ -295,14 +309,16 @@ export function jevReport(
 }
 
 const USAGE =
-	"usage: node bench.ts jev [--agent-dir <agent dir>] [--samples N] [--model provider/id]\n" +
+	"usage: node bench.ts jev [--agent-dir <agent dir>] [--samples N] [--model provider/id] [--allow-from deny-score|safety]\n" +
 	"Asks Jev about every bench and held-out case N times (default 3); spends real quota.\n" +
-	"--model is a Pi classifier model, as in auto.jev.model; without it, OpenCode Zen with the opencode-go key.\n";
+	"--model is a Pi classifier model, as in auto.jev.model; without it, OpenCode Zen with the opencode-go key.\n" +
+	"--allow-from is the number allowAt applies to, as in auto.jev.allowFrom (default deny-score).\n";
 
 type JevArgs = {
 	readonly route: string;
 	readonly samples: number;
 	readonly model?: string;
+	readonly allowFrom: AllowFrom;
 };
 
 function jevArgs(args: readonly string[]): JevArgs | number {
@@ -319,13 +335,22 @@ function jevArgs(args: readonly string[]): JevArgs | number {
 		return 0;
 	}
 	const samples = Number(values.samples ?? "3");
-	if (!Number.isInteger(samples) || samples < 1 || positionals.length > 0) {
+	const allowFrom = values["allow-from"] ?? "deny-score";
+	const known = allowFrom === "deny-score" || allowFrom === "safety";
+	if (
+		!Number.isInteger(samples) ||
+		samples < 1 ||
+		positionals.length > 0 ||
+		!known
+	) {
 		process.stderr.write(USAGE);
 		return 2;
 	}
 	const route = resolve(values["agent-dir"] ?? defaultAgentDir());
 	const { model } = values;
-	return model ? { route, samples, model } : { route, samples };
+	return model
+		? { route, samples, model, allowFrom }
+		: { route, samples, allowFrom };
 }
 
 function parse(args: readonly string[]): {
@@ -333,6 +358,7 @@ function parse(args: readonly string[]): {
 		"agent-dir"?: string;
 		samples?: string;
 		model?: string;
+		"allow-from"?: string;
 		help?: boolean;
 	};
 	positionals: string[];
@@ -344,6 +370,7 @@ function parse(args: readonly string[]): {
 			"agent-dir": { type: "string" },
 			samples: { type: "string" },
 			model: { type: "string" },
+			"allow-from": { type: "string" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
@@ -369,12 +396,17 @@ export async function jevMain(
 			registry,
 			build,
 			parsed.samples,
-			(s) => {
-				const answer =
-					s.error ?? `safe ${s.safe}, deny score ${s.unsafe?.toFixed(2)}`;
-				process.stderr.write(`${s.id} #${s.sample}: ${answer} (${s.ms} ms)\n`);
+			{
+				onSample: (s: JevSample): void => {
+					const answer =
+						s.error ?? `safe ${s.safe}, deny score ${s.unsafe?.toFixed(2)}`;
+					process.stderr.write(
+						`${s.id} #${s.sample}: ${answer} (${s.ms} ms)\n`,
+					);
+				},
+				...(parsed.model && { model: parsed.model }),
+				allowFrom: parsed.allowFrom,
 			},
-			parsed.model,
 		);
 	} catch (error) {
 		process.stderr.write(

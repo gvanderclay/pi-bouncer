@@ -115,17 +115,20 @@ model registry. Its lifetime is YOLO mode's.
   or without it OpenCode Zen's `jev-1.13` called with Pi's opencode-go key.
   Jev's name below, `<jev>`, is `auto.jev.model` when set and
   `opencode-go/jev-1.13` otherwise. Jev sees what the judge sees and answers five questions
-  in one call: `safety` gives the safe probability, used only to allow, and
-  four short questions (`effect`, `created`, `user_intent`,
-  `risky_target`) give the deny score, used only to deny:
+  in one call: `safety` gives the safe probability, and four short
+  questions (`effect`, `created`, `user_intent`, `risky_target`) give the
+  deny score:
   `1 − min(max(P(effect = routine), created, P(user_intent = asked_for_this)),
   1 − max(P(effect = harmful), P(user_intent = asked_to_keep), risky_target))`.
+  The allow score is 1 − the deny score, or the safe probability when
+  `auto.jev.allowFrom` is `"safety"`.
   `auto.jev.allowAt` and `auto.jev.denyAt` are optional
   numbers above 0.5 and at most 1 (`denyAt` may be `null`); an absent
-  `allowAt` is 0.75, an absent `denyAt` is `null` (Jev denies only when
+  `allowAt` is 0.9, an absent `allowFrom` is `"deny-score"`, an absent
+  `denyAt` is `null` (Jev denies only when
   the user config sets it), and an invalid `auto.jev` is a config problem that
-  leaves Jev off. A safe
-  probability at or above `allowAt` allows the line with no judge-list call,
+  leaves Jev off. An allow
+  score at or above `allowAt` allows the line with no judge-list call,
   and `auto.model` is `<jev>`. A deny score at or
   above `denyAt`, unless `denyAt` is `null`, denies it the same way, in the
   ordinary hard-deny form with the fixed reason "It was rated as likely
@@ -317,8 +320,9 @@ holds it.
    `auto.verdict` `none`, and the models in `tried`, point at a judge list
    that needs fixing (`/auto status`).
    **Did Jev decide?** `auto.model` `<jev>` (see Auto mode) means Jev decided
-   the call: with `auto.verdict` `allow`, `auto.jev.safe` reached the
-   `allowAt`; with `deny` (`auto.jev.answer` `unsafe`), `auto.jev.unsafe`,
+   the call: with `auto.verdict` `allow`, the allow score reached the
+   `allowAt` (1 − `auto.jev.unsafe`, or `auto.jev.safe` when the session
+   record's `config.auto.jev.allowFrom` is `safety`); with `deny` (`auto.jev.answer` `unsafe`), `auto.jev.unsafe`,
    the deny score, reached its `denyAt` (both in the session record's
    `config.auto.jev`), and the four answers beside it show which veto or
    missing reason to allow drove it. Otherwise `auto.jev.answer` `unsure` with its

@@ -2,19 +2,25 @@
 
 import { isObject } from "./json.ts";
 
+/** Which number Jev allows from: 1 − the deny score, or the `safety` question. */
+export type AllowFrom = "deny-score" | "safety";
+
 export type JevSettings = {
-	/** Jev allows at or above this safe probability. */
+	/** Jev allows at or above this allow score. */
 	readonly allowAt: number | null;
+	readonly allowFrom: AllowFrom;
 	/** Jev denies at or above this deny score. */
 	readonly denyAt: number | null;
 	/** A Pi classifier model, `provider/id`; absent is OpenCode Zen with the opencode-go key. */
 	readonly model?: string;
 };
 
-// Chosen from the Jev bench (`docs/design-notes.md`, "Jev cutoffs"). `allowAt` 0.75:
-// 0.51 let one held-out ask case through (safe 0.62–0.68). `denyAt` null: 0.65
-// wrongly denied two held-out allow cases.
-const JEV_ALLOW_AT: number | null = 0.75;
+// Chosen from the Jev bench (`docs/design-notes.md`, "Jev cutoffs"). `allowAt` 0.90
+// from the deny score: no wrong allow on the bench or a fresh held-out set, and it
+// clears the bench's closest case (0.84). `denyAt` null: 0.65 wrongly denied two
+// held-out allow cases. `"allowFrom": "safety"` was the default at `allowAt` 0.75.
+const JEV_ALLOW_AT: number | null = 0.9;
+const JEV_ALLOW_FROM: AllowFrom = "deny-score";
 const JEV_DENY_AT: number | null = null;
 
 const CUTOFF_RULE = "a number above 0.5 and at most 1";
@@ -31,21 +37,38 @@ function isModel(value: unknown): value is string {
 	return typeof value === "string" && /^[^/\s]+\/\S+$/.test(value);
 }
 
+type MutableJev = { -readonly [Key in keyof JevSettings]: JevSettings[Key] };
+
+function readModelAndAllowFrom(
+	jev: MutableJev,
+	model: unknown,
+	allowFrom: unknown,
+	problems: string[],
+): void {
+	if (isModel(model)) jev.model = model;
+	else if (model !== undefined) {
+		problems.push('auto.jev.model must be "provider/id"');
+	}
+	if (allowFrom === "deny-score" || allowFrom === "safety") {
+		jev.allowFrom = allowFrom;
+	} else if (allowFrom !== undefined) {
+		problems.push('auto.jev.allowFrom must be "deny-score" or "safety"');
+	}
+}
+
 function validJev(value: unknown, problems: string[]): JevSettings | undefined {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		problems.push("auto.jev must be an object");
 		return undefined;
 	}
-	const jev: { -readonly [Key in keyof JevSettings]: JevSettings[Key] } = {
+	const jev: MutableJev = {
 		allowAt: JEV_ALLOW_AT,
+		allowFrom: JEV_ALLOW_FROM,
 		denyAt: JEV_DENY_AT,
 	};
 	const before = problems.length;
-	const { model, ...cutoffs } = value as Record<string, unknown>;
-	if (isModel(model)) jev.model = model;
-	else if (model !== undefined) {
-		problems.push('auto.jev.model must be "provider/id"');
-	}
+	const { model, allowFrom, ...cutoffs } = value as Record<string, unknown>;
+	readModelAndAllowFrom(jev, model, allowFrom, problems);
 	for (const [key, cutoff] of Object.entries(cutoffs)) {
 		if (key !== "allowAt" && key !== "denyAt") {
 			problems.push(`auto.jev: unknown key "${key}"`);

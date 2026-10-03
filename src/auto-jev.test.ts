@@ -285,8 +285,8 @@ for (const [label, reply, jev] of TO_THE_LIST) {
 	});
 }
 
-test("with auto.jev {} a safe reply at 0.75 allows quietly with no judge-list call", async (t) => {
-	const sent = stubJev(t, () => jevReply(0.75, 0.25, 0.6));
+test("with auto.jev {} a deny score of 0.05 allows quietly, whatever safety says", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.1, 0.05, 0.6));
 	const { gate, fake } = await jevGate({}, verdict("deny", "Not asked for."));
 	const ui = judgedUI(fake);
 	assert.equal(await gate.handler(bashCall("rm -rf dist"), ui.ctx), undefined);
@@ -297,11 +297,11 @@ test("with auto.jev {} a safe reply at 0.75 allows quietly with no judge-list ca
 	const auto = autoOf(gate);
 	assert.equal(auto.model, JEV);
 	assert.equal(auto.jev?.answer, "safe");
-	assert.equal(auto.jev?.safe, 0.75);
+	assert.equal(auto.jev?.safe, 0.1);
 });
 
-test("with auto.jev {} a safe reply at 0.74 goes to the judge list", async (t) => {
-	const sent = stubJev(t, () => jevReply(0.74, 0.26, 0.6));
+test("with auto.jev {} a deny score of 0.15 goes to the judge list, whatever safety says", async (t) => {
+	const sent = stubJev(t, () => jevReply(0.99, 0.15, 0.6));
 	const { gate, fake } = await jevGate({}, verdict("allow", "Build output."));
 	assert.equal(
 		await gate.handler(bashCall("rm -rf dist"), judgedUI(fake).ctx),
@@ -312,7 +312,7 @@ test("with auto.jev {} a safe reply at 0.74 goes to the judge list", async (t) =
 	const auto = autoOf(gate);
 	assert.equal(auto.model, "fake/judge");
 	assert.equal(auto.jev?.answer, "unsure");
-	assert.equal(auto.jev?.safe, 0.74);
+	assert.equal(auto.jev?.safe, 0.99);
 });
 
 test("with auto.jev {} an unsafe reply at 1 never denies, as denyAt is null", async (t) => {
@@ -326,9 +326,11 @@ test("with auto.jev {} an unsafe reply at 1 never denies, as denyAt is null", as
 	assert.equal(autoOf(gate).model, "fake/judge");
 });
 
-// The two numbers under allowAt 0.51 and denyAt 0.6: `safety` allows, the
-// deny score denies, and a contradiction or an `other` exit is unsure.
-const SPLIT = { allowAt: 0.51, denyAt: 0.6 };
+// The two numbers under `"allowFrom": "safety"`, allowAt 0.51 and denyAt 0.6:
+// `safety` allows, the deny score denies, and a contradiction or an `other`
+// exit is unsure. From the deny score at the default allowAt, both cutoffs
+// cannot be reached together.
+const SPLIT = { allowAt: 0.51, allowFrom: "safety", denyAt: 0.6 };
 const HARMFUL_EXIT: Four = {
 	...fourFor(1),
 	effect: { routine: 0, destroys_or_shared: 0.5, harmful: 0, other: 0.5 },
@@ -374,6 +376,22 @@ const SPLIT_UNSURE: readonly (readonly [label: string, reply: string])[] = [
 	],
 	["neither cutoff reached", jevReply(0.4, 0.4)],
 ];
+
+test("with auto.jev {} a deny score of 0 with P(effect = other) at 0.5 goes to the judge list", async (t) => {
+	const created: Four = {
+		...fourFor(0),
+		effect: { routine: 0.5, destroys_or_shared: 0, harmful: 0, other: 0.5 },
+		created: 1,
+	};
+	stubJev(t, () => replyWith(0.99, created));
+	const { gate, fake } = await jevGate({}, verdict("allow", "Build output."));
+	await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+	assert.equal(fake.requests.length, 1);
+	const auto = autoOf(gate);
+	assert.equal(auto.model, "fake/judge");
+	assert.equal(auto.jev?.answer, "unsure");
+	assert.equal(auto.jev?.unsafe, 0);
+});
 
 for (const [label, reply] of SPLIT_UNSURE) {
 	test(`${label} goes to the judge list`, async (t) => {
@@ -572,7 +590,7 @@ test("a registry whose key lookup throws is a Jev failure with its own error", a
 	await gate.runCommand("auto", "status", status.ctx);
 	assert.match(
 		status.notices[0]?.message ?? "",
-		/Jev: on \(allowAt 0\.9, denyAt none\); keychain locked/,
+		/Jev: on \(allowAt 0\.9 from deny-score, denyAt none\); keychain locked/,
 	);
 });
 
@@ -946,7 +964,7 @@ test("a tool result that lands while Jev is out reaches neither Jev's state nor 
 	await flush();
 	assert.equal(sent.length, 1);
 	await gate.finishTool(bashResult("mkdir during"));
-	release(jevReply(0.5, 0.05, 0.5));
+	release(jevReply(0.5, 0.5, 0.5));
 	assert.equal((await pending)?.block, true);
 	assert.deepEqual(sent[0]?.body.state, {
 		flagged: [
@@ -968,7 +986,7 @@ test("a tool result that lands while Jev is out reaches neither Jev's state nor 
 });
 
 test("Jev's earlier messages and session history are exactly the judge input's blocks, over budget", async (t) => {
-	const sent = stubJev(t, () => jevReply(0.5, 0.05, 0.5));
+	const sent = stubJev(t, () => jevReply(0.5, 0.5, 0.5));
 	const { gate, fake } = await jevGate(
 		{ allowAt: 0.9 },
 		verdict("ask", "not sure"),
@@ -1042,13 +1060,13 @@ const STATUS_LINES: readonly (readonly [
 		"on with a key",
 		{ allowAt: 0.9 },
 		KEYS,
-		"Jev: on (allowAt 0.9, denyAt none); opencode-go key resolves",
+		"Jev: on (allowAt 0.9 from deny-score, denyAt none); opencode-go key resolves",
 	],
 	[
 		"on without a key",
 		{ denyAt: 0.97 },
 		{},
-		"Jev: on (allowAt 0.75, denyAt 0.97); no opencode-go key",
+		"Jev: on (allowAt 0.9 from deny-score, denyAt 0.97); no opencode-go key",
 	],
 ];
 

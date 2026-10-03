@@ -2,7 +2,7 @@
 // By default Zen's jev-1.13 (Pi's opencode/jev-1.13) with the opencode-go key, since Pi
 // looks for that model's key under `opencode`; with `auto.jev.model`, that model and Pi's
 // own credentials. Never retried: a failed call goes to the judge list. Errors never hold the key.
-import type { JevSettings } from "./auto-config.ts";
+import type { AllowFrom, JevSettings } from "./auto-config.ts";
 import { errorText } from "./error-text.ts";
 import {
 	DENY_QUESTIONS,
@@ -213,8 +213,14 @@ export function readReply(reply: unknown): JevReading | string {
 // Null never decides.
 export type JevCutoffs = {
 	readonly allowAt: number | null;
+	readonly allowFrom: AllowFrom;
 	readonly denyAt: number | null;
 };
+
+/** The number `allowAt` applies to. */
+export function allowScore(reading: JevReading, from: AllowFrom): number {
+	return from === "safety" ? reading.safe : 1 - reading.unsafe;
+}
 
 /** Jev's answer to one call. Anything malformed or failed is unsure. */
 export type JevAnswer =
@@ -230,8 +236,8 @@ export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 	if (typeof reading === "string") {
 		return { answer: "unsure", error: reading, ms: call.ms };
 	}
-	const { allowAt, denyAt } = cutoffs;
-	const safe = allowAt !== null && reading.safe >= allowAt;
+	const { allowAt, allowFrom, denyAt } = cutoffs;
+	const safe = allowAt !== null && allowScore(reading, allowFrom) >= allowAt;
 	const unsafe = denyAt !== null && reading.unsafe >= denyAt;
 	let answer: "safe" | "unsafe" | "unsure" = safe ? "safe" : "unsafe";
 	if (safe === unsafe || reading.effect.other >= OTHER_AT) answer = "unsure";
@@ -315,8 +321,8 @@ export async function jevStatus(
 	registry: JevKeyLookup,
 ): Promise<string> {
 	if (!settings) return "Jev: off";
-	const { allowAt, denyAt } = settings;
-	const cutoffs = `allowAt ${cutoffText(allowAt)}, denyAt ${cutoffText(denyAt)}`;
+	const { allowAt, allowFrom, denyAt } = settings;
+	const cutoffs = `allowAt ${cutoffText(allowAt)} from ${allowFrom}, denyAt ${cutoffText(denyAt)}`;
 	let key: string;
 	try {
 		const asker = await jevAsker(registry, settings.model);

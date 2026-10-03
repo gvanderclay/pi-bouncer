@@ -34,9 +34,10 @@ type Call = {
 	};
 };
 
-// Pi's shape: `bool` answers carry `probability`, not SystemOne's `noul`.
+// Pi's shape: `bool` answers carry `probability`, not SystemOne's `noul`. The
+// deny score is 1 − safe, so the default allow score is `safe` too.
 function piAnswers(safe: number): Record<string, object> {
-	const answers = answersFor(safe, fourFor(0), 0.8);
+	const answers = answersFor(safe, fourFor(1 - safe), 0.8);
 	for (const id of ["created", "risky_target"]) {
 		const { noul } = answers[id] as { noul: number };
 		answers[id] = { type: "bool", probability: noul };
@@ -78,8 +79,8 @@ function fakePi(
 
 function auto(model: string | undefined = MODEL): AutoSettings {
 	const jev = model
-		? { allowAt: 0.75, denyAt: null, model }
-		: { allowAt: 0.75, denyAt: null };
+		? { allowAt: 0.9, allowFrom: "deny-score" as const, denyAt: null, model }
+		: { allowAt: 0.9, allowFrom: "deny-score" as const, denyAt: null };
 	return {
 		models: [],
 		alwaysAsk: [],
@@ -170,10 +171,10 @@ test("/auto status names the model and whether it resolves", async () => {
 	const settings = auto().jev;
 	assert.equal(
 		await jevStatus(settings, fakePi(() => ({})).registry),
-		`Jev: on (allowAt 0.75, denyAt none); ${MODEL}: resolves`,
+		`Jev: on (allowAt 0.9 from deny-score, denyAt none); ${MODEL}: resolves`,
 	);
 	assert.equal(
 		await jevStatus(settings, fakePi(() => ({}), { auth: false }).registry),
-		`Jev: on (allowAt 0.75, denyAt none); ${MODEL}: no configured auth`,
+		`Jev: on (allowAt 0.9 from deny-score, denyAt none); ${MODEL}: no configured auth`,
 	);
 });

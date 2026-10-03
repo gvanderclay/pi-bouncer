@@ -106,7 +106,12 @@
 							"type": "number",
 							"exclusiveMinimum": 0.5,
 							"maximum": 1,
-							"default": 0.75
+							"default": 0.9
+						},
+						"allowFrom": {
+							"enum": ["deny-score", "safety"],
+							"default": "deny-score",
+							"description": "The number allowAt applies to: 1 minus the deny score, or the safety question's probability."
 						},
 						"denyAt": {
 							"type": ["number", "null"],

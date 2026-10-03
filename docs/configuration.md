@@ -291,8 +291,11 @@ what the judge sees.
 
 `"jev": {}` turns Jev on with its defaults. Its keys are:
 
-- `allowAt` (default 0.75): Jev allows a call when its safe probability is
-  at or above this. A number above 0.5 and at most 1.
+- `allowAt` (default 0.9): Jev allows a call when its allow score is at or
+  above this. A number above 0.5 and at most 1.
+- `allowFrom` (default `"deny-score"`): the allow score is 1 minus the deny
+  score. `"safety"` makes it the probability from Jev's `safety` question
+  instead. `"allowFrom": "safety", "allowAt": 0.75` is the old default.
 - `denyAt` (default `null`): Jev denies a call when its deny score is at or
   above this. The same range, or `null` for never.
 - `model`: the Pi classifier model as `provider/id`, called with Pi's own
