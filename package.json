@@ -1,6 +1,6 @@
 {
 	"name": "pi-bouncer",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Guards Pi's bash tool: asks before destructive commands, blocks catastrophic ones, with an optional model-judged auto mode",
 	"keywords": [
 		"pi-package",
