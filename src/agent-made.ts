@@ -22,9 +22,13 @@ type Made = {
 	readonly born: number;
 };
 
-/** Told to the agent at the start of every run, so it deletes the way that needs no ask. */
+/**
+ * Told to the agent at the start of every run, so it deletes the way that
+ * needs no ask; the no-UI block repeats it. Each condition is one the code
+ * checks: `mkdirTargets`, `mktempTarget`, `rmOfAgentMade` and the lone call.
+ */
 export const AGENT_MADE_NOTE =
-	"A recursive rm of a folder you made in this session (with mkdir of a new path, or mktemp -d), or of something inside it, runs without asking the user when you write the folder's full path from / with no $VARIABLES, ~ or wildcards, and run it as its own tool call with nothing else on the line. Any other recursive rm may be stopped for a check.";
+	"A recursive rm of a folder you made in this session, or of something inside it, runs without asking the user when all of these hold: you made the folder with mkdir on its full path from /, or with mktemp -d as a whole command on its own; everything in the folder was made after the folder; the rm writes that full path from / with no $VARIABLES, ~ or wildcards; and the rm is the only tool call in your message, with nothing else on its line.";
 
 // Room for filesystems that store times to the second (or two, on FAT).
 const CLOCK_SLACK_MS = 2_000;
