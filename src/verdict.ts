@@ -29,6 +29,10 @@ const PREFIX = "Blocked by the user's bouncer";
 const REASON_LIMIT = 200;
 const NOTIFY_LIMIT = 80;
 
+/** A hard block's last sentences: no retry, hand the choice to the user. */
+export const DO_NOT_RETRY =
+	"Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.";
+
 function truncate(text: string, limit: number): string {
 	return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
@@ -78,7 +82,7 @@ export function ruleDenied(
 	return {
 		level: entry.level,
 		rule: rule.name,
-		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.`,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. ${DO_NOT_RETRY}`,
 		command,
 	};
 }
@@ -111,7 +115,7 @@ export function reasonDenied(
 	return {
 		level: "deny",
 		rule,
-		reason: `${PREFIX} (rule: ${rules.join(", ")}): ${said}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.`,
+		reason: `${PREFIX} (rule: ${rules.join(", ")}): ${said}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. ${DO_NOT_RETRY}`,
 		command,
 	};
 }

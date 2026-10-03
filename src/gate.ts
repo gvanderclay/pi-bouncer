@@ -27,6 +27,7 @@ import type { Policy, Where } from "./rules/rule.ts";
 import type { Ruling } from "./ruling.ts";
 import type { ParseFn } from "./scan/walk.ts";
 import {
+	DO_NOT_RETRY,
 	notification,
 	type Outcome,
 	type RuleName,
@@ -124,11 +125,15 @@ function denied(ranking: Ranking & { readonly kind: "deny" }): Outcome {
 }
 
 export const AGENT_MADE_HINT =
-	" Exception: if this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
+	" If this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
 
 export function trashHint(trash: string): string {
 	return ` To delete something you did not make, move it to the trash instead with \`${trash} <path>\`: that can be undone, and does not ask.`;
 }
+
+// What follows the ways through, in place of DO_NOT_RETRY.
+const OTHERWISE =
+	" Otherwise, do not retry it another way: tell the user what was blocked and why, and let them decide.";
 
 // No one can answer: the ask's block, which says how a recursive rm of a
 // folder the agent made gets through, and what to use for anything else.
@@ -142,7 +147,11 @@ function unanswered(
 	}
 	const made = call.agentMade ? AGENT_MADE_HINT : "";
 	const trash = call.trash ? trashHint(call.trash) : "";
-	return blocked({ ...fallback, reason: `${fallback.reason}${made}${trash}` });
+	if (!made && !trash) return blocked(fallback);
+	// The ways through come before the hand-off, so the two never contradict.
+	const ways = `${made}${trash}${OTHERWISE}`.trimStart();
+	const reason = fallback.reason.replace(DO_NOT_RETRY, () => ways);
+	return blocked({ ...fallback, reason });
 }
 
 function askingFor(command: string, call: Call, allowed: Set<string>): Asking {

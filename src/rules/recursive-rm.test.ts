@@ -14,7 +14,7 @@ test("rm -rf build is denied as recursive-rm when no one can be asked", async ()
 	assert.equal(result?.block, true);
 	assert.match(result?.reason ?? "", /\(rule: recursive-rm\)/);
 	assert.ok(result?.reason?.includes("`rm -rf build`"));
-	assert.match(result?.reason ?? "", /Do not retry/);
+	assert.match(result?.reason ?? "", /do not retry/i);
 	assert.equal(result?.terminate, undefined);
 });
 

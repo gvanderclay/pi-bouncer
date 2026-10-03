@@ -166,7 +166,7 @@ test("a file moved in from outside makes the directory ask again", async () => {
 
 test("the refusal with no UI says how a folder the agent made gets through", async () => {
 	const gate = await session();
-	assert.ok((await asks(gate, "rm -rf build")).endsWith(AGENT_MADE_HINT));
+	assert.ok((await asks(gate, "rm -rf build")).includes(AGENT_MADE_HINT));
 });
 
 test('"trustAgentMade": false asks as before, with no hint', async () => {

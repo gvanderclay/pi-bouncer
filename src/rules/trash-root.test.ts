@@ -112,7 +112,7 @@ test("a refused recursive rm with no UI suggests the trash program", async () =>
 	await gate.startSession("startup");
 	const result = await gate.handler(bashCall("rm -rf build"), fakeContext());
 	assert.ok(
-		result?.reason?.endsWith(trashHint("trash-put")),
+		result?.reason?.includes(trashHint("trash-put")),
 		String(result?.reason),
 	);
 	const other = await gate.handler(bashCall("git clean -fdx"), fakeContext());
