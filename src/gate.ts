@@ -1,4 +1,4 @@
-import { type AgentMade, onlyRemoves } from "./agent-made.ts";
+import { AGENT_MADE_NOTE, type AgentMade, onlyRemoves } from "./agent-made.ts";
 import { ALWAYS_ASK } from "./always-ask.ts";
 import {
 	type Ask,
@@ -124,16 +124,17 @@ function denied(ranking: Ranking & { readonly kind: "deny" }): Outcome {
 	return { kind: "block", reason: ranking.verdict.reason, stop: false };
 }
 
-export const AGENT_MADE_HINT =
-	" If this deletes a folder you made in this session (with mkdir or mktemp -d) that holds only what was made in it since, run rm again, as its own tool call with nothing else on the line, on the folder's full path written out, with no variables, ~, wildcards or relative parts, for example `rm -rf /tmp/tmp.abc123`; that runs without asking.";
+export const AGENT_MADE_HINT = ` ${AGENT_MADE_NOTE} If this delete fits, run rm again that way.`;
 
-export function trashHint(trash: string): string {
-	return ` To delete something you did not make, move it to the trash instead with \`${trash} <path>\`: that can be undone, and does not ask.`;
+/** `after`: it follows AGENT_MADE_HINT, so it also covers a retry that fails. */
+export function trashHint(trash: string, after = false): string {
+	const lead = after ? "Otherwise, or if that is blocked too, move" : "Move";
+	return ` ${lead} it to the trash instead with \`${trash} <path>\`: that does not ask, and can be undone.`;
 }
 
 // What follows the ways through, in place of DO_NOT_RETRY.
 const OTHERWISE =
-	" Otherwise, do not retry it another way: tell the user what was blocked and why, and let them decide.";
+	" If none of that works, do not retry another way: tell the user what was blocked and why, and let them decide.";
 
 // No one can answer: the ask's block, which says how a recursive rm of a
 // folder the agent made gets through, and what to use for anything else.
@@ -146,7 +147,7 @@ function unanswered(
 		return blocked(fallback);
 	}
 	const made = call.agentMade ? AGENT_MADE_HINT : "";
-	const trash = call.trash ? trashHint(call.trash) : "";
+	const trash = call.trash ? trashHint(call.trash, Boolean(made)) : "";
 	if (!made && !trash) return blocked(fallback);
 	// The ways through come before the hand-off, so the two never contradict.
 	const ways = `${made}${trash}${OTHERWISE}`.trimStart();

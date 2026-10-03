@@ -30,15 +30,19 @@ follows [Semantic Versioning](https://semver.org/).
 - While that is on, each run's system prompt gets a short `<bouncer>` section
   telling the agent how to delete a folder it made without an ask. The
   research behind it is `docs/research/agent-guidance.md`.
-- When no one can answer a `recursive-rm` ask, the block reason now says how
-  to delete a folder the agent made without an ask (retry with its full path
-  written out) and, with a trash program found, to trash anything else; only
-  then does it tell the agent to stop and ask the user. It no longer says
-  "do not retry" before offering a retry. The tests pinning the old reason
-  text were updated.
-- The `<bouncer>` section no longer claims every other recursive rm needs
-  the user's approval, which was untrue in auto and YOLO mode; it now says
-  one may be stopped for a check.
+- When no one can answer a `recursive-rm` ask, the block reason now repeats
+  the `<bouncer>` section and says to retry if the delete fits it; then, with
+  a trash program found, to trash anything else or a folder whose retry is
+  blocked too; only then does it tell the agent to stop and ask the user. It
+  no longer says "do not retry" before offering a retry. The tests pinning
+  the old reason text were updated.
+- The `<bouncer>` section now names every condition the agent controls: the
+  folder made by `mkdir` on a full path or by a `mktemp -d` on its own,
+  nothing older moved or copied in, and the `rm` the only tool call in its
+  message. It no longer claims every other recursive rm needs the user's
+  approval, which was untrue in auto and YOLO mode. Live runs showed agents
+  making folders with a relative `mkdir` or a `mktemp -d` inside a longer
+  line, or deleting two folders in parallel, and then being refused.
 - The `rm-root` and `trash-root` block reasons now say "a protected path"
   and list a path the user's config protects, instead of naming only `/`,
   system directories and the home directory, which misled the agent when a

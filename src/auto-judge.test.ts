@@ -83,7 +83,7 @@ test("a judge hand-off without a UI blocks with the no-UI reason", async () => {
 	assert.equal(result?.block, true);
 	assert.equal(
 		result?.reason,
-		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. None of the command ran.${AGENT_MADE_HINT} Otherwise, do not retry it another way: tell the user what was blocked and why, and let them decide.`,
+		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. None of the command ran.${AGENT_MADE_HINT} If none of that works, do not retry another way: tell the user what was blocked and why, and let them decide.`,
 	);
 });
 
@@ -422,7 +422,7 @@ test("every model failing without a UI blocks with the no-UI reason", async () =
 	const result = await gate.handler(bashCall("rm -rf dist"), noUI(fake));
 	assert.equal(
 		result?.reason,
-		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. None of the command ran.${AGENT_MADE_HINT} Otherwise, do not retry it another way: tell the user what was blocked and why, and let them decide.`,
+		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. None of the command ran.${AGENT_MADE_HINT} If none of that works, do not retry another way: tell the user what was blocked and why, and let them decide.`,
 	);
 	assert.equal(autoVerdict(gate.records().at(-1)), "none");
 });

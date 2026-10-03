@@ -112,11 +112,28 @@ test("a refused recursive rm with no UI suggests the trash program", async () =>
 	await gate.startSession("startup");
 	const result = await gate.handler(bashCall("rm -rf build"), fakeContext());
 	assert.ok(
-		result?.reason?.includes(trashHint("trash-put")),
+		result?.reason?.includes(trashHint("trash-put", true)),
 		String(result?.reason),
 	);
 	const other = await gate.handler(bashCall("git clean -fdx"), fakeContext());
 	assert.ok(!other?.reason?.includes("trash"), String(other?.reason));
+});
+
+test('with "trustAgentMade": false the trash advice stands alone', async () => {
+	const dir = mkdtempSync(join(tmpdir(), "path-"));
+	writeFileSync(join(dir, "trash-put"), "", { mode: 0o755 });
+	const gate = await loadGateSession(undefined, tempLogDir(), {
+		env: { PATH: dir },
+		userConfig: { trustAgentMade: false },
+	});
+	await gate.startSession("startup");
+	const result = await gate.handler(bashCall("rm -rf build"), fakeContext());
+	assert.ok(
+		result?.reason?.endsWith(
+			"None of the command ran. Move it to the trash instead with `trash-put <path>`: that does not ask, and can be undone. If none of that works, do not retry another way: tell the user what was blocked and why, and let them decide.",
+		),
+		String(result?.reason),
+	);
 });
 
 test("with no trash program, the refusal suggests none", async () => {
