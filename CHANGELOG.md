@@ -6,6 +6,8 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-03
+
 ### Added
 
 - When no one can answer a `recursive-rm` ask, the block reason suggests
@@ -187,6 +189,7 @@ dotfiles; the changes below are against that copy.
   with `pi -e <path to the checkout>` is unaffected; anything that pointed at
   `index.ts` directly must point at `src/index.ts`.
 
-[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/gvanderclay/pi-bouncer/releases/tag/v0.1.0
