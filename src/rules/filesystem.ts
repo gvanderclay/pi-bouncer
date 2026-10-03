@@ -110,7 +110,7 @@ export function rmRootProtecting(extra: Protect): Rule {
 	return {
 		name: "rm-root",
 		summary:
-			"recursive rm of the filesystem root, a system directory or your home directory",
+			"recursive rm of a protected path (the filesystem root, a system directory, your home directory, or a path the user's config protects)",
 		matches: (invocation: Invocation, where: Where): boolean => {
 			if (!isRecursiveRm(invocation)) return false;
 			const { args } = invocation;
@@ -150,7 +150,7 @@ export function trashRootFor(extra: Protect, command?: string): Rule {
 	return {
 		name: "trash-root",
 		summary:
-			"moving the filesystem root, a system directory or your home directory to the trash",
+			"moving a protected path (the filesystem root, a system directory, your home directory, or a path the user's config protects) to the trash",
 		matches: (invocation: Invocation, where: Where): boolean =>
 			trashOperands(invocation, names).some((operand) =>
 				targetsProtected(operand, where, extra),

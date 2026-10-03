@@ -30,9 +30,19 @@ follows [Semantic Versioning](https://semver.org/).
 - While that is on, each run's system prompt gets a short `<bouncer>` section
   telling the agent how to delete a folder it made without an ask. The
   research behind it is `docs/research/agent-guidance.md`.
-- When no one can answer a `recursive-rm` ask, the block reason now ends with
-  how to delete a folder the agent made without an ask: retry with its full
-  path written out. The tests pinning the old reason text were updated.
+- When no one can answer a `recursive-rm` ask, the block reason now says how
+  to delete a folder the agent made without an ask (retry with its full path
+  written out) and, with a trash program found, to trash anything else; only
+  then does it tell the agent to stop and ask the user. It no longer says
+  "do not retry" before offering a retry. The tests pinning the old reason
+  text were updated.
+- The `<bouncer>` section no longer claims every other recursive rm needs
+  the user's approval, which was untrue in auto and YOLO mode; it now says
+  one may be stopped for a check.
+- The `rm-root` and `trash-root` block reasons now say "a protected path"
+  and list a path the user's config protects, instead of naming only `/`,
+  system directories and the home directory, which misled the agent when a
+  `protect`ed path matched. The tests pinning the old text were updated.
 
 ## [0.2.0] - 2026-10-02
 

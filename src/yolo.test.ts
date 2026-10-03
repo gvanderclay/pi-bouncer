@@ -165,7 +165,7 @@ test("YOLO mode's rm-root deny reads exactly like today's", async () => {
 		block: true,
 		reason: hardDeny(
 			"rm-root",
-			"recursive rm of the filesystem root, a system directory or your home directory",
+			"recursive rm of a protected path (the filesystem root, a system directory, your home directory, or a path the user's config protects)",
 			"rm -rf ~",
 		),
 	});

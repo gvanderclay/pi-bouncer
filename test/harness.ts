@@ -555,7 +555,7 @@ export async function expectDeny(
 	const reason = result?.reason ?? "";
 	assert.equal(result?.block, true, `expected ${command} to be blocked`);
 	assert.ok(reason.includes(`(rule: ${rule})`), reason);
-	assert.match(reason, /Do not retry/);
+	assert.match(reason, /do not retry/i);
 	const quoted = quotedCommand(reason);
 	if (quote !== undefined) assert.equal(quoted, quote);
 	else assert.ok(quoted && command.includes(quoted), reason);

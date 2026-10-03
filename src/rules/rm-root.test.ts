@@ -201,7 +201,7 @@ test("rm-root wins over recursive-rm with a UI: a warning and no dialog", async 
 	assert.equal(dialogs.length, 0);
 	assert.equal(
 		result?.reason,
-		"Blocked by the user's bouncer (rule: rm-root): recursive rm of the filesystem root, a system directory or your home directory. Command: `rm -rf ~`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.",
+		"Blocked by the user's bouncer (rule: rm-root): recursive rm of a protected path (the filesystem root, a system directory, your home directory, or a path the user's config protects). Command: `rm -rf ~`. None of the command ran. Do not retry this action through another command, script, or tool. Tell the user what was blocked and why, and let them decide.",
 	);
 	assert.deepEqual(notices, [
 		{ message: "Bouncer denied rm-root: rm -rf ~", level: "warning" },
