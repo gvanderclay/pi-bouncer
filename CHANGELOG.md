@@ -6,6 +6,14 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- An Anthropic judge other than Haiku (such as `anthropic/claude-sonnet-5-5`)
+  is now asked for structured output, so its reply is always one verdict
+  object. Sonnet
+  sometimes wrote its reasoning before the JSON, which failed as
+  `no parseable verdict` and moved on to the next model.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added

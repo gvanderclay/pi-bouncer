@@ -68,6 +68,8 @@ export type JudgeModel = {
 	readonly id: string;
 	readonly provider: string;
 	readonly reasoning: boolean;
+	/** Pi's API name for the model, such as `anthropic-messages`. */
+	readonly api?: string;
 	readonly thinkingLevelMap?: Readonly<Record<string, string | null>>;
 };
 
@@ -89,7 +91,36 @@ export type JudgeCallOptions = {
 	readonly signal: AbortSignal;
 	readonly reasoning?: Reasoning;
 	readonly maxTokens: number;
+	/** pi-ai's hook to change the provider request before it is sent. */
+	readonly onPayload?: (params: Record<string, unknown>) => unknown;
 };
+
+// Anthropic's structured outputs: the reply can only be one verdict object.
+const VERDICT_SCHEMA = {
+	type: "json_schema",
+	schema: {
+		type: "object",
+		properties: {
+			verdict: { type: "string", enum: ["allow", "ask", "deny"] },
+			reason: { type: "string" },
+		},
+		required: ["verdict", "reason"],
+		additionalProperties: false,
+	},
+} as const;
+
+// Haiku is left out: it never wrote prose around its verdict, and with the
+// schema it ran past the 10 s per model in 3–5 of 37 bench cases (none without).
+function takesSchema(model: JudgeModel): boolean {
+	return model.api === "anthropic-messages" && !model.id.includes("haiku");
+}
+
+export function withVerdictSchema(
+	params: Record<string, unknown>,
+): Record<string, unknown> {
+	const config = params["output_config"] as object | undefined;
+	return { ...params, output_config: { ...config, format: VERDICT_SCHEMA } };
+}
 
 export type JudgeRegistry = {
 	find(provider: string, modelId: string): JudgeModel | undefined;
@@ -188,6 +219,7 @@ async function askModel(
 		signal,
 		maxTokens: MAX_TOKENS,
 		...(reasoning && { reasoning }),
+		...(takesSchema(model) && { onPayload: withVerdictSchema }),
 	};
 	const context = {
 		systemPrompt: judgePrompt(request.environment),
