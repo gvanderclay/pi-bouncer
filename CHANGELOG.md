@@ -6,6 +6,12 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The config schema no longer says a project config reads only levels. Its
+  description now matches the trust rules: an untrusted project may raise
+  levels, add `protect` paths and add ask or deny rules.
+
 ## [0.3.1] - 2026-10-03
 
 ### Fixed
