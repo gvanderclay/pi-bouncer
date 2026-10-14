@@ -58,6 +58,14 @@ config files, every rule's level and the log path, and
 without running it. `/bouncer init` writes an empty config file to
 `~/.pi/agent/bouncer.json`.
 
+A recursive `rm` of a folder the agent made earlier in the session, with
+`mkdir`, `mktemp -d` or a recursive `cp` into a new path, runs without a
+dialog. The agent is told to make the folder in one call and delete it
+with a plain `rm -rf` of the same literal path in a later one; anything
+older inside the folder, a variable or a wrapper still asks. Details are in
+[How the bouncer decides](docs/behaviour.md#folders-the-agent-made), and
+`"trustAgentMade": false` turns it off.
+
 To let a model decide asks for you, add a judge list to that file and run
 `/auto`:
 
@@ -95,7 +103,7 @@ Each rule has a level: `ask` opens the dialog, `deny` blocks with no dialog.
 | `disk-format` ✱ | deny | formatting, erasing or repartitioning a disk |
 | `dd-device` ✱ | deny | `dd` writing to a `/dev` path |
 | `trash-root` | deny | moving `/`, a system directory, `~`, or a folder such as `~/Documents` to the trash |
-| `recursive-rm` | ask | any other recursive `rm`, except of a folder the agent made this session |
+| `recursive-rm` | ask | any other recursive `rm`, except of a folder the agent made this session (`mkdir`, `mktemp -d`, recursive `cp`) |
 | `find-delete` | ask | `find -delete` |
 | `find-exec` | ask | `find -exec`, `-execdir`, `-ok`, `-okdir` |
 | `fd-exec` | ask | `fd -x`, `fd -X` |

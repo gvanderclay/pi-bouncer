@@ -358,6 +358,21 @@ test("an ask YOLO mode allowed with a UI logs withoutYolo: dialog", async () => 
 		asks: [{ rule: "recursive-rm", source: "rm -rf dist", answer: "yolo" }],
 		yolo: true,
 		withoutYolo: "dialog",
+		// Additive: why the exemption did not apply (no lone call was announced).
+		agentMade: [
+			{
+				source: "rm -rf dist",
+				eligible: false,
+				reason: "sibling-tool-calls",
+				targets: [
+					{
+						operand: "dist",
+						eligible: false,
+						reason: "sibling-tool-calls",
+					},
+				],
+			},
+		],
 	});
 });
 

@@ -15,8 +15,8 @@ import { agentDir as defaultAgentDir } from "./agent-dir.ts";
 import { agentFrom } from "./agent-env.ts";
 import {
 	AGENT_MADE_NOTE,
+	creationTargets,
 	forgetGone,
-	mkdirTargets,
 	mktempTarget,
 	recordMade,
 } from "./agent-made.ts";
@@ -324,7 +324,7 @@ async function decideCall(
 		rt.switchMode("auto", "dialog", "auto", ctx);
 	}
 	if (outcome.kind === "allow") {
-		noteMaking(rt, event.toolCallId, command);
+		noteMaking(rt, event.toolCallId, command, ctx.cwd);
 		return undefined;
 	}
 	if (outcome.stop) {
@@ -342,11 +342,18 @@ function invocationsOf(rt: Runtime, command: string): readonly Invocation[] {
 	return given.kind === "ok" ? given.invocations : [];
 }
 
-// Checked just before the command runs: a directory that exists now is not
-// one the agent makes.
-function noteMaking(rt: Runtime, toolCallId: string, command: string): void {
-	if (!/mkdir|mktemp/.test(command)) return;
-	const targets = mkdirTargets(invocationsOf(rt, command));
+// Checked just before the command runs, with the working directory of this
+// call: a directory that exists now is not one the agent makes. The paths are
+// resolved here, never against a later result's directory.
+function noteMaking(
+	rt: Runtime,
+	toolCallId: string,
+	command: string,
+	cwd: string,
+): void {
+	if (!/mkdir|mktemp|\bg?cp\b/.test(command)) return;
+	const invocations = invocationsOf(rt, command);
+	const targets = creationTargets(rt.parser, command, invocations, cwd);
 	rt.making.set(toolCallId, { since: Date.now(), targets });
 }
 

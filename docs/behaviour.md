@@ -29,33 +29,66 @@ session, or something inside one. A folder counts as made by the agent when:
 - a `mkdir` that finished without error created it, and nothing was at that
   path just before the command ran (for `mkdir -p`, the highest folder that
   was missing counts);
-- or a command that was only `mktemp -d` printed its path.
+- a command that was only `mktemp -d` printed its path;
+- or a command that was only `cp -r src dest` (also `-R`, `--recursive`,
+  `gcp`, and `--`) finished without error, `src` is a real directory (not a
+  symlink, with or without a trailing `/` or `/.`), and nothing, not even a
+  dangling symlink, was at `dest` just before it ran. Copying into a folder
+  that already existed never makes what was in it eligible. Other `cp`
+  options, several sources, chains and a `cp` followed or masked by anything
+  (`cp -r a b || true`, `! cp -r a b`) count for nothing.
+
+Paths may be written in full from `/`, or, when the command is on its own
+line, relative to the working directory the call ran in (`scratch`,
+`./scratch`, `nested/dir`, quoted names with spaces, `-- ./-x`). A relative
+path is resolved against that call's working directory before the command
+runs; a `..` segment is never accepted, because resolving a symlink and then
+`..` can differ from what the filesystem does.
 
 Even then, the `rm` still asks unless all of these hold:
 
 - it is plain `rm`, not run through a wrapper such as `xargs`, `timeout` or
-  `bash -c`;
+  `bash -c`, and has no `NAME=value` prefix;
 - nothing else on the line could add to the folder: every other command is
   `rm`, `cd`, `echo`, `printf`, `true`, `ls` or `pwd`, and the line has no
   `$` or backtick at all (an expansion can run a hidden command), so
   `mv x /tmp/made/ && rm -rf /tmp/made` asks;
 - it is the only tool call in the agent's message, because Pi checks every
   call in a message before running any of them;
-- every path is written out in full from `/`, with no variable, `~`,
-  wildcard or brace;
+- every path is a literal, with no variable, `~`, wildcard, brace or escape;
+- a relative path needs more: the `rm` must be the whole line (no `cd`,
+  assignment, wrapper, substitution, redirect, pipe, `&`, `!`, second
+  command or control flow), and the call's working directory must be known;
 - every path, with symlinks followed, lies inside the folder, so
   `rm -rf /tmp/x/link/` of a link out of it asks;
 - nothing inside is dated before the folder was made, so a file moved in
   from elsewhere makes it ask again (moving keeps a file's dates). Unpacking
   an archive or copying with dates kept (`cp -p`, `rsync -a`) asks for the
-  same reason, and so does a tree of more than 10,000 items.
+  same reason, and so does a tree of more than 10,000 items, counted across
+  all the paths of one `rm`.
 
 At the start of each run with the `bash` tool on, the bouncer adds a short
-`<bouncer>` section to the system prompt that tells the agent these
-conditions, so it deletes what it made in the way that needs no ask.
+`<bouncer>` section to the system prompt that tells the agent how: make the
+folder in one call, work in others, and delete it with a direct literal `rm`
+as the only tool call in a later message.
 
 `rm-root` and every other rule still apply. The bouncer forgets a folder
 once it is deleted or replaced, and forgets them all at every session start.
+
+When the exemption does not apply to a recursive `rm`, the call's log record
+carries an `agentMade` list, one entry per recursive `rm`, each with its
+`source`, `eligible` and its `targets` (`operand`, the resolved `path`, and
+`eligible`). Each failed target or call has a `reason`: `disabled`,
+`sibling-tool-calls`, `expansion`, `wrapper`, `compound-command`,
+`relative-cwd-ambiguous`, `nonliteral-path`, `untracked-or-preexisting`,
+`older-contents`, `tree-limit` or `filesystem-failure`; `at` names the item
+behind the last three. `untracked-or-preexisting` means the bouncer has no
+record that this session made the folder: it may have existed, been made
+another way, failed to be made, or been forgotten at a session start. It
+explains only the exemption: the dialog, a session allow, a judge or YOLO
+mode may still have allowed the command. A call whose cleanup was exempt
+leaves no record at all, and a record without `agentMade` means unknown, not
+eligible.
 
 The check cannot tell who put a file in the folder, only when. Any file
 created or changed after the folder was made, whoever made it, can be
@@ -65,7 +98,8 @@ background command is still moving in when the `rm` runs. A `mkdir` that
 failed on a line that still succeeded (`mkdir /tmp/x; true`) counts as having
 made the folder, and on a filesystem that reuses inode numbers and records
 no creation time, a folder deleted and remade between two of the agent's
-commands can still count.
+commands can still count. The check is a guard rail, not a sandbox, and a
+race between the check and the `rm` is not covered.
 
 When an ask on a recursive `rm` blocks because no one can answer, the reason
 repeats the `<bouncer>` section and tells the agent to retry if the delete
@@ -75,8 +109,9 @@ folder whose retry is blocked too, to the trash, where the deletion can be
 undone.
 `trash-root` denies moving `/`, a system directory, your home directory or a
 protected folder to the trash. `"trustAgentMade": false` turns off the
-agent-made folders, their system prompt section and the retry advice, but
-not the trash advice (see [configuration](configuration.md#trustagentmade)). `/bouncer` commands
+agent-made folders, their system prompt section and the retry advice, and
+restores ordinary recursive-`rm` handling, but not the trash advice (see
+[configuration](configuration.md#trustagentmade)). `/bouncer` commands
 and `bouncer-debug` replays do not know which folders the agent made.
 
 ## Which decision wins

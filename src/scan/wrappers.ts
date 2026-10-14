@@ -228,6 +228,11 @@ function skipOptions(
 	return true;
 }
 
+/** True for a program the scan peels to find the command it runs. */
+export function isWrapper(name: string): boolean {
+	return BY_NAME.has(name);
+}
+
 export function peel(invocation: Invocation): Peeled | undefined {
 	const wrapper = BY_NAME.get(invocation.name);
 	if (!wrapper) return undefined;

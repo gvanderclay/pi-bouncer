@@ -6,6 +6,36 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A recursive `rm` of a folder the agent made no longer asks when the paths
+  are literal relative ones (`scratch`, `./scratch`, `nested/dir`, quoted
+  names) on a line that is only the `mkdir` or the `rm`, in the working
+  directory the call ran in. A `..` segment, `cd`, assignment, wrapper,
+  redirect, pipe, `&`, `!` or second command on the line still asks.
+- A line that is only `cp -r`, `-R` or `--recursive` of a real directory into
+  a path that was absent counts as making that folder, so a later `rm -rf`
+  of it runs. Copying into an existing folder, other `cp` options, chains
+  and a failed, detached or masked copy do not count, and files copied with
+  old dates still ask.
+- The call record of a recursive `rm` the exemption did not cover has an
+  `agentMade` list: per `rm` and per path, whether it was eligible and why not
+  (`disabled`, `sibling-tool-calls`, `expansion`, `wrapper`,
+  `compound-command`, `relative-cwd-ambiguous`, `nonliteral-path`,
+  `untracked-or-preexisting`, `older-contents`, `tree-limit`,
+  `filesystem-failure`). It is additive: `v` stays 1 and no field changes. The
+  `bouncer-debug` skill reads it. The YOLO-mode test pinning a sibling-call
+  record was updated to include it.
+
+### Changed
+
+- The `<bouncer>` system prompt section now tells the agent to make a scratch
+  folder, use it and delete it in separate calls, with a literal path, and
+  mentions relative paths and `cp -r`. The no-UI block reason repeats it, and
+  the test pinning that text was updated.
+- Relative paths are deliberate here: they used to ask. `"trustAgentMade":
+  false` restores ordinary recursive-`rm` handling for every case above.
+
 ### Fixed
 
 - The config schema no longer says a project config reads only levels. Its

@@ -47,12 +47,19 @@ it.
    a real deny comes later, everything else becomes an ask. The three
    functions differ only in which matches count as a deny. `verdict.ts` builds
    the text the model and the user read.
-5. **Deciding** (`src/gate.ts`, `src/ask.ts`). `createGate(parser, policy)`
-   returns `decide(command, call)` and `reset(policy)`. `decide` picks the
+5. **Deciding** (`src/gate.ts`, `src/ask.ts`, `src/agent-made*.ts`).
+   `createGate(parser, policy)` returns `decide(command, call)` and `reset(policy)`. `decide` picks the
    ranking for the bouncer mode and then either allows, denies, asks the user
    (`askUser` in `ask.ts`, one dialog per ask, with session allows) or, in
    auto mode, asks the judge. `inspect` gives the same answer without a UI,
-   for `/bouncer explain` and the `explain.ts` command-line tool.
+   for `/bouncer explain` and the `explain.ts` command-line tool. Before
+   ranking, `decide` asks `agentMadeFor` (`agent-made-check.ts`) which
+   recursive `rm`s delete only folders the agent made this session; that one
+   result feeds the `recursive-rm` rule and the call record's `agentMade`
+   diagnostics. `agent-made.ts` records what the agent made (`mkdir`,
+   `mktemp -d`, a direct recursive `cp`), and `agent-made-command.ts` proves
+   a line is one foreground simple command, which relative paths and copies
+   need.
 6. **Config, project trust and profiles** (`src/config.ts`,
    `src/project-config.ts`, `src/levels.ts`, `src/protect.ts`,
    `src/profiles.ts`, `src/profile-resolve.ts`, `src/agent-env.ts`).
