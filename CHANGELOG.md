@@ -6,6 +6,8 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-14
+
 ### Added
 
 - A recursive `rm` of a folder the agent made no longer asks when the paths
@@ -235,7 +237,8 @@ dotfiles; the changes below are against that copy.
   with `pi -e <path to the checkout>` is unaffected; anything that pointed at
   `index.ts` directly must point at `src/index.ts`.
 
-[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/gvanderclay/pi-bouncer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.1.0...v0.2.0
