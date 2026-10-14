@@ -1,4 +1,9 @@
-import { AGENT_MADE_NOTE, type AgentMade, onlyRemoves } from "./agent-made.ts";
+import { AGENT_MADE_NOTE, type AgentMade } from "./agent-made.ts";
+import {
+	type AgentMadeUse,
+	agentMadeFor,
+	type RmCheck,
+} from "./agent-made-check.ts";
 import { ALWAYS_ASK } from "./always-ask.ts";
 import {
 	type Ask,
@@ -71,6 +76,8 @@ export type Trace = {
 	/** Set only when auto mode made the decision; `auto` only if a judge was asked. */
 	readonly withoutAuto?: WithoutYolo;
 	readonly auto?: AutoTrace;
+	/** Why a recursive `rm` was not exempt, when the exemption check failed. */
+	readonly agentMade?: readonly RmCheck[];
 };
 
 export type Decision = Outcome & {
@@ -336,21 +343,46 @@ export function createGate(parse: ParseFn | undefined, policy: Policy): Gate {
 		decide(command: string, call: Call): Promise<Decision> {
 			const given = read(parse, command);
 			const { cwd, home, agentMade } = call;
-			const removes =
-				given.kind === "ok" && onlyRemoves(command, given.invocations);
-			const trusted = agentMade && call.lone && removes ? { agentMade } : {};
-			const where = { cwd, home, ...trusted };
+			const invocations = given.kind === "ok" ? given.invocations : [];
+			const made: AgentMadeUse =
+				given.kind === "ok"
+					? agentMadeFor(
+							parse,
+							command,
+							invocations,
+							agentMade,
+							call.lone === true,
+							cwd,
+						)
+					: {};
+			const where = {
+				cwd,
+				home,
+				...(made.agentMade && { agentMade: made.agentMade }),
+				...(made.agentMadeChecks && { agentMadeChecks: made.agentMadeChecks }),
+			};
+			const withDiag = (decision: Decision): Decision => {
+				if (!made.diagnostics || !decision.trace) return decision;
+				return {
+					...decision,
+					trace: { ...decision.trace, agentMade: made.diagnostics },
+				};
+			};
 			const ranking = rank(given, current, where);
 			if (call.mode === "auto") {
 				const prefixes = call.alwaysAsk ?? [];
 				const autoRanking = rankAuto(given, current, where, prefixes);
-				return autoDecided(autoRanking, ranking, command, call, allowed);
+				return autoDecided(autoRanking, ranking, command, call, allowed).then(
+					withDiag,
+				);
 			}
-			if (call.mode !== "yolo") return decided(ranking, command, call, allowed);
+			if (call.mode !== "yolo") {
+				return decided(ranking, command, call, allowed).then(withDiag);
+			}
 			const yoloRanking = rankYolo(given, current, where);
 			return Promise.resolve(
 				yoloDecided(yoloRanking, ranking, command, call, allowed),
-			);
+			).then(withDiag);
 		},
 		reset(next: Policy): void {
 			allowed.clear();

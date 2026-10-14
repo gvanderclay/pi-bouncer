@@ -1,27 +1,16 @@
 import { posix } from "node:path";
-import { rmOfAgentMade } from "../agent-made.ts";
+import { isRecursiveRm, rmExempt } from "../agent-made-check.ts";
 import type { Invocation } from "../scan/walk.ts";
-import { hasLongOption, hasShortFlag, parseArgs } from "./argv.ts";
+import { parseArgs } from "./argv.ts";
 import type { Rule, Where } from "./rule.ts";
-
-// `grm` is GNU rm from Homebrew coreutils (`grm --version`: "rm (GNU coreutils)").
-const RM_NAMES = new Set(["rm", "grm"]);
-
-function isRecursiveRm(invocation: Invocation): boolean {
-	return (
-		RM_NAMES.has(invocation.name) &&
-		(hasShortFlag(invocation.args, "rR") ||
-			hasLongOption(invocation.args, "recursive"))
-	);
-}
 
 export const recursiveRm: Rule = {
 	name: "recursive-rm",
 	summary: "recursive rm deletes whole directory trees",
 	// A directory the agent made this session is its own to delete.
-	matches: (invocation: Invocation, { agentMade }: Where): boolean =>
+	matches: (invocation: Invocation, where: Where): boolean =>
 		isRecursiveRm(invocation) &&
-		!(agentMade && rmOfAgentMade(agentMade, invocation)),
+		!rmExempt(invocation, where.agentMade, where.agentMadeChecks),
 };
 
 // A config's `protect` adds to these lists and never removes from them.

@@ -191,6 +191,7 @@ export type LogRecord = {
 	readonly withoutYolo?: unknown;
 	readonly auto?: unknown;
 	readonly withoutAuto?: unknown;
+	readonly agentMade?: unknown;
 };
 
 // One temp root, removed at exit, so no test reads a real config or writes a real log.

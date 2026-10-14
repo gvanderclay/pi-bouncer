@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { agentDir } from "./agent-dir.ts";
+import type { RmCheck } from "./agent-made-check.ts";
 import type { AskAnswer } from "./ask.ts";
 import type { ConfigRecord, GateConfig } from "./config.ts";
 import { errorText } from "./error-text.ts";
@@ -70,6 +71,8 @@ export type CallRecord = RecordHead<"call"> & {
 	readonly withoutYolo?: WithoutYolo;
 	readonly auto?: AutoTrace & { readonly sent?: JudgeSent };
 	readonly withoutAuto?: WithoutYolo;
+	/** Why a recursive rm was not exempt, when the exemption check failed. */
+	readonly agentMade?: readonly RmCheck[];
 };
 
 export type ModeRecord = RecordHead<"yolo" | "auto"> & {
@@ -136,6 +139,7 @@ export function callRecord(
 			: {};
 	const head = { ...recordHead("call", ctx), command, ui: trace.ui, ...who };
 	const { matches, asks } = trace;
+	const agentMade = trace.agentMade && { agentMade: trace.agentMade };
 	// Only a decision YOLO or auto mode made carries its fields; only a call
 	// a judge was asked about carries the counts of what it was sent.
 	const mode = {
@@ -147,11 +151,18 @@ export function callRecord(
 		...(trace.withoutAuto && { withoutAuto: trace.withoutAuto }),
 	};
 	if (decision.kind === "allow") {
-		return { ...head, outcome: "allowed", matches, asks, ...mode };
+		return {
+			...head,
+			outcome: "allowed",
+			matches,
+			asks,
+			...mode,
+			...agentMade,
+		};
 	}
 	const outcome = decision.stop ? "stopped" : "blocked";
 	const { reason } = decision;
-	return { ...head, outcome, reason, matches, asks, ...mode };
+	return { ...head, outcome, reason, matches, asks, ...mode, ...agentMade };
 }
 
 export function appendRecord(dir: string, record: LogRecord): void {

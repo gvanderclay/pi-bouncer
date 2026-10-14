@@ -49,7 +49,7 @@
 		"trustAgentMade": {
 			"type": "boolean",
 			"default": true,
-			"description": "A recursive rm of a directory the agent made this session (mkdir of a missing path, or mktemp -d) runs without asking. false asks as before."
+			"description": "A recursive rm of a directory the agent made this session (mkdir of a missing path, mktemp -d, or a recursive cp into a missing path) runs without asking. false asks as before."
 		},
 		"startMode": {
 			"enum": ["off", "auto"],

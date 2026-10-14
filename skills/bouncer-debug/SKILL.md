@@ -305,6 +305,22 @@ holds it.
    `rm` with no record that a replay says asks most likely deleted a folder
    the agent made earlier in that session (the "Folders the agent made"
    section of `docs/behaviour.md`); a replay cannot know that.
+   **Why did a recursive `rm` ask?** Read the call's `agentMade` list before
+   replaying: one entry per recursive `rm`, each with its `targets` (the
+   `operand` as written, the resolved `path`, `eligible`, and a `reason` on a
+   failed one; `at` names the item behind `older-contents`, `tree-limit` or
+   `filesystem-failure`). A whole-call `reason` (`disabled`,
+   `sibling-tool-calls`, `expansion`, `wrapper`, `compound-command`) comes
+   first and hides the per-target ones; `relative-cwd-ambiguous` and
+   `nonliteral-path` are about how a path is spelled; `untracked-or-preexisting`
+   only says the bouncer has no record that this session made the folder (it
+   may have existed, been made another way, failed to be made, or been
+   forgotten at a session start). Explain each target on its own, and keep
+   the reason apart from the outcome: the reason says why the exemption did
+   not apply, while `outcome`, `asks` and `yolo` say what was decided, and
+   a dialog, session allow, judge or YOLO may have allowed the command. A
+   record without `agentMade` means unknown (an older log, or another rule),
+   not eligible.
    **Why did the judge deny this?** On a call with `auto.verdict: "deny"`,
    `auto.reason` is the judge's reason (also in `reason`), `auto.model` the
    model that said it, and `auto.tried` the models that failed first. The
@@ -331,7 +347,9 @@ holds it.
 4. **No record for the command?** Check the session's `session` records.
    None at all means the bouncer wasn't loaded in that session. `parser: false`
    means every bash call was denied. A live bouncer with a working parser and
-   no call record means the command matched no rule.
+   no call record means the command matched no rule, or was a recursive `rm`
+   the agent-made exemption silently allowed (an eligible cleanup is never
+   logged).
 5. **Replay it** to see which rule, if any, would catch it now. The user can
    do the same inside Pi with `/bouncer explain <command>`, under the
    running session's config. The script
