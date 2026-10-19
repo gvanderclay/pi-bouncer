@@ -6,11 +6,19 @@ import type {
 import type { Decision } from "./gate.ts";
 import { cut, type JudgeSent } from "./history.ts";
 import { judgeFor } from "./judge-wiring.ts";
-import { decideMcp, type McpCall, mcpJson } from "./mcp-gate.ts";
+import { decideMcp, type McpCall } from "./mcp-gate.ts";
 import type { ModeHolder } from "./mode.ts";
 import { autoChoiceFor, callFrom, type SessionState } from "./mode-switch.ts";
 
 const DESCRIPTION_CHARS = 2_000;
+
+function wholeJson(input: unknown): string | undefined {
+	try {
+		return JSON.stringify(input) ?? "";
+	} catch {
+		return undefined;
+	}
+}
 
 type McpRuntime = {
 	readonly pi: ExtensionAPI;
@@ -31,14 +39,19 @@ export function mcpCallIn(
 ): McpCall {
 	const { mode } = rt.holder;
 	const { toolName, input } = event;
-	const judging = mode === "auto" && rt.session.config?.mcp?.judge !== false;
+	const args = wholeJson(input);
+	// Arguments that don't serialise can't be shown to the judge, so they get the dialog.
+	const judging =
+		mode === "auto" &&
+		rt.session.config?.mcp?.judge !== false &&
+		args !== undefined;
 	let judge: McpCall["judge"];
 	if (judging) {
 		const found = rt.pi.getAllTools().find((tool) => tool.name === toolName);
 		const description = found?.description
 			? cut(found.description, DESCRIPTION_CHARS)
 			: undefined;
-		judge = judgeFor(mcpJson(input), ctx, rt.holder, rt.session, onSent, {
+		judge = judgeFor(args, ctx, rt.holder, rt.session, onSent, {
 			tool: toolName,
 			...(description && { description }),
 		});

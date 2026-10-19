@@ -186,8 +186,9 @@ on when no judge-list entry resolves.
 A judge-list entry whose context window cannot fit the request is skipped
 without being sent anything; the estimate is the system prompt plus the
 input, at four characters per token, plus the 2,000-token reply cap and a
-4,096-token margin. When no entry fits, the dialog says the command is too
-large for the judge instead of "no judge available".
+4,096-token margin. When no entry fits, the dialog says the command, or an
+MCP call's arguments, are too large for the judge instead of "no judge
+available".
 
 An MCP call not on `mcp.allow` is judged like an ask, without Jev, unless
 `mcp.judge` is `false`; its judge denies share the pause with bash.

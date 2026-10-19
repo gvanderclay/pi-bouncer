@@ -1,5 +1,5 @@
-// MCP tool calls: an allow-listed tool runs, every other one asks, and no
-// one able to answer means a block.
+// MCP tool calls: an allow-listed tool runs, auto mode sends every other one to
+// the judge, other modes ask, and no one able to answer means a block.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
 import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
@@ -193,6 +193,18 @@ test("with mcp.judge false, auto mode opens the dialog for an MCP call, or block
 			["blocked", undefined],
 		],
 	);
+});
+
+test("arguments that don't serialise to JSON get the dialog in auto mode, never the judge", async () => {
+	const { gate, fake } = await mcpGate();
+	const circular: { self?: unknown } = {};
+	circular.self = circular;
+	const ui = judgedUI(fake, ["Allow once"]);
+	assert.equal(await gate.handler(toolCall(ECHO, circular), ui.ctx), undefined);
+	assert.equal(ui.dialogs.length, 1);
+	const result = await gate.handler(toolCall(ECHO, circular), noUI(fake));
+	assert.equal(result?.block, true);
+	assert.deepEqual(fake.requests, []);
 });
 
 test("an MCP decision is logged with its tool, arguments and parent", async () => {

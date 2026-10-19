@@ -101,7 +101,8 @@ model registry. Its lifetime is YOLO mode's.
   entry. A model whose context window can't fit the request is skipped
   unasked. If none answers, the dialog opens marked "Auto: no judge
   available", or "Auto: command too large for the judge (N characters)"
-  when every entry was skipped for size; without a UI the call blocks.
+  ("arguments too large" for an MCP call) when every entry was skipped
+  for size; without a UI the call blocks.
 - A usage-policy refusal (Pi reports stop reason `error` with raw stop
   reason `refusal`) is not a failure: it is a deny with the reason "It was
   refused as likely harmful.", the refusing model in `auto.model`, and the
