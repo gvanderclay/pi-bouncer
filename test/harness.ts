@@ -73,6 +73,11 @@ export type LoadedGate = {
 
 type CommandHandler = (args: string, ctx: ExtensionContext) => Promise<void>;
 
+type ToolInfo = {
+	readonly name: string;
+	readonly description?: string;
+};
+
 /** What a test can pass to `loadGateSession` beyond the parser and log dir. */
 export type GateOptions = {
 	/** An existing holder, to load the bouncer again as `/reload` does. */
@@ -83,6 +88,8 @@ export type GateOptions = {
 	readonly userConfig?: unknown;
 	/** The environment the bouncer reads agent variables from; default `{}`. */
 	readonly env?: Readonly<Record<string, string | undefined>>;
+	/** The tools `pi.getAllTools` returns; default none. */
+	readonly tools?: readonly ToolInfo[];
 };
 
 type SessionHandler = (
@@ -299,6 +306,7 @@ export async function loadGateSession(
 		// Like Pi's, only a registered flag has a value.
 		getFlag: (name: string): boolean | string | undefined =>
 			registered.has(name) ? options.flags?.[name] : undefined,
+		getAllTools: (): readonly ToolInfo[] => options.tools ?? [],
 	};
 	await bouncer(
 		pi as unknown as ExtensionAPI,
@@ -593,6 +601,7 @@ export type ModelScript = {
 	readonly reasoning?: boolean;
 	readonly thinkingLevelMap?: Readonly<Record<string, string | null>>;
 	readonly auth?: boolean;
+	readonly contextWindow?: number;
 	readonly reply:
 		| ModelReply
 		| readonly ModelReply[]
@@ -619,6 +628,7 @@ type FakeModel = {
 	provider: string;
 	reasoning: boolean;
 	thinkingLevelMap?: Readonly<Record<string, string | null>>;
+	contextWindow?: number;
 };
 
 type FakeMessage = {
@@ -694,9 +704,14 @@ export function fakeRegistry(
 			finds.push(`${provider}/${id}`);
 			const script = models[`${provider}/${id}`];
 			if (!script) return undefined;
-			const model = { id, provider, reasoning: script.reasoning ?? false };
-			const { thinkingLevelMap } = script;
-			return thinkingLevelMap ? { ...model, thinkingLevelMap } : model;
+			const { thinkingLevelMap, contextWindow } = script;
+			return {
+				id,
+				provider,
+				reasoning: script.reasoning ?? false,
+				...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+				...(contextWindow === undefined ? {} : { contextWindow }),
+			};
 		},
 		hasConfiguredAuth(model: FakeModel): boolean {
 			return models[`${model.provider}/${model.id}`]?.auth ?? true;
