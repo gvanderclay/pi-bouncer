@@ -206,8 +206,9 @@ these are escaped. All of this is sent to the providers of the models in the
 judge list.
 
 The session history is the bouncer's own record of what the agent ran: every
-bash command Pi executed, with its working directory, and the absolute path
-of every `write` and `edit`. It is recorded when a tool returns, so blocked,
+bash command Pi executed, with its working directory, the absolute path
+of every `write` and `edit`, and the name of every MCP tool called, never its
+arguments or result. It is recorded when a tool returns, so blocked,
 refused and aborted calls never appear; a call that ran and failed is marked
 failed, and a background start is marked as one. It keeps the newest 50
 entries, each cut to 1,000 characters, and the judge gets the newest within

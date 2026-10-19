@@ -119,6 +119,35 @@ test("output, file contents, edit text and the agent's messages never reach the 
 	);
 });
 
+test("an MCP call is in the history by tool name only, never its arguments or result", async () => {
+	const { gate, fake } = await handingOff();
+	await gate.finishTool(
+		toolResult(
+			"mcp__fake__echo",
+			{ args: "ARG-MARKER" },
+			{ text: "RESULT-MARKER" },
+		),
+	);
+	await gate.finishTool(
+		toolResult(
+			"mcp__fake__send",
+			{ args: "ARG-MARKER" },
+			{ isError: true, text: "RESULT-MARKER" },
+		),
+	);
+	await gate.finishTool(bashResult("ls /tmp"));
+	const input = await inputFor(gate, fake);
+	assert.equal(
+		historyBlock(input),
+		[
+			"1. mcp: mcp__fake__echo",
+			"2. mcp (failed): mcp__fake__send",
+			"3. bash: ls /tmp",
+		].join("\n"),
+	);
+	assert.doesNotMatch(input, /ARG-MARKER|RESULT-MARKER/);
+});
+
 test("a call that never finished, and a call the judge denied, are not in the history", async () => {
 	const { gate, fake } = await judgedGate({
 		reply: [verdict("deny", "no"), HAND_OFF],

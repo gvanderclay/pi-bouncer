@@ -149,7 +149,8 @@ model registry. Its lifetime is YOLO mode's.
   text, the agent's own messages or `AGENTS.md`.
 - The session history is the bouncer's own record, taken at `tool_result` in
   every mode since the session started: each executed bash command with its
-  working directory, and the absolute path of each `write` and `edit`.
+  working directory, the absolute path of each `write` and `edit`, and the
+  name of every MCP tool called, never its arguments or result.
   Blocked, refused and aborted calls are absent; a call that ran and failed
   is marked `failed`, a background start `started in background`. It keeps
   the newest 50 entries (each cut to 1,000 characters) and sends the newest
