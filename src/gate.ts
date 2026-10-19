@@ -247,7 +247,7 @@ function rulesOf(asks: readonly Ask[]): RuleName[] {
 	return [...new Set(asks.map((ask) => ask.rule))];
 }
 
-async function autoDecided(
+export async function autoDecided(
 	autoRanking: Ranking | undefined,
 	ranking: Ranking | undefined,
 	command: string,
