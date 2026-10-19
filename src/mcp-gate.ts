@@ -1,18 +1,24 @@
 // MCP tool calls (`mcp__<server>__<tool>`) have no shell string to rule on:
-// an allow-listed tool runs, every other one asks. Tool annotations
-// (readOnlyHint and the rest) are the server's unverified claims, so they
-// never allow a call.
+// an allow-listed tool runs; in auto mode the judge rules on other MCP calls,
+// otherwise they ask. Tool annotations (readOnlyHint and the rest) are the
+// server's unverified claims: they never allow a call and are never shown to
+// the judge.
 import {
 	type Ask,
 	type Asking,
-	type AskUI,
 	allSessionAllowed,
 	askUser,
 	yoloAnswers,
 } from "./ask.ts";
-import type { Decision, Trace, WithoutYolo } from "./gate.ts";
+import {
+	autoDecided,
+	type Call,
+	type Decision,
+	type Trace,
+	type WithoutYolo,
+} from "./gate.ts";
 import { isObject } from "./json.ts";
-import type { GateMode } from "./mode.ts";
+import type { Ranking } from "./rank.ts";
 import { clip } from "./verdict.ts";
 
 const MCP_RULE = "mcp";
@@ -20,6 +26,8 @@ const MCP_RULE = "mcp";
 export type McpSettings = {
 	/** Tool-name patterns, normalised as Pi names MCP tools; `*` matches anything. */
 	readonly allow: readonly string[];
+	/** false: auto mode opens the dialog instead of asking the judge. */
+	readonly judge?: false;
 };
 
 export function isMcpTool(toolName: string): boolean {
@@ -33,6 +41,33 @@ function normalised(pattern: string): string {
 	return pattern.replace(/[^A-Za-z0-9_*]/g, "_");
 }
 
+function allowList(list: unknown): string[] | undefined {
+	if (!Array.isArray(list)) return undefined;
+	if (!list.every((p) => typeof p === "string" && p.startsWith("mcp__"))) {
+		return undefined;
+	}
+	return list.map(normalised);
+}
+
+/** One key's setting, or `undefined` after pushing its problem. */
+function mcpEntry(
+	key: string,
+	entry: unknown,
+	problems: string[],
+): Partial<McpSettings> | undefined {
+	if (key === "judge") {
+		if (typeof entry === "boolean") return entry ? {} : { judge: false };
+		problems.push("mcp.judge must be true or false");
+	} else if (key === "allow") {
+		const allow = allowList(entry);
+		if (allow) return { allow };
+		problems.push(
+			'mcp.allow must be a list of tool names starting with "mcp__", such as "mcp__github__*"',
+		);
+	} else problems.push(`mcp: unknown key "${key}"`);
+	return undefined;
+}
+
 export function validMcp(
 	value: unknown,
 	problems: string[],
@@ -41,21 +76,11 @@ export function validMcp(
 		problems.push('"mcp" is not an object');
 		return undefined;
 	}
-	let allow: string[] = [];
-	for (const [key, list] of Object.entries(value)) {
-		if (key !== "allow") problems.push(`mcp: unknown key "${key}"`);
-		else if (
-			Array.isArray(list) &&
-			list.every((p) => typeof p === "string" && p.startsWith("mcp__"))
-		) {
-			allow = list.map(normalised);
-		} else {
-			problems.push(
-				'mcp.allow must be a list of tool names starting with "mcp__", such as "mcp__github__*"',
-			);
-		}
+	let settings: McpSettings = { allow: [] };
+	for (const [key, entry] of Object.entries(value)) {
+		settings = { ...settings, ...mcpEntry(key, entry, problems) };
 	}
-	return { allow };
+	return settings;
 }
 
 function matches(pattern: string, toolName: string): boolean {
@@ -72,26 +97,26 @@ export function mcpAllowed(
 	return allow.some((pattern) => matches(pattern, toolName));
 }
 
-export type McpCall = {
+export type McpCall = Call & {
 	readonly toolName: string;
 	readonly input: unknown;
-	readonly cwd: string;
-	readonly mode: GateMode;
 	readonly allow: readonly string[];
 	/** Session allows, keyed per tool; cleared at each session start. */
 	readonly allowed: Set<string>;
-	readonly ui?: AskUI;
-	readonly signal?: AbortSignal;
-	readonly autoChoice?: string;
 };
 
-/** An MCP call's arguments as the dialog and the log show them: JSON, cut to 200 characters. */
-export function mcpArgs(input: unknown): string {
+/** An MCP call's whole arguments as JSON: what the judge reads. */
+export function mcpJson(input: unknown): string {
 	try {
-		return clip(JSON.stringify(input) ?? "");
+		return JSON.stringify(input) ?? "";
 	} catch {
-		return clip(String(input));
+		return String(input);
 	}
+}
+
+/** The arguments as the dialog and the log show them: JSON, cut to 200 characters. */
+export function mcpArgs(input: unknown): string {
+	return clip(mcpJson(input));
 }
 
 /** The block when no one can answer the dialog. */
@@ -113,6 +138,20 @@ export async function decideMcp(call: McpCall): Promise<Decision> {
 	const { toolName, mode, ui } = call;
 	if (mcpAllowed(toolName, call.allow)) return { kind: "allow" };
 	const ask = mcpAsk(toolName, call.input);
+	if (mode === "auto" && call.judge) {
+		const ranking: Ranking = {
+			kind: "ask",
+			asks: [ask],
+			fallback: {
+				level: "deny",
+				rule: MCP_RULE,
+				reason: unansweredMcp(toolName),
+				command: toolName,
+			},
+			matches: [],
+		};
+		return autoDecided(ranking, ranking, toolName, call, call.allowed);
+	}
 	const asking: Asking = {
 		command: toolName,
 		cwd: call.cwd,
@@ -127,8 +166,8 @@ export async function decideMcp(call: McpCall): Promise<Decision> {
 		ui: ui !== undefined,
 		asks: [],
 		...(mode === "yolo" && { yolo: { withoutYolo: without } }),
-		// Auto mode asks no judge about an MCP call: like an auto.alwaysAsk
-		// line, it opens the dialog.
+		// With mcp.judge false, auto mode asks no judge about an MCP call: it
+		// opens the dialog.
 		...(mode === "auto" && { withoutAuto: without }),
 	};
 	if (mode === "yolo") {

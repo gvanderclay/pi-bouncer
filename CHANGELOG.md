@@ -12,10 +12,15 @@ follows [Semantic Versioning](https://semver.org/).
   are gated. A tool on the new user-config list `mcp.allow` (`*` matches any
   characters) runs; any other MCP call opens the dialog with the tool name
   and its arguments, and Allow for this session covers the tool. With no UI
-  it is blocked, YOLO mode allows it, and auto mode opens the dialog without
-  asking a judge. Log records of MCP calls carry `tool`, with the arguments
-  as `command`. To keep the old behaviour, allow every MCP tool with
-  `"mcp": { "allow": ["mcp__*"] }`.
+  it is blocked and YOLO mode allows it. In auto mode the call goes to the
+  judge list instead, skipping Jev, and works as a bash ask does: pausing,
+  session allows and mode switches included. The tool name, its description
+  and its whole arguments are sent to the judge-list providers.
+  `"mcp": { "judge": false }` opens the dialog instead. Log records of MCP
+  calls carry `tool`, with the arguments as `command`. To keep the old
+  behaviour, allow every MCP tool with `"mcp": { "allow": ["mcp__*"] }`. The
+  one deliberately changed test is "auto mode asks no judge about an MCP
+  call", in `src/mcp-gate.test.ts`, now the `mcp.judge: false` test.
 - The session history the judge sees now names each MCP tool called, never
   its arguments or result, and the judge prompt's history sentence says so.
 - The auto-judge-list bench has 15 MCP cases, judged with a new MCP prompt by

@@ -189,6 +189,9 @@ input, at four characters per token, plus the 2,000-token reply cap and a
 4,096-token margin. When no entry fits, the dialog says the command is too
 large for the judge instead of "no judge available".
 
+An MCP call not on `mcp.allow` is judged like an ask, without Jev, unless
+`mcp.judge` is `false`; its judge denies share the pause with bash.
+
 Some lines are decided before any judge is asked: rule-level denies, the
 always-deny set, unparseable commands and steer rules are denied, and
 `auto.alwaysAsk` prefixes open the dialog unless a steer rule blocks the
@@ -210,6 +213,11 @@ and the `auto.environment` facts. It never sees tool output, file contents,
 edit text or the agent's own messages. Literal closing tags inside any of
 these are escaped. All of this is sent to the providers of the models in the
 judge list.
+
+For an MCP call the judge sees the tool name, the server's description of the
+tool (cut to 2,000 characters), the whole arguments as JSON and the same
+context in place of the command. The description and arguments go to the
+providers of the judge-list models.
 
 The session history is the bouncer's own record of what the agent ran: every
 bash command Pi executed, with its working directory, the absolute path

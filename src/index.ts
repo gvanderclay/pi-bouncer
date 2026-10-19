@@ -20,17 +20,10 @@ import {
 	mktempTarget,
 	recordMade,
 } from "./agent-made.ts";
-import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
 import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
 import { readRemotes } from "./facts.ts";
-import {
-	type Call,
-	createGate,
-	type Decision,
-	type Judge,
-	type ParseFn,
-} from "./gate.ts";
+import { type Call, createGate, type Decision, type ParseFn } from "./gate.ts";
 import {
 	absolutePath,
 	clearHistory,
@@ -50,11 +43,13 @@ import {
 	recordHead,
 	rotateIfNeeded,
 } from "./log.ts";
+import { mcpCallIn } from "./mcp-call.ts";
 import { decideMcp, isMcpTool, mcpArgs } from "./mcp-gate.ts";
-import { type GateMode, type ModeHolder, processModeHolder } from "./mode.ts";
+import { type ModeHolder, processModeHolder } from "./mode.ts";
 import {
 	applyStartFlags,
-	autoRefusal,
+	autoChoiceFor,
+	callFrom,
 	createModeSwitch,
 	type ModeSwitch,
 	registerAuto,
@@ -88,24 +83,6 @@ async function tryLoad(loadParser: ParserLoader): Promise<ParseFn | undefined> {
 	} catch {
 		return undefined;
 	}
-}
-
-// The UI and signal reach the bouncer only when someone can answer a dialog.
-function callFrom(
-	ctx: ExtensionContext,
-	mode: GateMode,
-	judge: Judge | undefined,
-): Call {
-	const where = {
-		cwd: ctx.cwd,
-		home: homedir(),
-		mode,
-		...(judge && { judge }),
-	};
-	if (!ctx.hasUI) return where;
-	return ctx.signal
-		? { ...where, ui: ctx.ui, signal: ctx.signal }
-		: { ...where, ui: ctx.ui };
 }
 
 // Pi records a call aborted after `tool_call` as "Operation aborted" and drops
@@ -251,17 +228,6 @@ function startSession(
 	});
 }
 
-function autoChoiceFor(
-	mode: GateMode,
-	paused: boolean,
-	session: SessionState,
-	ctx: ExtensionContext,
-): string | undefined {
-	if (!ctx.hasUI || (mode === "auto" && !paused)) return undefined;
-	if (autoRefusal(session.config, ctx) !== undefined) return undefined;
-	return mode === "auto" ? RESUME_AUTO_CHOICE : AUTO_CHOICE;
-}
-
 // `lone`: the call is the only one its assistant message made. Pi checks every
 // call of a message before running any, so a sibling could fill a folder
 // the check already passed.
@@ -302,27 +268,18 @@ async function decideCall(
 	event: ToolCallEvent,
 	ctx: ExtensionContext,
 ): Promise<ToolCallEventResult | undefined> {
-	// A codemode script's nested MCP calls are gated; `codemode` itself is not.
-	if (isMcpTool(event.toolName)) {
-		// Not paused: an MCP answer neither feeds nor resumes a paused auto mode.
-		const autoChoice = autoChoiceFor(rt.holder.mode, false, rt.session, ctx);
-		const outcome = await decideMcp({
-			...callFrom(ctx, rt.holder.mode, undefined),
-			toolName: event.toolName,
-			input: event.input,
-			allow: rt.session.config?.mcp?.allow ?? [],
-			allowed: rt.mcpAllowed,
-			...(autoChoice && { autoChoice }),
-		});
-		const command = mcpArgs(event.input);
-		return settle(rt, event, ctx, outcome, { command, tool: event.toolName });
-	}
-	if (!isBash(event)) return undefined;
-	const { command } = event.input;
 	let sent: JudgeSent | undefined;
 	const onSent = (counts: JudgeSent): void => {
 		sent = counts;
 	};
+	// A codemode script's nested MCP calls are gated; `codemode` itself is not.
+	if (isMcpTool(event.toolName)) {
+		const outcome = await decideMcp(mcpCallIn(rt, event, ctx, onSent));
+		const tool = { command: mcpArgs(event.input), tool: event.toolName };
+		return settle(rt, event, ctx, outcome, tool, sent);
+	}
+	if (!isBash(event)) return undefined;
+	const { command } = event.input;
 	// A nested call's id (`<parent>/<n>`) never matches, so it is never lone:
 	// the parent's other nested calls may run beside it.
 	const lone = event.toolCallId === rt.lone.id;

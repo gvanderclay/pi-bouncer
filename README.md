@@ -158,7 +158,9 @@ top; `/bouncer status` shows it. [`examples/profiles.json`](examples/profiles.js
 has a read-only and a worker profile.
 
 An MCP tool call asks unless the tool is on `mcp.allow`, as in
-`{ "mcp": { "allow": ["mcp__docs__*"] } }`; see
+`{ "mcp": { "allow": ["mcp__docs__*"] } }`. In auto mode the judge rules on
+it, and its arguments go to the judge-list providers unless
+`"mcp": { "judge": false }`; see
 [`mcp`](docs/configuration.md#mcp).
 
 A custom rule with an `instead` text is a steer rule: it blocks a command in

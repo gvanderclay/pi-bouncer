@@ -1,11 +1,13 @@
+import { homedir } from "node:os";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentMade } from "./agent-made.ts";
+import { AUTO_CHOICE, RESUME_AUTO_CHOICE } from "./ask.ts";
 import type { GateConfig } from "./config.ts";
 import type { Remotes } from "./facts.ts";
-import type { Decision } from "./gate.ts";
+import type { Call, Decision, Judge } from "./gate.ts";
 import type { ToolHistory } from "./history.ts";
 import { jevStatus } from "./jev.ts";
 import { resolveEntry } from "./judge.ts";
@@ -320,4 +322,33 @@ export function registerAuto(
 		handler: async (args: string, ctx: ExtensionContext): Promise<void> =>
 			autoCommand(args, holder, switchMode, session, ctx),
 	});
+}
+
+// The UI and signal reach the bouncer only when someone can answer a dialog.
+export function callFrom(
+	ctx: ExtensionContext,
+	mode: GateMode,
+	judge: Judge | undefined,
+): Call {
+	const where = {
+		cwd: ctx.cwd,
+		home: homedir(),
+		mode,
+		...(judge && { judge }),
+	};
+	if (!ctx.hasUI) return where;
+	return ctx.signal
+		? { ...where, ui: ctx.ui, signal: ctx.signal }
+		: { ...where, ui: ctx.ui };
+}
+
+export function autoChoiceFor(
+	mode: GateMode,
+	paused: boolean,
+	session: SessionState,
+	ctx: ExtensionContext,
+): string | undefined {
+	if (!ctx.hasUI || (mode === "auto" && !paused)) return undefined;
+	if (autoRefusal(session.config, ctx) !== undefined) return undefined;
+	return mode === "auto" ? RESUME_AUTO_CHOICE : AUTO_CHOICE;
 }
