@@ -4,7 +4,7 @@ import { readGitState, readRemotes, remoteFacts } from "./facts.ts";
 import type { Judge } from "./gate.ts";
 import { type JudgeSent, recentEarlier, userTexts } from "./history.ts";
 import { NOT_FOUND } from "./judge.ts";
-import { judgeRequest } from "./judge-request.ts";
+import { judgeRequest, type McpJudged } from "./judge-request.ts";
 import type { ModeHolder } from "./mode.ts";
 import {
 	registryOf,
@@ -59,6 +59,7 @@ export function judgeFor(
 	holder: ModeHolder,
 	session: SessionState,
 	onSent: (sent: JudgeSent) => void = () => {},
+	mcp?: McpJudged,
 ): Judge {
 	return async (asks: readonly Ask[]): Promise<Ruling> => {
 		// A result that lands while Jev or the judge list is out reaches neither:
@@ -89,6 +90,7 @@ export function judgeFor(
 				environment,
 				earlierUserMessages: earlier,
 				history,
+				...(mcp && { mcp }),
 				...(userMessage && { userMessage }),
 			});
 			onSent({

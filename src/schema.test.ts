@@ -76,6 +76,8 @@ const VALID: readonly unknown[] = [
 	{ trustAgentMade: false },
 	{ mcp: {} },
 	{ mcp: { allow: ["mcp__github__*", "mcp__dev-radius__deploy"] } },
+	{ mcp: { judge: false } },
+	{ mcp: { allow: ["mcp__x__*"], judge: true } },
 	{ protect: { home: ["code", ".secrets/keys"], paths: ["/srv/data"] } },
 	{ protect: {} },
 	{
@@ -124,6 +126,7 @@ const INVALID: readonly unknown[] = [
 	{ mcp: [] },
 	{ mcp: { allow: ["github"] } },
 	{ mcp: { deny: [] } },
+	{ mcp: { judge: "no" } },
 	{ rules: {} },
 	{ rules: [{ name: "x", command: "x" }] },
 	{ rules: [{ name: "X", command: "x", summary: "s" }] },

@@ -112,6 +112,14 @@ export function reasonDenied(
 ): Verdict {
 	const [rule = "unparseable"] = rules;
 	const said = sentence.trim().replace(/[.\s]+$/, "");
+	if (rule === "mcp") {
+		return {
+			level: "deny",
+			rule,
+			reason: `${PREFIX} (rule: ${rules.join(", ")}): ${said}. Tool: \`${truncate(command, REASON_LIMIT)}\`. None of the call ran. ${DO_NOT_RETRY}`,
+			command,
+		};
+	}
 	return {
 		level: "deny",
 		rule,

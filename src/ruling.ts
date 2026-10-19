@@ -59,7 +59,7 @@ export async function ruleLine(
 	run: RulingRun,
 ): Promise<Ruling> {
 	const models = judgeOrder(auto, provider);
-	if (!auto?.jev) return runJudge(models, request, run);
+	if (!auto?.jev || request.mcp) return runJudge(models, request, run);
 	const start = Date.now();
 	const { model } = auto.jev;
 	const call = await callJev(request, run, start, model);

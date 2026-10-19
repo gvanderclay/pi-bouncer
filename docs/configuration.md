@@ -269,6 +269,8 @@ for this session covers that tool whatever its arguments. Calls a codemode
 script makes are gated the same way; the `codemode` call itself is not. Only
 the user config may set `mcp`.
 
+- `judge`: `false` makes auto mode open the dialog for an MCP call not on
+  `allow` instead of asking the judge. Default `true`.
 - `allow`: tool names, each starting with `mcp__`. `*` matches any
   characters, so `mcp__github__*` allows a whole server. Pi writes every
   character other than letters, digits and `_` as `_` in a tool name, and an
@@ -277,9 +279,17 @@ the user config may set `mcp`.
   hash suffix; end the entry with `*` to cover it.
 
 With no UI (print, JSON or RPC mode with no dialogs) a call not on the list
-is blocked. YOLO mode allows it. Auto mode asks no judge about it and opens
-the dialog, as for an `auto.alwaysAsk` prefix. A server's tool annotations,
-such as `readOnlyHint`, are its own unverified claims and never allow a call.
+is blocked. YOLO mode allows it. In auto mode the judge list rules on it as
+on a bash ask, with Jev skipped: an allow runs it quietly, a deny blocks it,
+and a hand-off or no answer opens the dialog. Paused auto mode and session
+allows work as for bash, and MCP denies count toward the pause. The judge
+gets the tool name, the server's description of the tool (cut to 2,000
+characters) and the whole arguments, so these go to the providers of the
+judge-list models; set `"judge": false` to keep them away. A call too big
+for every judge model opens the dialog. Put chatty read-only servers on
+`allow` so they are not judged at all. A server's tool annotations, such as
+`readOnlyHint`, are its own unverified claims: they never allow a call and
+are not shown to the judge.
 
 ```json
 { "mcp": { "allow": ["mcp__docs__*", "mcp__github__search_code"] } }

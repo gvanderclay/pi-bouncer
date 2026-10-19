@@ -101,7 +101,8 @@ model registry. Its lifetime is YOLO mode's.
   entry. A model whose context window can't fit the request is skipped
   unasked. If none answers, the dialog opens marked "Auto: no judge
   available", or "Auto: command too large for the judge (N characters)"
-  when every entry was skipped for size; without a UI the call blocks.
+  ("arguments too large" for an MCP call) when every entry was skipped
+  for size; without a UI the call blocks.
 - A usage-policy refusal (Pi reports stop reason `error` with raw stop
   reason `refusal`) is not a failure: it is a deny with the reason "It was
   refused as likely harmful.", the refusing model in `auto.model`, and the
@@ -147,7 +148,9 @@ model registry. Its lifetime is YOLO mode's.
   added or changed since the session started flagged), the user's last
   message in full, up to 10 earlier user messages (each cut to 1,000
   characters, 4,000 in all, newest kept), the session history and the
-  user config's `auto.environment` facts. Never tool output, file contents, edit
+  user config's `auto.environment` facts. For an MCP call it sees the tool
+  name, the server's description (cut to 2,000 characters) and the whole JSON
+  arguments instead of the command. Never tool output, file contents, edit
   text, the agent's own messages or `AGENTS.md`.
 - The session history is the bouncer's own record, taken at `tool_result` in
   every mode since the session started: each executed bash command with its
@@ -188,12 +191,16 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
     `alwaysAsk` prefixes, `environment` as a count of facts (their text
     is not logged), `firstByProvider` when it is set, and `jev` (its
     `allowAt` and `denyAt`, `null` for never) when Jev is on.
+  - `mcp`, only when the user config sets it: `allow`, and `judge: false`
+    when set.
 - `type: "call"`: one per bash call the bouncer intervened in.
   - `command`: the full command, never clipped.
   - `tool`: only on an MCP call (`mcp__<server>__<tool>`), which is also
     logged as a `call`; its `command` is the call's JSON arguments, cut to
     200 characters, and its one ask has rule `mcp` with the tool name as
-    `source`. MCP tools on the user config's `mcp.allow` are not logged.
+    `source`. MCP tools on the user config's `mcp.allow` are not logged. In auto
+    mode a judged MCP call carries `auto` exactly as a bash call does, never
+    `jev`.
   - `parentToolCallId`: the tool call that ran this bash call through
     `ctx.executeTool()` (a codemode script, for one), only on such a call.
     It is ruled as a direct call, but is never the only call in its
