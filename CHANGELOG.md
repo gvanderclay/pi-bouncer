@@ -18,6 +18,8 @@ follows [Semantic Versioning](https://semver.org/).
   `"mcp": { "allow": ["mcp__*"] }`.
 - The session history the judge sees now names each MCP tool called, never
   its arguments or result, and the judge prompt's history sentence says so.
+- The auto-judge-list bench has 15 MCP cases, judged with a new MCP prompt by
+  `run` and not by `jev`.
 
 ### Changed
 

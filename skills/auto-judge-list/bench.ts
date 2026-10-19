@@ -16,11 +16,18 @@ import {
 	type JudgeVerdict,
 	runJudge,
 } from "../../src/judge.ts";
-import { type JudgeRequest, judgeRequest } from "../../src/judge-request.ts";
+import {
+	type JudgeAsk,
+	type JudgeRequest,
+	judgeRequest,
+	type McpJudged,
+} from "../../src/judge-request.ts";
+import { mcpAsk } from "../../src/mcp-gate.ts";
 import { importPi } from "../../src/pi-package.ts";
 import { rankAuto, read } from "../../src/rank.ts";
 import { builtInPolicy } from "../../src/rules/built-in-policy.ts";
 import { historyCases } from "./history-cases.ts";
+import { MCP_CASES } from "./mcp-cases.ts";
 
 export const BENCH_PROMPT: string = JUDGE_PROMPT;
 
@@ -34,6 +41,8 @@ export type BenchCase = {
 	readonly earlierUserMessages?: readonly string[];
 	readonly history?: readonly HistoryEntry[];
 	readonly expected: readonly JudgeVerdict[];
+	/** An MCP call; `command` is then its JSON arguments */
+	readonly mcp?: McpJudged;
 };
 
 const HOME = "/home/dev";
@@ -185,22 +194,34 @@ export const CASES: readonly BenchCase[] = [
 	...historyCases(APP),
 ];
 
+/** What `run` judges: the shell cases, then the MCP ones. `jev` takes `CASES` alone. */
+export const JUDGE_CASES: readonly BenchCase[] = [...CASES, ...MCP_CASES];
+
 // A case the bouncer would not send to the judge is an error in the case set.
 export function requestFor(c: BenchCase): JudgeRequest {
-	const where = { cwd: c.cwd, home: HOME };
-	const ranking = rankAuto(read(parse, c.command), builtInPolicy, where, []);
-	if (ranking?.kind !== "ask") {
-		throw new Error(`bench case ${c.id}: the bouncer would not ask the judge`);
-	}
 	const git =
 		c.branch === "-"
 			? { kind: "not-a-repo" as const }
 			: { kind: "repo" as const, branch: c.branch, dirty: false };
+	let asks: readonly JudgeAsk[];
+	if (c.mcp) {
+		asks = [mcpAsk(c.mcp.tool, JSON.parse(c.command))];
+	} else {
+		const where = { cwd: c.cwd, home: HOME };
+		const ranking = rankAuto(read(parse, c.command), builtInPolicy, where, []);
+		if (ranking?.kind !== "ask") {
+			throw new Error(
+				`bench case ${c.id}: the bouncer would not ask the judge`,
+			);
+		}
+		asks = ranking.asks;
+	}
 	return judgeRequest({
 		command: c.command,
-		asks: ranking.asks,
+		asks,
 		cwd: c.cwd,
 		git,
+		...(c.mcp && { mcp: c.mcp }),
 		...(c.earlierUserMessages && {
 			earlierUserMessages: c.earlierUserMessages,
 		}),
@@ -427,11 +448,19 @@ async function main(): Promise<void> {
 	const models = entries.length > 0 ? entries : currentList(route);
 	const registry = await piRegistry(route);
 	const sessionId = `auto-judge-list-bench-${Date.now()}`;
-	const results = await runBench(models, CASES, registry, sessionId, (r) => {
-		const answer = r.verdict ?? `error: ${r.error}`;
-		process.stderr.write(`${r.model} ${r.id}: ${answer} (${r.ms} ms)\n`);
-	});
-	process.stdout.write(`${scoreTable(score(results, CASES), CASES.length)}\n`);
+	const results = await runBench(
+		models,
+		JUDGE_CASES,
+		registry,
+		sessionId,
+		(r) => {
+			const answer = r.verdict ?? `error: ${r.error}`;
+			process.stderr.write(`${r.model} ${r.id}: ${answer} (${r.ms} ms)\n`);
+		},
+	);
+	process.stdout.write(
+		`${scoreTable(score(results, JUDGE_CASES), JUDGE_CASES.length)}\n`,
+	);
 }
 
 if (import.meta.main) await main();
