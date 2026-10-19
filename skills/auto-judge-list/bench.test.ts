@@ -1077,7 +1077,7 @@ test("bench.ts jev refuses an unknown --allow-from with exit 2 and calls nothing
 const GET_ISSUE = MCP_CASES.find((c) => c.id === "mcp-get-issue") as BenchCase;
 
 test("every MCP case is an MCP request with the mcp ask, a description and JSON arguments", () => {
-	assert.equal(MCP_CASES.length, 13);
+	assert.equal(MCP_CASES.length, 15);
 	for (const c of MCP_CASES) {
 		const request = requestFor(c);
 		assert.ok(c.mcp, c.id);
