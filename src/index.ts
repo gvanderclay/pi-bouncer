@@ -305,6 +305,8 @@ async function decideCall(
 	const onSent = (counts: JudgeSent): void => {
 		sent = counts;
 	};
+	// A nested call's id (`<parent>/<n>`) never matches, so it is never lone:
+	// the parent's other nested calls may run beside it.
 	const lone = event.toolCallId === rt.lone.id;
 	const call = callIn(rt, command, ctx, lone, onSent);
 	const outcome = await rt.gate.decide(command, call);
@@ -315,6 +317,7 @@ async function decideCall(
 			ctx,
 			sent,
 			rt.session.config?.profile,
+			event.parentToolCallId,
 		);
 		if (record) appendRecord(rt.logDir, record);
 	});

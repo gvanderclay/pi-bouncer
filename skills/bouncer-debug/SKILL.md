@@ -187,6 +187,10 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
     `allowAt` and `denyAt`, `null` for never) when Jev is on.
 - `type: "call"`: one per bash call the bouncer intervened in.
   - `command`: the full command, never clipped.
+  - `parentToolCallId`: the tool call that ran this bash call through
+    `ctx.executeTool()` (a codemode script, for one), only on such a call.
+    It is ruled as a direct call, but is never the only call in its
+    message, so a recursive `rm` of an agent-made folder still asks.
   - `agent` and `profile`: the agent name and the profile the session ran
     under, when one applied.
   - `ui`: whether anyone could answer a dialog. Without a UI every match

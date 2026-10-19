@@ -6,6 +6,13 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A bash call another tool ran through `ctx.executeTool()` (a codemode
+  script, for one) has its log record carry `parentToolCallId`, the id of
+  the tool call that ran it. Such calls were already ruled as direct ones;
+  tests now pin that.
+
 ## [0.4.0] - 2026-10-14
 
 ### Added

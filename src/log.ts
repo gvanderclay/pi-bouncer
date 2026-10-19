@@ -60,6 +60,8 @@ export type SessionRecord = RecordHead<"session"> & {
 
 export type CallRecord = RecordHead<"call"> & {
 	readonly command: string;
+	/** The tool call (a codemode script, say) that ran this bash call through `ctx.executeTool()`. */
+	readonly parentToolCallId?: string;
 	readonly ui: boolean;
 	readonly outcome: "allowed" | "blocked" | "stopped";
 	readonly matches: readonly Match[];
@@ -130,6 +132,7 @@ export function callRecord(
 	ctx: ExtensionContext,
 	sent: JudgeSent | undefined,
 	profile: GateConfig["profile"],
+	parentToolCallId?: string,
 ): CallRecord | undefined {
 	const { trace } = decision;
 	if (!trace) return undefined;
@@ -137,7 +140,13 @@ export function callRecord(
 		profile?.state === "profile"
 			? { agent: profile.agent.name, profile: profile.name }
 			: {};
-	const head = { ...recordHead("call", ctx), command, ui: trace.ui, ...who };
+	const head = {
+		...recordHead("call", ctx),
+		command,
+		...(parentToolCallId && { parentToolCallId }),
+		ui: trace.ui,
+		...who,
+	};
 	const { matches, asks } = trace;
 	const agentMade = trace.agentMade && { agentMade: trace.agentMade };
 	// Only a decision YOLO or auto mode made carries its fields; only a call
