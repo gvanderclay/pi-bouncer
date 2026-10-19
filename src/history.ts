@@ -30,9 +30,9 @@ export function newestWithin<T>(
 	return kept;
 }
 
-// Never its output, the written content or the edit text.
+// Never its output, the written content, the edit text or an MCP call's arguments.
 export type HistoryEntry = {
-	readonly tool: "bash" | "write" | "edit";
+	readonly tool: "bash" | "write" | "edit" | "mcp";
 	readonly text: string;
 	readonly cwd: string;
 	readonly failed?: true;

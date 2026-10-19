@@ -411,7 +411,7 @@ function recordMadeBy(
 	recordMade(rt.session.agentMade, targets, since);
 }
 
-// History reads only the command and path, never output or content.
+// History reads only the command, path and tool name, never output or content.
 function recordResult(
 	rt: Runtime,
 	event: ToolResultEvent,
@@ -425,17 +425,17 @@ function recordResult(
 	};
 	const { cwd } = ctx;
 	const marks = event.isError ? { failed: true as const } : {};
+	const pathTool = toolName === "write" || toolName === "edit";
 	let entry: HistoryEntry | undefined;
 	if (toolName === "bash" && typeof command === "string") {
 		const detached = background === true && { background: true as const };
 		entry = { tool: "bash", text: command, cwd, ...marks, ...detached };
 		recordMadeBy(rt, event, command);
-	} else if (
-		(toolName === "write" || toolName === "edit") &&
-		typeof path === "string"
-	) {
+	} else if (pathTool && typeof path === "string") {
 		const text = absolutePath(path, cwd, homedir());
 		entry = { tool: toolName, text, cwd, ...marks };
+	} else if (isMcpTool(toolName)) {
+		entry = { tool: "mcp", text: toolName, cwd, ...marks };
 	}
 	if (entry) recordEntry(rt.session.history, entry);
 	return undefined;

@@ -16,6 +16,8 @@ follows [Semantic Versioning](https://semver.org/).
   asking a judge. Log records of MCP calls carry `tool`, with the arguments
   as `command`. To keep the old behaviour, allow every MCP tool with
   `"mcp": { "allow": ["mcp__*"] }`.
+- The session history the judge sees now names each MCP tool called, never
+  its arguments or result, and the judge prompt's history sentence says so.
 
 ## [0.5.0] - 2026-10-19
 

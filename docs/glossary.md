@@ -100,9 +100,9 @@ _Avoid_: auto-approve, classifier mode
 The model that rules on an auto-mode call: it answers allow, deny with a
 reason, or hand to the user. It sees the command, the uncovered asks, a few
 facts, the user's latest message and up to 10 earlier ones, and the session
-history: the bouncer's own record of the bash commands the agent ran and the
-paths it wrote or edited this session. It never sees tool output, file
-contents or the agent's own messages.
+history: the bouncer's own record of the bash commands the agent ran, the
+paths it wrote or edited and the MCP tools it called this session. It never
+sees tool output, file contents or the agent's own messages.
 _Avoid_: reviewer, classifier
 
 **Judge list**:
