@@ -6,6 +6,8 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-19
+
 ### Added
 
 - MCP tool calls (`mcp__<server>__<tool>`), direct or from a codemode script,
@@ -273,7 +275,8 @@ dotfiles; the changes below are against that copy.
   with `pi -e <path to the checkout>` is unaffected; anything that pointed at
   `index.ts` directly must point at `src/index.ts`.
 
-[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/gvanderclay/pi-bouncer/compare/v0.3.0...v0.3.1
