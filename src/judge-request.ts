@@ -15,6 +15,12 @@ export type JudgeAsk = {
 /** Marks a request only `judgeRequest` made. It exists in types alone. */
 declare const built: unique symbol;
 
+/** The MCP tool a request is about. */
+export type McpJudged = {
+	readonly tool: string;
+	readonly description?: string;
+};
+
 // Never tool output, file contents, the agent's own messages or AGENTS.md.
 export type JudgeFields = {
 	readonly command: string;
@@ -26,6 +32,8 @@ export type JudgeFields = {
 	readonly history?: readonly HistoryEntry[];
 	readonly userMessage?: string;
 	readonly environment?: readonly string[];
+	/** Set for an MCP call; `command` is then its JSON arguments. */
+	readonly mcp?: McpJudged;
 };
 
 // The type keeps a hand-made request out of the renderers.
@@ -40,6 +48,7 @@ export function judgeRequest(fields: JudgeFields): JudgeRequest {
 		asks: fields.asks,
 		cwd: fields.cwd,
 		...(fields.git && { git: fields.git }),
+		...(fields.mcp && { mcp: fields.mcp }),
 		...(fields.remotes && { remotes: fields.remotes }),
 		...(fields.environment && { environment: fields.environment }),
 		...(earlier.length > 0 && { earlierUserMessages: earlier }),
@@ -69,7 +78,7 @@ function remoteLines(remotes: readonly RemoteFact[] | undefined): string[] {
 
 // Any block's closing tag, in any case: none may end a block early.
 const CLOSING_TAG =
-	/<\/(command|user_message|earlier_user_messages|session_history)\b/gi;
+	/<\/(command|user_message|earlier_user_messages|session_history|tool_description|arguments)\b/gi;
 
 function escaped(text: string): string {
 	return text.replace(CLOSING_TAG, "<\\/$1");
@@ -123,6 +132,15 @@ function historyLines(
 	return entries.map((entry, i) => `${i + 1}. ${entryBody(entry, cwd)}`);
 }
 
+function mcpLines(mcp: McpJudged, args: string): string[] {
+	const description = mcp.description ? [escaped(mcp.description)] : [];
+	return [
+		`MCP tool: ${escaped(mcp.tool)}`,
+		...block("tool_description", description),
+		...block("arguments", [escaped(args)]),
+	];
+}
+
 export function judgeInput(request: JudgeRequest): string {
 	const flagged = request.asks.map(
 		({ rule, summary, source }) => `- ${rule} (${summary}): ${source}`,
@@ -140,9 +158,9 @@ export function judgeInput(request: JudgeRequest): string {
 		),
 		...block("session_history", historyLines(request.history, request.cwd)),
 		...block("user_message", said ? [escaped(said)] : []),
-		"<command>",
-		escaped(request.command),
-		"</command>",
+		...(request.mcp
+			? mcpLines(request.mcp, request.command)
+			: ["<command>", escaped(request.command), "</command>"]),
 	].join("\n");
 }
 

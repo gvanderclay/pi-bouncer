@@ -100,7 +100,7 @@ function unansweredMcp(toolName: string): string {
 }
 
 /** The ask's `source` is the tool name, so a session allow covers the tool whatever its arguments. */
-function mcpAsk(toolName: string, input: unknown): Ask {
+export function mcpAsk(toolName: string, input: unknown): Ask {
 	return {
 		rule: MCP_RULE,
 		summary: "an MCP tool not on mcp.allow",
