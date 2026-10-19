@@ -75,6 +75,7 @@ export function projectLevels(
 
 const ROUTE_ONLY: Readonly<Record<string, string>> = {
 	log: '"log" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets log limits',
+	mcp: '"mcp" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) allows MCP tools',
 	auto: '"auto" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) sets auto mode',
 	trashCommand:
 		'"trashCommand" is ignored in a project file: only the user config (bouncer.json in the Pi agent dir) names the trash program',

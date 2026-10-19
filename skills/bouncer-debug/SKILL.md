@@ -187,6 +187,10 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
     `allowAt` and `denyAt`, `null` for never) when Jev is on.
 - `type: "call"`: one per bash call the bouncer intervened in.
   - `command`: the full command, never clipped.
+  - `tool`: only on an MCP call (`mcp__<server>__<tool>`), which is also
+    logged as a `call`; its `command` is the call's JSON arguments, cut to
+    200 characters, and its one ask has rule `mcp` with the tool name as
+    `source`. MCP tools on the user config's `mcp.allow` are not logged.
   - `parentToolCallId`: the tool call that ran this bash call through
     `ctx.executeTool()` (a codemode script, for one), only on such a call.
     It is ruled as a direct call, but is never the only call in its

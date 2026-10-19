@@ -11,6 +11,7 @@ import {
 import { errorText } from "./error-text.ts";
 import { isObject, type Json } from "./json.ts";
 import { validLevels } from "./levels.ts";
+import { type McpSettings, validMcp } from "./mcp-gate.ts";
 import { effectivePolicy, ruleLevels } from "./policy.ts";
 import { chooseProfile, profiledAgents } from "./profile-resolve.ts";
 import {
@@ -69,6 +70,8 @@ export type GateConfig = {
 	readonly profiledAgents: ReadonlySet<string>;
 	/** Absent when the route sets no `auto`: auto mode cannot turn on. */
 	readonly auto?: AutoSettings;
+	/** The user config's MCP allow list; absent when it sets none. */
+	readonly mcp?: McpSettings;
 	readonly files: readonly ConfigFile[];
 	readonly problems: readonly string[];
 };
@@ -155,6 +158,7 @@ type Parsed = {
 	readonly levels: Levels;
 	readonly log?: LogLimits;
 	readonly auto?: AutoSettings;
+	readonly mcp?: McpSettings;
 	readonly startMode?: StartMode;
 	readonly protect?: Protect;
 	readonly trustAgentMade?: boolean;
@@ -191,6 +195,7 @@ function parseKey(
 	if (key === "levels") parts.levels = validLevels(value, problems);
 	else if (key === "log") assign(parts, "log", validLog(value, problems));
 	else if (key === "auto") assign(parts, "auto", validAuto(value, problems));
+	else if (key === "mcp") assign(parts, "mcp", validMcp(value, problems));
 	else if (key === "protect") parts.protect = validProtect(value, problems);
 	else if (key === "trustAgentMade" || key === "trashCommand") {
 		assign(parts, key, VALIDATE[key](value, problems));
@@ -223,7 +228,13 @@ const VALIDATE = {
 
 /** Sets `parts[key]` only when `value` is defined, so an invalid part is absent. */
 function assign<
-	K extends "log" | "auto" | "startMode" | "trustAgentMade" | "trashCommand",
+	K extends
+		| "log"
+		| "auto"
+		| "mcp"
+		| "startMode"
+		| "trustAgentMade"
+		| "trashCommand",
 >(parts: Mutable<Omit<Parsed, "file">>, key: K, value: Parsed[K]): void {
 	if (value !== undefined) parts[key] = value;
 	else delete parts[key];
@@ -320,6 +331,7 @@ export function loadConfig(
 		...(chosen.choice && { profile: chosen.choice }),
 		profiledAgents: profiledAgents(routeFile, projectFile, project.trusted),
 		...(routeFile.auto && { auto: routeFile.auto }),
+		...(routeFile.mcp && { mcp: routeFile.mcp }),
 		files,
 		problems: files.flatMap(({ path, problems }) =>
 			problems.map((problem) => `${path}: ${problem}`),
@@ -376,6 +388,8 @@ export type ConfigRecord = {
 	readonly protect?: Protect;
 	/** Only when a file turns it off. */
 	readonly trustAgentMade?: false;
+	/** Only when the user config sets it. */
+	readonly mcp?: McpSettings;
 	/** The route's auto settings, with only a count of environment facts. */
 	readonly auto?: {
 		readonly models: readonly string[];
@@ -398,6 +412,7 @@ export function configRecord(config: GateConfig): ConfigRecord {
 		...(config.profile && { profile: profileRecord(config.profile) }),
 		...(protect && { protect }),
 		...(config.trustAgentMade === false && { trustAgentMade: false as const }),
+		...(config.mcp && { mcp: config.mcp }),
 	};
 	if (!auto) return base;
 	const { models, alwaysAsk, environment, firstByProvider, jev } = auto;

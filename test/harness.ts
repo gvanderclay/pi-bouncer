@@ -182,6 +182,7 @@ export type LogRecord = {
 	readonly config?: unknown;
 	readonly command?: unknown;
 	readonly parentToolCallId?: unknown;
+	readonly tool?: unknown;
 	readonly ui?: unknown;
 	readonly outcome?: unknown;
 	readonly matches?: unknown;

@@ -11,7 +11,8 @@ are denied outright.
 
 The bouncer is a guard rail against accidents, not a sandbox. A determined or
 prompt-injected model can find commands it does not recognise, and Pi's
-`write` and `edit` tools are not gated. For real isolation, run Pi in a
+`write` and `edit` tools are not gated. MCP tool calls ask unless allowed
+by name. For real isolation, run Pi in a
 container or virtual machine, as
 [Pi's security guide](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md)
 describes.
@@ -156,6 +157,10 @@ session, and `agents` maps an agent name to a profile. A session started with
 top; `/bouncer status` shows it. [`examples/profiles.json`](examples/profiles.json)
 has a read-only and a worker profile.
 
+An MCP tool call asks unless the tool is on `mcp.allow`, as in
+`{ "mcp": { "allow": ["mcp__docs__*"] } }`; see
+[`mcp`](docs/configuration.md#mcp).
+
 A custom rule with an `instead` text is a steer rule: it blocks a command in
 every mode and tells the model what to run instead.
 [`examples/prefer-rg.json`](examples/prefer-rg.json) sends the model from
@@ -226,8 +231,9 @@ nothing else, and cannot veto the launch.
 
 - Pi 1.0 or later, on Node 22.19 or later. On a Pi without project trust the
   bouncer warns and treats every project as untrusted.
-- macOS and Linux. Only the `bash` tool is gated: Windows `powershell`,
-  `!` commands you type, and Pi's `write` and `edit` tools are not.
+- macOS and Linux. Only the `bash` tool and MCP tools are gated: Windows
+  `powershell`, `!` commands you type, Pi's `write` and `edit` tools and the
+  MCP resource tools are not.
 - Without a UI (print, JSON or RPC mode with no dialogs), every ask denies.
 - A usage-policy refusal counts as a judge deny only for providers that
   report it, such as Anthropic.
