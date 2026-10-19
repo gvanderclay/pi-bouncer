@@ -50,6 +50,7 @@ import {
 	recordHead,
 	rotateIfNeeded,
 } from "./log.ts";
+import { decideMcp, isMcpTool, mcpArgs } from "./mcp-gate.ts";
 import { type GateMode, type ModeHolder, processModeHolder } from "./mode.ts";
 import {
 	applyStartFlags,
@@ -197,6 +198,7 @@ type Runtime = {
 	readonly env: Readonly<Record<string, string | undefined>>;
 	readonly switchMode: ModeSwitch;
 	readonly stopped: Map<string, string>;
+	readonly mcpAllowed: Set<string>;
 	/** Per allowed bash call that may make directories: when it ran, and what its `mkdir`s would newly make. */
 	readonly making: Map<string, Making>;
 	/** The tool call id of the latest assistant message, when it made exactly one. */
@@ -234,6 +236,7 @@ function startSession(
 	warnAboutConfig(config, ctx);
 	welcome(holder, config, ctx);
 	rt.stopped.clear();
+	rt.mcpAllowed.clear();
 	logging.write(ctx, () => {
 		rotateIfNeeded(logDir, config.log);
 		pruneByAge(logDir, config.log.maxAgeDays);
@@ -299,6 +302,21 @@ async function decideCall(
 	event: ToolCallEvent,
 	ctx: ExtensionContext,
 ): Promise<ToolCallEventResult | undefined> {
+	// A codemode script's nested MCP calls are gated; `codemode` itself is not.
+	if (isMcpTool(event.toolName)) {
+		// Not paused: an MCP answer neither feeds nor resumes a paused auto mode.
+		const autoChoice = autoChoiceFor(rt.holder.mode, false, rt.session, ctx);
+		const outcome = await decideMcp({
+			...callFrom(ctx, rt.holder.mode, undefined),
+			toolName: event.toolName,
+			input: event.input,
+			allow: rt.session.config?.mcp?.allow ?? [],
+			allowed: rt.mcpAllowed,
+			...(autoChoice && { autoChoice }),
+		});
+		const command = mcpArgs(event.input);
+		return settle(rt, event, ctx, outcome, { command, tool: event.toolName });
+	}
 	if (!isBash(event)) return undefined;
 	const { command } = event.input;
 	let sent: JudgeSent | undefined;
@@ -310,6 +328,21 @@ async function decideCall(
 	const lone = event.toolCallId === rt.lone.id;
 	const call = callIn(rt, command, ctx, lone, onSent);
 	const outcome = await rt.gate.decide(command, call);
+	const result = settle(rt, event, ctx, outcome, { command }, sent);
+	if (outcome.kind === "allow")
+		noteMaking(rt, event.toolCallId, command, ctx.cwd);
+	return result;
+}
+
+// Logs a decision, applies its dialog's mode switch, returns the tool_call result.
+function settle(
+	rt: Runtime,
+	event: ToolCallEvent,
+	ctx: ExtensionContext,
+	outcome: Decision,
+	{ command, tool }: { command: string; tool?: string },
+	sent?: JudgeSent,
+): ToolCallEventResult | undefined {
 	rt.logging.write(ctx, () => {
 		const record = callRecord(
 			command,
@@ -318,6 +351,7 @@ async function decideCall(
 			sent,
 			rt.session.config?.profile,
 			event.parentToolCallId,
+			tool,
 		);
 		if (record) appendRecord(rt.logDir, record);
 	});
@@ -326,10 +360,7 @@ async function decideCall(
 	if (outcome.autoOn && rt.holder.mode !== "auto") {
 		rt.switchMode("auto", "dialog", "auto", ctx);
 	}
-	if (outcome.kind === "allow") {
-		noteMaking(rt, event.toolCallId, command, ctx.cwd);
-		return undefined;
-	}
+	if (outcome.kind === "allow") return undefined;
 	if (outcome.stop) {
 		rt.stopped.set(event.toolCallId, outcome.reason);
 		// Never awaited: abort() waits for idle, which cannot come while this
@@ -439,6 +470,7 @@ export default async function bouncer(
 		env,
 		switchMode: createModeSwitch(holder, session, logging, logDir),
 		stopped: new Map<string, string>(),
+		mcpAllowed: new Set<string>(),
 		making: new Map<string, Making>(),
 		lone: {},
 	};

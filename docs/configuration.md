@@ -22,7 +22,7 @@ so `/trust` applies after a restart or `/reload`. What a project file may do:
   or add a steer rule, because steer text is sent to the model.
 - A trusted project may also lower levels and turn rules off.
 - No project file, trusted or not, may loosen the always-deny set, or set
-  `log`, `auto` or `startMode`; only the user config can. The one exception
+  `log`, `auto`, `mcp` or `startMode`; only the user config can. The one exception
   is a profile's `mode`: a trusted project's profile may set `"off"` or
   `"auto"`, an untrusted one only `"off"`.
 - A project rule may not reuse the name of a user rule.
@@ -259,6 +259,31 @@ a child through a launcher that copies its environment and sets
 `PI_SUBAGENT_AGENT=scout`, the child still reads `orchestrator`, because
 `PI_BOUNCER_AGENT` comes first. A later subagent library compatibility pass
 (issue #8) is to fix this.
+
+## `mcp`
+
+MCP tool calls, named `mcp__<server>__<tool>` by Pi, are gated apart from
+bash: a call to a tool on `mcp.allow` runs, and any other MCP call opens the
+dialog with the tool name and its arguments (cut to 200 characters). Allow
+for this session covers that tool whatever its arguments. Calls a codemode
+script makes are gated the same way; the `codemode` call itself is not. Only
+the user config may set `mcp`.
+
+- `allow`: tool names, each starting with `mcp__`. `*` matches any
+  characters, so `mcp__github__*` allows a whole server. Pi writes every
+  character other than letters, digits and `_` as `_` in a tool name, and an
+  entry is read the same way: `mcp__dev-radius__*` matches
+  `mcp__dev_radius__deploy`. When two of a server's tools collide, Pi adds a
+  hash suffix; end the entry with `*` to cover it.
+
+With no UI (print, JSON or RPC mode with no dialogs) a call not on the list
+is blocked. YOLO mode allows it. Auto mode asks no judge about it and opens
+the dialog, as for an `auto.alwaysAsk` prefix. A server's tool annotations,
+such as `readOnlyHint`, are its own unverified claims and never allow a call.
+
+```json
+{ "mcp": { "allow": ["mcp__docs__*", "mcp__github__search_code"] } }
+```
 
 ## `auto`
 

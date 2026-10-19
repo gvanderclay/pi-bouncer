@@ -74,6 +74,8 @@ const VALID: readonly unknown[] = [
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
 	{ trustAgentMade: false },
+	{ mcp: {} },
+	{ mcp: { allow: ["mcp__github__*", "mcp__dev-radius__deploy"] } },
 	{ protect: { home: ["code", ".secrets/keys"], paths: ["/srv/data"] } },
 	{ protect: {} },
 	{
@@ -119,6 +121,9 @@ const VALID: readonly unknown[] = [
 // two rules with one name, and an agent naming a profile no file defines.
 const INVALID: readonly unknown[] = [
 	{ $schema: 1 },
+	{ mcp: [] },
+	{ mcp: { allow: ["github"] } },
+	{ mcp: { deny: [] } },
 	{ rules: {} },
 	{ rules: [{ name: "x", command: "x" }] },
 	{ rules: [{ name: "X", command: "x", summary: "s" }] },

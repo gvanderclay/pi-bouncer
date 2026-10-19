@@ -2,7 +2,7 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"$id": "https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json",
 	"title": "pi-bouncer config",
-	"description": "The user config (bouncer.json in the Pi agent dir) or a project config (.pi/extensions/bouncer/config.json). A project config overrides it entry by entry. An untrusted project may only make it stricter: raise levels, add protect paths, and add ask or deny rules. log, auto, startMode and trashCommand come from the user config only.",
+	"description": "The user config (bouncer.json in the Pi agent dir) or a project config (.pi/extensions/bouncer/config.json). A project config overrides it entry by entry. An untrusted project may only make it stricter: raise levels, add protect paths, and add ask or deny rules. log, auto, mcp, startMode and trashCommand come from the user config only.",
 	"type": "object",
 	"additionalProperties": false,
 	"properties": {
@@ -125,6 +125,18 @@
 							"description": "A model as provider/id."
 						}
 					}
+				}
+			}
+		},
+		"mcp": {
+			"type": "object",
+			"additionalProperties": false,
+			"description": "MCP tool calls. A call to a tool on the allow list runs; any other MCP call asks, and blocks when no one can answer. User config only.",
+			"properties": {
+				"allow": {
+					"type": "array",
+					"items": { "type": "string", "pattern": "^mcp__" },
+					"description": "Tool names as Pi registers them, mcp__<server>__<tool>; * matches any characters, so mcp__github__* allows a whole server. Characters other than letters, digits and _ match as _, as in Pi's tool names."
 				}
 			}
 		},

@@ -6,6 +6,17 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- MCP tool calls (`mcp__<server>__<tool>`), direct or from a codemode script,
+  are gated. A tool on the new user-config list `mcp.allow` (`*` matches any
+  characters) runs; any other MCP call opens the dialog with the tool name
+  and its arguments, and Allow for this session covers the tool. With no UI
+  it is blocked, YOLO mode allows it, and auto mode opens the dialog without
+  asking a judge. Log records of MCP calls carry `tool`, with the arguments
+  as `command`. To keep the old behaviour, allow every MCP tool with
+  `"mcp": { "allow": ["mcp__*"] }`.
+
 ## [0.5.0] - 2026-10-19
 
 ### Added

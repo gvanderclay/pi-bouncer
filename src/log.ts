@@ -59,7 +59,10 @@ export type SessionRecord = RecordHead<"session"> & {
 };
 
 export type CallRecord = RecordHead<"call"> & {
+	/** Bash's command, or for an MCP call its JSON arguments, cut to 200 characters. */
 	readonly command: string;
+	/** The tool called, set only when it is not bash (an MCP tool). */
+	readonly tool?: string;
 	/** The tool call (a codemode script, say) that ran this bash call through `ctx.executeTool()`. */
 	readonly parentToolCallId?: string;
 	readonly ui: boolean;
@@ -133,6 +136,7 @@ export function callRecord(
 	sent: JudgeSent | undefined,
 	profile: GateConfig["profile"],
 	parentToolCallId?: string,
+	tool?: string,
 ): CallRecord | undefined {
 	const { trace } = decision;
 	if (!trace) return undefined;
@@ -143,6 +147,7 @@ export function callRecord(
 	const head = {
 		...recordHead("call", ctx),
 		command,
+		...(tool && { tool }),
 		...(parentToolCallId && { parentToolCallId }),
 		ui: trace.ui,
 		...who,

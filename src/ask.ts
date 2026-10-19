@@ -19,6 +19,8 @@ export type Ask = {
 	readonly rule: RuleName;
 	readonly summary: string;
 	readonly source: string;
+	/** Shown below the source, outside the session-allow key: an MCP call's arguments. */
+	readonly detail?: string;
 };
 
 const ALLOW_ONCE = "Allow once";
@@ -54,7 +56,8 @@ function title(
 ): string {
 	const counter = count > 1 ? ` — ${index + 1} of ${count}` : "";
 	const line = note === undefined ? "" : `\n${note}`;
-	return `Bouncer: ${ask.summary} (rule: ${ask.rule})${counter}${line}\n${clip(ask.source)}`;
+	const detail = ask.detail === undefined ? "" : `\n${ask.detail}`;
+	return `Bouncer: ${ask.summary} (rule: ${ask.rule})${counter}${line}\n${clip(ask.source)}${detail}`;
 }
 
 async function typedReason(
