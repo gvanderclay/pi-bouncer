@@ -79,6 +79,8 @@ export type JudgeModel = {
 	/** Pi's API name for the model, such as `anthropic-messages`. */
 	readonly api?: string;
 	readonly thinkingLevelMap?: Readonly<Record<string, string | null>>;
+	/** Pi's context window in tokens; absent when the model does not report one. */
+	readonly contextWindow?: number;
 };
 
 export type JudgeMessage = {
@@ -160,7 +162,12 @@ function lowestReasoning(model: JudgeModel): Reasoning | undefined {
 	);
 }
 
-export type JudgeFailure = { readonly model: string; readonly error: string };
+export type JudgeFailure = {
+	readonly model: string;
+	readonly error: string;
+	/** Set only on a size skip: the request's length in characters. */
+	readonly chars?: number;
+};
 
 export type JudgeResult =
 	| (JudgeReply & {
@@ -182,6 +189,9 @@ export type JudgeRun = {
 
 // Enough for one short JSON object even after a little reasoning.
 const MAX_TOKENS = 2000;
+
+/** The reply reserve: the answer cap plus a margin for the prompt and framing. */
+const REPLY_MARGIN = 4096;
 
 function replyText(message: JudgeMessage): string {
 	return message.content
@@ -217,7 +227,8 @@ function refused(message: JudgeMessage): boolean {
 
 async function askModel(
 	model: JudgeModel,
-	request: JudgeRequest,
+	systemPrompt: string,
+	input: string,
 	run: JudgeRun,
 	signal: AbortSignal,
 ): Promise<JudgeReply | string> {
@@ -230,10 +241,8 @@ async function askModel(
 		...(takesSchema(model) && { onPayload: withVerdictSchema }),
 	};
 	const context = {
-		systemPrompt: judgePrompt(request.environment),
-		messages: [
-			{ role: "user" as const, content: judgeInput(request), timestamp: 0 },
-		],
+		systemPrompt,
+		messages: [{ role: "user" as const, content: input, timestamp: 0 }],
 	};
 	let message: JudgeMessage;
 	try {
@@ -263,6 +272,20 @@ function failure(
 	return reply;
 }
 
+// Four characters per token, as peers do; a rough count is enough to skip a model.
+const CHARS_PER_TOKEN = 4;
+
+/**
+ * The size-skip error, or `undefined` when the request fits. A model with no
+ * context window, or a non-positive one, is never skipped.
+ */
+function sizeSkip(model: JudgeModel, estimate: number): string | undefined {
+	const window = model.contextWindow;
+	if (window === undefined || window <= 0) return undefined;
+	if (estimate + MAX_TOKENS + REPLY_MARGIN <= window) return undefined;
+	return `request of about ${estimate} tokens does not fit its context window of ${window} tokens`;
+}
+
 // The first model that answers is the judge. Each gets 10 s, the line 20 s (or `run.lineMs`).
 export async function runJudge(
 	models: readonly string[],
@@ -270,6 +293,12 @@ export async function runJudge(
 	run: JudgeRun,
 ): Promise<JudgeResult> {
 	const tried: JudgeFailure[] = [];
+	// Built once, so the size estimate and every model see the same strings.
+	const systemPrompt = judgePrompt(request.environment);
+	const input = judgeInput(request);
+	const estimate = Math.ceil(
+		(systemPrompt.length + input.length) / CHARS_PER_TOKEN,
+	);
 	const line = new AbortController();
 	const lineTimer = setTimeout(() => line.abort(), run.lineMs ?? LINE_MS);
 	try {
@@ -281,13 +310,23 @@ export async function runJudge(
 				tried.push({ model: entry, error: model });
 				continue;
 			}
+			const oversized = sizeSkip(model, estimate);
+			if (oversized !== undefined) {
+				tried.push({
+					model: entry,
+					error: oversized,
+					chars: request.command.length,
+				});
+				continue;
+			}
 			const own = new AbortController();
 			const timer = setTimeout(() => own.abort(), MODEL_MS);
 			const signals = [own.signal, line.signal];
 			if (run.signal) signals.push(run.signal);
 			const reply = await askModel(
 				model,
-				request,
+				systemPrompt,
+				input,
 				run,
 				AbortSignal.any(signals),
 			).finally(() => clearTimeout(timer));

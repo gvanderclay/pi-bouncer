@@ -427,6 +427,89 @@ test("every model failing without a UI blocks with the no-UI reason", async () =
 	assert.equal(autoVerdict(gate.records().at(-1)), "none");
 });
 
+test("a judge model whose context window cannot fit the request is skipped unasked and the next one judges", async () => {
+	const tiny = "fake/tiny";
+	const command = "rm -rf dist";
+	const { gate, fake } = await listGate([tiny, JUDGE], {
+		[tiny]: { contextWindow: 1_000, ...ALLOWS },
+		[JUDGE]: ALLOWS,
+	});
+	const ui = judgedUI(fake);
+	assert.equal(await gate.handler(bashCall(command), ui.ctx), undefined);
+	assert.deepEqual(ui.dialogs, []);
+	assert.deepEqual(ui.notices, []);
+	assert.deepEqual(
+		fake.requests.map(({ model }) => model),
+		[JUDGE],
+	);
+	const auto = gate.records().at(-1)?.auto as {
+		verdict: unknown;
+		model: unknown;
+		tried: readonly { model: string; error: string; chars?: number }[];
+	};
+	assert.equal(auto.verdict, "allow");
+	assert.equal(auto.model, JUDGE);
+	assert.equal(auto.tried.length, 1);
+	assert.equal(auto.tried[0]?.model, tiny);
+	assert.equal(auto.tried[0]?.chars, command.length);
+	assert.match(
+		auto.tried[0]?.error ?? "",
+		/does not fit its context window of 1000 tokens$/,
+	);
+});
+
+test("with no judge model able to fit the request, the dialog says the command is too large for the judge", async () => {
+	const tiny = "fake/tiny";
+	const command = "rm -rf dist";
+	const { gate, fake } = await listGate([tiny, JUDGE], {
+		[tiny]: { contextWindow: 1_000, ...ALLOWS },
+		[JUDGE]: { contextWindow: 1_000, ...ALLOWS },
+	});
+	const ui = judgedUI(fake, ["Allow once"]);
+	assert.equal(await gate.handler(bashCall(command), ui.ctx), undefined);
+	assert.equal(
+		ui.dialogs[0]?.title,
+		`Bouncer: recursive rm deletes whole directory trees (rule: recursive-rm)\nAuto: command too large for the judge (${command.length} characters)\n${command}`,
+	);
+	assert.deepEqual(fake.requests, []);
+	assert.deepEqual(ui.notices, []);
+	assert.equal(autoVerdict(gate.records().at(-1)), "none");
+});
+
+test("with no judge model able to fit the request and no UI, the call blocks with its no-UI reason", async () => {
+	const tiny = "fake/tiny";
+	const { gate, fake } = await listGate([tiny, JUDGE], {
+		[tiny]: { contextWindow: 1_000, ...ALLOWS },
+		[JUDGE]: { contextWindow: 1_000, ...ALLOWS },
+	});
+	const result = await gate.handler(bashCall("rm -rf dist"), noUI(fake));
+	assert.equal(result?.block, true);
+	assert.equal(
+		result?.reason,
+		`Blocked by the user's bouncer (rule: recursive-rm): recursive rm deletes whole directory trees. Command: \`rm -rf dist\`. None of the command ran.${AGENT_MADE_HINT} If none of that works, do not retry another way: tell the user what was blocked and why, and let them decide.`,
+	);
+	assert.equal(autoVerdict(gate.records().at(-1)), "none");
+});
+
+test("a model with no context window is never skipped", async () => {
+	const { gate, fake } = await listGate([JUDGE], { [JUDGE]: ALLOWS });
+	const ui = judgedUI(fake);
+	assert.equal(await gate.handler(bashCall("rm -rf dist"), ui.ctx), undefined);
+	assert.deepEqual(
+		fake.requests.map(({ model }) => model),
+		[JUDGE],
+	);
+	const zero = "fake/zero";
+	const { gate: zeroGate, fake: zeroFake } = await listGate([zero], {
+		[zero]: { contextWindow: 0, ...ALLOWS },
+	});
+	assert.equal(
+		await zeroGate.handler(bashCall("rm -rf dist"), noUI(zeroFake)),
+		undefined,
+	);
+	assert.equal(zeroFake.requests.length, 1);
+});
+
 test("a hanging model is aborted at 10 s and the next one is asked", async (t) => {
 	t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
 	const { gate, fake } = await listGate([FIRST, JUDGE], {

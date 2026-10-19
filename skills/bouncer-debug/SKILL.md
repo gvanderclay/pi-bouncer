@@ -228,6 +228,7 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       answered.
     - `tried`: every `{model, error}` given up on before the answer, in
       list order. Empty when Jev decided; a Jev failure is in `jev`, not here.
+      An entry with `chars` was skipped for size and never asked.
     - `jev`, only when the user config has `auto.jev` and Jev was asked: `model`
       (only when `auto.jev.model` is set), `answer`
       (`safe`, `unsafe`, or `unsure` when the judge list was asked next), `safe` (the

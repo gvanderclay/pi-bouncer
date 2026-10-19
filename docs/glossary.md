@@ -129,8 +129,10 @@ _Avoid_: classifier mode, reviewer, first judge
 **Auto-mode ruling**:
 How auto mode answers one line's uncovered asks: Jev first when the user
 config has `auto.jev`, then the judge list in judge order, all within the
-line's one 20 s budget. Its answer is allow, deny, hand to the user, or no
-answer, together with what Jev said and every judge-list entry given up on.
+line's one 20 s budget. An entry whose context window cannot fit the request
+is skipped without being sent anything. Its answer is allow, deny, hand to
+the user, or no answer, together with what Jev said and every judge-list
+entry given up on.
 _Avoid_: judge pipeline, Jev-then-judge
 
 **Always-deny set**:
