@@ -243,6 +243,15 @@ function autoTrace(result: Ruling): AutoTrace {
 
 const NO_JUDGE = "Auto: no judge available";
 
+/** Every failure was a size skip, so no model could fit the whole request. */
+function tooLargeNote(tried: readonly JudgeFailure[]): string | undefined {
+	const chars = tried[0]?.chars;
+	if (chars === undefined || tried.some((entry) => entry.chars === undefined)) {
+		return undefined;
+	}
+	return `Auto: command too large for the judge (${chars} characters)`;
+}
+
 function rulesOf(asks: readonly Ask[]): RuleName[] {
 	return [...new Set(asks.map((ask) => ask.rule))];
 }
@@ -303,7 +312,10 @@ export async function autoDecided(
 		};
 		return { ...outcome, trace: { ...judged, asks: quiet } };
 	}
-	const note = result.kind === "none" ? NO_JUDGE : `Judge: ${result.reason}`;
+	const note =
+		result.kind === "none"
+			? (tooLargeNote(result.tried) ?? NO_JUDGE)
+			: `Judge: ${result.reason}`;
 	return dialogDecided(autoRanking, command, call, allowed, judged, note);
 }
 

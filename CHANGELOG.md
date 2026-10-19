@@ -19,6 +19,13 @@ follows [Semantic Versioning](https://semver.org/).
 - The session history the judge sees now names each MCP tool called, never
   its arguments or result, and the judge prompt's history sentence says so.
 
+### Changed
+
+- In auto mode, a judge-list model whose context window cannot fit the
+  request is now skipped without being sent anything, and when no model
+  fits, the dialog says the command is too large for the judge instead of
+  "no judge available". This applies to bash calls.
+
 ## [0.5.0] - 2026-10-19
 
 ### Added

@@ -25,7 +25,10 @@ function notifyFailures(
 	session: SessionState,
 	ctx: ExtensionContext,
 ): void {
-	const tried = rulingFailures(result);
+	// A size skip is not a broken model.
+	const tried = rulingFailures(result).filter(
+		({ chars }) => chars === undefined,
+	);
 	for (const { model, error } of tried) session.lastFailure.set(model, error);
 	const fresh = tried.filter(({ model }) => !session.reported.has(model));
 	for (const { model } of fresh) session.reported.add(model);
