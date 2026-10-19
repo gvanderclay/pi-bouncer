@@ -98,8 +98,10 @@ model registry. Its lifetime is YOLO mode's.
   prefixes gets the pseudo-rule `always-ask` and always opens the dialog.
 - Each model has 10 s and the line 20 s; any failure (not in Pi's catalogue,
   no auth, quota, timeout, network, an unparseable reply) moves to the next
-  entry. If none answers, the dialog opens marked "Auto: no judge
-  available"; without a UI the call blocks.
+  entry. A model whose context window can't fit the request is skipped
+  unasked. If none answers, the dialog opens marked "Auto: no judge
+  available", or "Auto: command too large for the judge (N characters)"
+  when every entry was skipped for size; without a UI the call blocks.
 - A usage-policy refusal (Pi reports stop reason `error` with raw stop
   reason `refusal`) is not a failure: it is a deny with the reason "It was
   refused as likely harmful.", the refusing model in `auto.model`, and the
@@ -339,12 +341,14 @@ holds it.
    To rebuild what the judge saw, read the session file up to the call:
    the user's last message and the `auto.sent.earlierMessages` user
    messages before it, and, since the latest session start, the agent's
-   bash, `write` and `edit` tool calls whose results arrived (newest
+   bash, `write`, `edit` and MCP tool calls whose results arrived (newest
    `auto.sent.history` of them, a result with `isError` marked failed).
    Assistant text and tool results never reached the judge.
    `discarded: true` means that verdict was not acted on. Calls with
    `auto.verdict` `none`, and the models in `tried`, point at a judge list
-   that needs fixing (`/auto status`).
+   that needs fixing (`/auto status`), except `tried` entries with `chars`:
+   those were skipped because the request was too large, and the list is
+   fine.
    **Did Jev decide?** `auto.model` `<jev>` (see Auto mode) means Jev decided
    the call: with `auto.verdict` `allow`, the allow score reached the
    `allowAt` (1 − `auto.jev.unsafe`, or `auto.jev.safe` when the session
