@@ -47,6 +47,9 @@ that fixes its findings is `docs/refactor-plan.md`.
   empty. Once that merges, `release.yml` sees an untagged version on `main`,
   checks, tags, publishes to npm by trusted publishing, and makes the GitHub
   release.
+- A release is done when the release pull request has merged; report that
+  and stop. The publish step is reliable, so skip watching `release.yml` and
+  checking npm for the new version.
 
 ## Rules
 
