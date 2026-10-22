@@ -277,12 +277,27 @@ numbers above describe the code before it. The others wait for approval.
    recreate sentence (findings 2 and 3), and correct the doc comment
    (finding 4), in `src/agent-made.ts`. One small pull request. This targets
    most of the logged misses.
-2. Tell the agent which condition failed (finding 5): in the block reason,
-   and possibly in the result of an rm that needed an ask. Its own pull
-   request, because it changes how a decision is passed through the gate.
-3. After 1 and 2 have run for a while, recount the bouncer log. Then decide
-   on the tree limit and the note's old-dates line (finding 1). Hardlink
-   counting is dropped for now.
+2. Investigate later: tell the agent which condition failed (finding 5).
+   Start only after change 1 (released in 0.6.1) has run for a while and a
+   recount of the bouncer log shows how many misses remain; if the
+   rewrite alone cuts them enough, this may not be needed. Sketch:
+   - Part A, no UI: `unanswered` (`src/gate.ts`) gives one sentence for
+     the first failing `AgentMadeReason` from `trace.agentMade`, with the
+     path when there is one, instead of repeating the whole note. The trash
+     suggestion and the hand-off to the user stay.
+   - Part B, after an ask: when an rm needed an ask and was allowed (by
+     the user or the judge), add the same sentence to that call's result,
+     so the agent corrects the habit mid-session. Paid only on calls that
+     already asked.
+   - Open questions: the first reason by `agentMadeFor`'s order is enough;
+     check that Pi lets an extension add to a result's text, as
+     `restoreStopReason` (`src/index.ts`) rewrites one; tests for each
+     reason's sentence and for Part B; the pinned block reason in
+     `src/ask-dialog.test.ts` changes deliberately.
+   One pull request for both parts, since they share the reason-to-sentence
+   mapping.
+3. With the same recount, decide on the tree limit and the note's old-dates
+   line (finding 1). Hardlink counting is dropped for now.
 
 Each pull request gets a `CHANGELOG.md` entry under `## [Unreleased]`.
 
