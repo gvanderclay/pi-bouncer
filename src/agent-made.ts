@@ -26,11 +26,15 @@ export type Made = {
 
 /**
  * Told to the agent at the start of every run, so it deletes the way that
- * needs no ask; the no-UI block repeats it. Each condition is one the code
- * checks: `creationTargets`, `checkRms` and the lone call.
+ * needs no ask; the no-UI block repeats it. A recipe at least as strict as
+ * `creationTargets`, `checkRms` and the lone-call check: following it always
+ * passes them, though they accept more.
  */
-export const AGENT_MADE_NOTE =
-	"A recursive rm of a folder you made in this session, or of something inside it, runs without asking the user when all of these hold: you made the folder in an earlier call, with a literal mkdir or a standalone mktemp -d (read the path it prints), or with a recursive cp into a path that did not exist; nothing older than the folder is inside it, so keep moved-in and date-preserving copies out; and you delete it with a direct rm -rf of that literal path, with no $VARIABLES, ~, wildcards or .. segments, as the only command on its line and the only tool call in its message. A full path from / works everywhere; a relative path works only when the working directory has not changed since the mkdir or cp. Make, use and delete the folder in separate calls.";
+export const AGENT_MADE_NOTE = `A recursive rm of a folder you made this session, or of something inside it, runs without asking the user when you follow these steps:
+1. Make the folder in a call of its own: a literal \`mkdir -p /full/path\`, \`mktemp -d\` alone (read the path it prints), or \`cp -r <dir> /full/new/path\` alone, into a path that does not exist yet.
+2. Keep anything older than the folder out of it: moved-in files and date-preserving copies keep their old dates.
+3. Delete it in a later call with \`rm -rf /full/path\`, a literal path with no $VARIABLES, ~, wildcards or .. segments. Put nothing else in that call, not even a \`cd\`, and make it the only tool call in its message.
+To recreate a folder, delete it in one call and make it again in the next. Make, use and delete the folder in separate calls.`;
 
 // Room for filesystems that store times to the second (or two, on FAT).
 export const CLOCK_SLACK_MS = 2_000;
