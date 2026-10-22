@@ -6,6 +6,15 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The system prompt note on deleting a folder the agent made, without an
+  ask, is now three ordered steps. It always uses a full path, asks for
+  nothing else in the deleting call, and says to recreate a folder in two
+  calls. The no-UI block reason carries the new text, so the test pinning
+  it in `src/ask-dialog.test.ts` changed deliberately. The checks
+  themselves are unchanged.
+
 ## [0.6.0] - 2026-10-19
 
 ### Added
