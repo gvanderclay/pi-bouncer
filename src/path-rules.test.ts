@@ -233,10 +233,105 @@ test("levels path-ssh ask with no UI blocks the read", async () => {
 	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
 });
 
-test("the search tools aren't decided yet", async () => {
+test("grep of the home folder is denied: it would search ~/.ssh", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("grep", { pattern: "token", path: "~" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+	assert.match(r?.reason ?? "", /The read of `~` did not run/);
+});
+
+test("ls of ~/.ssh is denied: file names are what it reveals", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("ls", { path: "~/.ssh" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("find from / is denied, and names a secret group", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("find", { pattern: "*", path: "/" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("grep with no path in a project holding a .env stays quiet", async () => {
+	const dir = project();
+	writeFileSync(join(dir, ".env"), "A=1\n");
+	writeFileSync(join(dir, ".gitignore"), ".env\n");
 	const g = await gate();
 	assert.equal(
-		await g.handler(fileCall("ls", { path: "~/.ssh" }), fakeContext(project())),
+		await g.handler(fileCall("grep", { pattern: "A" }), fakeContext(dir)),
+		undefined,
+	);
+});
+
+test("grep aimed at a .env itself is denied by path-env", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("grep", { pattern: "A", path: ".env" }),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: path-env\)/);
+});
+
+test("ls of a project folder is allowed", async () => {
+	const g = await gate();
+	assert.equal(
+		await g.handler(fileCall("ls", { path: "src" }), fakeContext(project())),
+		undefined,
+	);
+});
+
+test("a session started in the home folder can't grep it with no path", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("grep", { pattern: "x" }),
+		fakeContext(HOME),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("a search of a folder named .s is not a search of ~/.ssh", async () => {
+	const g = await gate();
+	assert.equal(
+		await g.handler(
+			fileCall("ls", { path: join(HOME, ".s") }),
+			fakeContext(project()),
+		),
+		undefined,
+	);
+});
+
+test("a project link to the home folder is searched as the home folder", async () => {
+	const dir = project();
+	symlinkSync(HOME, join(dir, "home-link"));
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("grep", { pattern: "x", path: "home-link" }),
+		fakeContext(dir),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("a search of a folder only a folder group covers stays allowed", async () => {
+	const g = await gate();
+	assert.equal(
+		await g.handler(
+			fileCall("grep", { pattern: "x", path: "/etc" }),
+			fakeContext(project()),
+		),
 		undefined,
 	);
 });

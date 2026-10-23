@@ -114,9 +114,6 @@ export async function decideFile(call: FileCall): Promise<FileDecision> {
 		return { decision: blockedBy(given.verdict, call) };
 	}
 	const { access } = given;
-	// shortcut: `grep`, `find` and `ls` run unchecked; their search scope comes
-	// with ticket 04. Upgrade when the search tools get their path rules.
-	if (access.search) return { decision: { kind: "allow" }, access };
 	try {
 		const paths = spellings(access, call.cwd, call.home);
 		const decision = await decidedFor(access, paths, call);

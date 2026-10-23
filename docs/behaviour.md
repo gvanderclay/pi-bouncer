@@ -124,10 +124,10 @@ turn, and a denied ask stops the line.
 
 ## File tools
 
-Pi's `read`, `write` and `edit` tools are gated by path rules, the same way
-bash commands are gated by command rules: the policy holds both, and a path
-rule is set in `levels` and shown by `/bouncer` like any other. `grep`, `find`
-and `ls` are not gated yet; their search scope is a later step.
+Pi's `read`, `write`, `edit`, `grep`, `find` and `ls` tools are gated by
+path rules, the same way bash commands are gated by command rules: the policy
+holds both, and a path rule is set in `levels` and shown by `/bouncer` like
+any other. `grep`, `find` and `ls` count as reading what they search.
 
 A file access has a **direction**: `read` reads, and `write` and `edit` write.
 A path rule has a level for each direction, so the same `.env` file can be
@@ -176,6 +176,27 @@ path. An ask opens the dialog, and with no UI it is blocked with a reason
 saying no one could answer it. YOLO mode lets a path ask or deny through, as
 it does for bash. Session allows, `levels` and profiles work for path rules
 as they do for command rules.
+
+### Search scope
+
+`grep`, `find` and `ls` reveal what they search, not only the folder they
+name, so they are decided as a read of that folder: `path-ssh` denies
+`grep token ~` and `ls ~/.ssh`, and a home folder holds enough secret folders
+that `find /` is denied too. An omitted `path` is the session's working
+directory.
+
+A path rule also fires when its pattern is anchored (`~` or `/`) and its
+fixed leading folders lie inside the search path, so searching a home folder
+reaches `~/.ssh`, and searching `/` reaches every absolute pattern. Patterns
+with no slash, which match at any depth, are tested only against the search
+path itself, so a `grep` with no path in a project that holds a `.env` stays
+quiet. The rules that match the search path itself follow last-match-wins as
+usual; the rules found inside it combine with that result by strictest first,
+so no `allow`, built in or the user's, unblocks a search of a folder that
+holds a secret group. The deny names the search path: "The read of `~` did
+not run." A `.env` that isn't gitignored can still appear in a `grep` result;
+Pi's own tools skip gitignored files, which is what keeps an ordinary project
+search quiet.
 
 ## The dialog
 

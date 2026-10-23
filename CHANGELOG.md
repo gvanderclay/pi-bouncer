@@ -36,8 +36,13 @@ follows [Semantic Versioning](https://semver.org/).
   or `path-git`. The home-anchored stores come after `path-keys`, so
   `~/.ssh/id_ed25519` is still decided by `path-ssh` and `.gnupg/**/*.key` by
   `path-gnupg`.
-- The `grep`, `find` and `ls` tools are not gated yet; their search scope is
-  the next step.
+- The `grep`, `find` and `ls` tools are now gated by search scope: a path
+  group also fires when an anchored pattern of it lies inside the folder being
+  searched, so `path-ssh` denies `grep token ~`, `ls ~/.ssh` and `find /`. A
+  search of a folder follows the same groups, directions and `levels` lines as
+  a read of it, such as `"levels": {"path-ssh": "off"}`. Patterns that match
+  at any depth are tested only against the search path itself, so a `grep`
+  with no path in a project that holds a `.env` stays quiet.
 - The `read` tool is now gated: `path-ssh` denies reading `~/.ssh`.
   `"levels": {"path-ssh": "off"}` restores the old behaviour. The path is
   checked however it is spelled (`~`, `@`, relative, absolute, `file://`) and
