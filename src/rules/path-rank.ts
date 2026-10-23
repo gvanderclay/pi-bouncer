@@ -2,11 +2,13 @@
 // spelling the last match wins, so a later entry can carve an exception out of
 // an earlier one; across spellings the strictest result wins. A search also
 // reaches a protected path inside the folder it searches, and that scope is
-// strictest-wins, so no allow unblocks it.
+// strictest-wins, so no allow unblocks it. An untrusted project's entries are
+// raise-only: they stay out of last-match-wins and their strictest match
+// combines strictest-wins with the rest.
 import type { Direction, FileAccess } from "../file-call.ts";
 import { realOf, type Spellings } from "../path-spellings.ts";
 import type { Match, Ranking } from "../rank.ts";
-import { pathDenied, pathUnanswered } from "../verdict.ts";
+import { pathDenied, pathSteerDenied, pathUnanswered } from "../verdict.ts";
 import { alwaysDenySet } from "./built-in-policy.ts";
 import type { PathPattern, PathWhere } from "./path-patterns.ts";
 import { BOUNCER, type PathEntry, type PathRule, type Policy } from "./rule.ts";
@@ -26,12 +28,30 @@ type Matcher = (
 	wheres: readonly PathWhere[],
 ) => boolean;
 
+// A pattern written from `/` names folders as typed, and the real spelling
+// of a path below a symlinked folder (macOS's /var, /tmp) starts elsewhere:
+// the path is also tried with that real start spelled as the pattern's.
+function rootMatch(
+	pattern: PathPattern,
+	path: string,
+	where: PathWhere,
+): boolean {
+	if (pattern.test(path, where)) return true;
+	if (pattern.anchor !== "root" || pattern.base === undefined) return false;
+	const base = pattern.base(where);
+	const real = realOf(base);
+	if (real === base || !holds(real, path)) return false;
+	return pattern.test(base + path.slice(real.length), where);
+}
+
 function anyMatch(
 	patterns: readonly PathPattern[],
 	path: string,
 	wheres: readonly PathWhere[],
 ): boolean {
-	return patterns.some((p) => wheres.some((where) => p.test(path, where)));
+	return patterns.some((p) =>
+		wheres.some((where) => rootMatch(p, path, where)),
+	);
 }
 
 // The pattern matches the path itself.
@@ -80,11 +100,32 @@ function lastMatch(
 	let found: Decided | undefined;
 	for (const entry of policy) {
 		if (entry.kind !== "path" || entry.rule.name === BOUNCER) continue;
+		if (entry.raiseOnly) continue;
 		const level = entry.levels[direction];
 		if (level === "off" || !matches(entry.rule, path, wheres)) continue;
 		found = { entry, level };
 	}
 	return found;
+}
+
+// The strictest raise-only entry that covers any spelling.
+function raised(
+	paths: Spellings,
+	direction: Direction,
+	policy: Policy,
+	wheres: readonly PathWhere[],
+): Decided | undefined {
+	let worst: Decided | undefined;
+	for (const entry of policy) {
+		if (entry.kind !== "path" || !entry.raiseOnly) continue;
+		const level = entry.levels[direction];
+		if (level === "off") continue;
+		if (!paths.all.some((path) => covers(entry.rule, path, wheres))) continue;
+		if (!worst || STRICTNESS[level] > STRICTNESS[worst.level]) {
+			worst = { entry, level };
+		}
+	}
+	return worst;
 }
 
 // Spellings are absolute or real, so the home and working directory are
@@ -181,7 +222,10 @@ function walked(
 	wheres: readonly PathWhere[],
 ): Decided | undefined {
 	const { direction } = access;
-	const direct = strictest(paths, direction, policy, wheres, covers);
+	const direct = stricter(
+		strictest(paths, direction, policy, wheres, covers),
+		raised(paths, direction, policy, wheres),
+	);
 	return access.search
 		? stricter(direct, inScope(paths, direction, policy, wheres))
 		: direct;
@@ -200,10 +244,15 @@ export function rankFile(
 		selfWrite(paths, direction, policy, wheres) ??
 		walked(access, paths, policy, wheres);
 	if (!decided || decided.level === "allow") return undefined;
-	const { rule } = decided.entry;
+	const { rule, instead } = decided.entry;
 	const matches: Match[] = [
 		{ rule: rule.name, level: decided.level, source: paths.typed },
 	];
+	// A path steer's level is deny: it denies in every mode, with its text.
+	if (instead !== undefined) {
+		const verdict = pathSteerDenied(rule, instead, direction, paths.typed);
+		return { kind: "deny", verdict, matches, steer: true };
+	}
 	const verdict = pathDenied(rule, direction, paths.typed);
 	if (denies(decided, mode)) return { kind: "deny", verdict, matches };
 	// The ask names the real path: a session allow covers that and nothing else.

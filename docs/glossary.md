@@ -36,8 +36,9 @@ _Avoid_: soft deny, redirect, nudge
 
 **Custom rule**:
 A rule the user defines under `rules` in the bouncer config: a program name
-plus arguments that must all appear in order, with a rule level, or with an
-`instead` text that makes it a steer rule.
+plus arguments that must all appear in order, or `paths` globs that make it a
+path rule; with a rule level, or with an `instead` text that makes it a steer
+rule.
 _Avoid_: user rule, pattern, extra rule
 
 **Path rule**:
@@ -46,7 +47,8 @@ A rule that recognises the paths of Pi's file tool calls (`read`, `write`,
 command. It has a level per direction. Among the path rules that match one
 spelling of a path, the last in the effective policy decides; across the
 spellings of a path (as typed, made absolute, symlinks resolved), the
-strictest result wins.
+strictest result wins. An untrusted project's custom path rules are
+raise-only: they only make that result stricter.
 _Avoid_: file rule, path pattern, protected path
 
 **Path group**:

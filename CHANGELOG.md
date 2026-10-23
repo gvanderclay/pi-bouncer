@@ -8,6 +8,21 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Custom path rules: a `rules` entry with `paths` (gitignore-style globs) in
+  place of `command` decides Pi's file tools. Its `level` is `"allow"`,
+  `"ask"`, `"deny"` or `"off"`, or a `{read, write}` object, and `instead`
+  makes it a path steer that denies in every mode with that text. Path rules
+  run after the built-in groups (user config, then project, then profile) and
+  the last match wins, so `"level": {"write": "deny"}` on `**` followed by an
+  `allow` for one folder confines a delegate's writes, and an `allow` for
+  `**/.git/hooks/**` lets hooks through `path-git`. `path-bouncer` still
+  wins over every rule. An untrusted project may add only `ask` or `deny`
+  path rules, and they are raise-only: they can make a path stricter but never
+  lower a deny before them. A rule name starting with `path-`, which used to
+  be allowed for a bash rule, is now a problem: the prefix is kept for path
+  groups. A root-anchored path pattern (built-in or custom) whose leading
+  folders are a symlink now also matches the real path below it.
+
 - Path groups in `levels` take a level per direction. A plain level sets both,
   as before, and an object sets `read` and/or `write` and leaves the other
   direction at the group's built-in level: `"path-env": {"read": "allow"}`

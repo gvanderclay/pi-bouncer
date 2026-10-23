@@ -84,6 +84,40 @@ const VALID: readonly unknown[] = [
 			},
 		],
 	},
+	{
+		rules: [
+			{ name: "notes", paths: ["~/notes/**"], level: "deny", summary: "s" },
+			{
+				name: "hooks",
+				paths: ["**/.git/hooks/**"],
+				level: { write: "allow" },
+				summary: "s",
+			},
+			{ name: "any", paths: ["**", "/srv/x/*.txt"], summary: "s" },
+			{ name: "open", paths: ["docs/**"], level: "allow", summary: "s" },
+			{
+				name: "vault",
+				paths: ["secrets/**"],
+				summary: "s",
+				instead: "Use vault.",
+				level: { read: "deny" },
+			},
+		],
+	},
+	{
+		profiles: {
+			docs: {
+				rules: [
+					{
+						name: "no-writes",
+						paths: ["**"],
+						level: { write: "deny" },
+						summary: "s",
+					},
+				],
+			},
+		},
+	},
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
 	{ trustAgentMade: false },
@@ -155,6 +189,39 @@ const INVALID: readonly unknown[] = [
 		],
 	},
 	{ rules: [{ name: "x", command: "x", summary: "s", other: 1 }] },
+	{ rules: [{ name: "x", summary: "s" }] },
+	{ rules: [{ name: "x", command: "x", paths: ["a"], summary: "s" }] },
+	{ rules: [{ name: "path-x", paths: ["a"], summary: "s" }] },
+	{ rules: [{ name: "x", paths: [], summary: "s" }] },
+	{ rules: [{ name: "x", paths: ["a/!b"], summary: "s" }] },
+	{ rules: [{ name: "x", paths: [" "], summary: "s" }] },
+	{ rules: [{ name: "x", paths: ["a"], args: ["b"], summary: "s" }] },
+	{ rules: [{ name: "x", paths: ["a"], level: {}, summary: "s" }] },
+	{
+		rules: [{ name: "x", paths: ["a"], level: { other: "ask" }, summary: "s" }],
+	},
+	{
+		rules: [{ name: "x", paths: ["a"], level: { read: "yes" }, summary: "s" }],
+	},
+	{
+		rules: [{ name: "x", command: "x", level: { read: "ask" }, summary: "s" }],
+	},
+	{
+		rules: [
+			{ name: "x", paths: ["a"], summary: "s", instead: "i", level: "allow" },
+		],
+	},
+	{
+		rules: [
+			{
+				name: "x",
+				paths: ["a"],
+				summary: "s",
+				instead: "i",
+				level: { write: "ask" },
+			},
+		],
+	},
 	{ levels: { grep: "deny" } },
 	{ other: true },
 	{ levels: { grep: "ask" } },

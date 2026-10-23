@@ -130,6 +130,21 @@ export function steerDenied(
 	};
 }
 
+/** A path steer rule's deny: like `steerDenied`, for a file call. */
+export function pathSteerDenied(
+	rule: { readonly name: RuleName; readonly summary: string },
+	instead: string,
+	direction: Direction,
+	path: string,
+): Verdict {
+	return {
+		level: "deny",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. The ${direction} of \`${truncate(path, REASON_LIMIT)}\` did not run. ${instead}`,
+		command: path,
+	};
+}
+
 // The text never says who wrote the sentence.
 export function reasonDenied(
 	rules: readonly RuleName[],

@@ -2,7 +2,7 @@
 // custom rules. A rule set to "off" leaves it.
 import type { Levels, PathLevels } from "./project-config.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
-import { type CustomRule, customEntry, customRule } from "./rules/custom.ts";
+import { type CustomRule, customEntry, offRule } from "./rules/custom.ts";
 import {
 	type Protect,
 	rmRootProtecting,
@@ -51,8 +51,9 @@ function pathEntry(
 		: { ...entry, levels };
 }
 
-// A rule set to "off" leaves the policy. Custom rules follow the built-ins,
-// and custom steer rules come last.
+// A rule set to "off" leaves the policy. Custom rules follow the built-ins in
+// their given order, so a custom path rule can make an exception to a built-in
+// group; custom bash steer rules come last.
 export function effectivePolicy(
 	levels: Levels,
 	protect: Protect | undefined,
@@ -85,7 +86,7 @@ export function effectivePolicy(
 	}
 	const entries = custom.flatMap((rule) => {
 		const entry = customEntry(rule);
-		if (!entry) off.push(customRule(rule));
+		if (!entry) off.push(offRule(rule));
 		return entry ? [entry] : [];
 	});
 	policy.push(

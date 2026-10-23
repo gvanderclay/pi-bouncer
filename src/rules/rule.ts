@@ -66,6 +66,11 @@ export type PathEntry = {
 	readonly levels: DirectionLevels;
 	/** Set on a custom path steer rule. */
 	readonly instead?: string;
+	/**
+	 * Set on an untrusted project's rule: it stays out of last-match-wins and
+	 * only makes the result stricter.
+	 */
+	readonly raiseOnly?: true;
 };
 
 // The directions a config level names: a plain level names both, except

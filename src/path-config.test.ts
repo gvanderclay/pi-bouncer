@@ -2,9 +2,10 @@
 // object naming `read` and/or `write`. Driven through the tool_call handler
 // with a temporary HOME.
 import assert from "node:assert/strict";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { fileCall, tempHome } from "../test/file-harness.ts";
 import {
 	fakeContext,
@@ -391,4 +392,344 @@ test("a profile in an untrusted project may not lower a direction", async () => 
 		scriptedUI([], dir).ctx,
 	);
 	assert.equal(read?.block, true);
+});
+
+// Custom path rules in `rules`.
+
+test("a custom path rule protects a folder the bouncer doesn't know", async () => {
+	const g = await gate({
+		rules: [
+			{
+				name: "notes",
+				paths: ["~/notes/**"],
+				level: "deny",
+				summary: "personal notes",
+			},
+		],
+	});
+	const r = await g.handler(
+		fileCall("read", { path: "~/notes/a.md" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: notes\)/);
+});
+
+test("a bare ** path rule matches outside the working directory", async () => {
+	const g = await gate({
+		rules: [{ name: "all", paths: ["**"], level: "deny", summary: "x" }],
+	});
+	const r = await g.handler(
+		fileCall("read", { path: "/tmp/x" }),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: all\)/);
+});
+
+test("a delegate profile can write only to one folder", async () => {
+	const dir = project();
+	const g = await gate(
+		{
+			profiles: {
+				docs: {
+					rules: [
+						{
+							name: "no-writes",
+							paths: ["**"],
+							level: { write: "deny" },
+							summary: "writes only to docs",
+						},
+						{
+							name: "docs-only",
+							paths: [`${dir}/docs/**`],
+							level: { write: "allow" },
+							summary: "the docs folder",
+						},
+					],
+				},
+			},
+			agents: { writer: "docs" },
+		},
+		{ PI_BOUNCER_AGENT: "writer" },
+	);
+	const w = (path: string): ToolCallEvent =>
+		fileCall("write", { path, content: "x" });
+	assert.equal(await g.handler(w("docs/a.md"), fakeContext(dir)), undefined);
+	const denied = await g.handler(w("src/a.ts"), fakeContext(dir));
+	assert.match(denied?.reason ?? "", /\(rule: no-writes\)/);
+	assert.equal(
+		await g.handler(fileCall("read", { path: "src/a.ts" }), fakeContext(dir)),
+		undefined,
+	);
+});
+
+test("an earlier allow doesn't beat a later deny within one spelling", async () => {
+	const g = await gate({
+		rules: [
+			{ name: "open", paths: ["**"], level: "allow", summary: "x" },
+			{ name: "secrets", paths: ["secrets/**"], level: "deny", summary: "s" },
+		],
+	});
+	const r = await g.handler(
+		fileCall("read", { path: "secrets/a" }),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: secrets\)/);
+});
+
+test("a later allow beats the built-in path-git for hooks only", async () => {
+	const g = await gate({
+		rules: [
+			{
+				name: "hooks",
+				paths: ["**/.git/hooks/**"],
+				level: { write: "allow" },
+				summary: "hooks",
+			},
+		],
+	});
+	const ctx = fakeContext(project());
+	assert.equal(
+		await g.handler(
+			fileCall("write", { path: ".git/hooks/pre-commit", content: "" }),
+			ctx,
+		),
+		undefined,
+	);
+	const config = await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		ctx,
+	);
+	assert.equal(config?.block, true);
+	assert.match(config?.reason ?? "", /\(rule: path-git\)/);
+});
+
+test("no allow rule overrides path-bouncer", async () => {
+	const g0 = await gate();
+	const g = await gate({
+		rules: [
+			{
+				name: "agent-dir",
+				paths: [`${g0.agentDir}/**`, "**"],
+				level: "allow",
+				summary: "x",
+			},
+		],
+	});
+	const r = await g.handler(
+		fileCall("write", {
+			path: join(g.agentDir, "bouncer.json"),
+			content: "{}",
+		}),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: path-bouncer\)/);
+});
+
+test("no allow rule unblocks a search of the home folder", async () => {
+	const g = await gate({
+		rules: [{ name: "open", paths: ["~/**"], level: "allow", summary: "x" }],
+	});
+	const r = await g.handler(
+		fileCall("grep", { pattern: "x", path: "~" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+});
+
+test("an untrusted project can't add an allow path rule", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		rules: [
+			{ name: "open", paths: ["~/.ssh/**"], level: "allow", summary: "x" },
+		],
+	});
+	const g = await loadGateSession();
+	const { ctx, notices } = uiContext(dir, false);
+	await g.startSession("startup", ctx);
+	assert.match(messages(notices), /"open"/);
+	const r = await g.handler(
+		fileCall("read", { path: "~/.ssh/id_ed25519" }),
+		fakeContext(dir),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("an untrusted project's ask rule doesn't lower path-ssh's read deny", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		rules: [{ name: "ssh", paths: ["~/.ssh/**"], level: "ask", summary: "x" }],
+	});
+	const g = await loadGateSession();
+	const { ctx, notices } = uiContext(dir, false);
+	await g.startSession("startup", ctx);
+	assert.equal(notices.length, 0, messages(notices));
+	const ui = scriptedUI(["Allow once"], dir);
+	const r = await g.handler(
+		fileCall("read", { path: "~/.ssh/id_ed25519" }),
+		ui.ctx,
+	);
+	assert.equal(ui.dialogs.length, 0);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("an untrusted project's ** ask rule doesn't override a user deny rule", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		rules: [{ name: "all", paths: ["**"], level: "ask", summary: "x" }],
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: {
+			rules: [
+				{ name: "notes", paths: ["~/notes/**"], level: "deny", summary: "n" },
+			],
+		},
+	});
+	await g.startSession("startup", uiContext(dir, false).ctx);
+	const ui = scriptedUI(["Allow once"], dir);
+	const r = await g.handler(fileCall("read", { path: "~/notes/a" }), ui.ctx);
+	assert.equal(ui.dialogs.length, 0);
+	assert.match(r?.reason ?? "", /\(rule: notes\)/);
+});
+
+test("a trusted project's ** ask rule overrides a user deny rule", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		rules: [{ name: "all", paths: ["**"], level: "ask", summary: "x" }],
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: {
+			rules: [
+				{ name: "notes", paths: ["~/notes/**"], level: "deny", summary: "n" },
+			],
+		},
+	});
+	await g.startSession("startup", uiContext(dir, true).ctx);
+	const ui = scriptedUI(["Allow once"], dir);
+	const r = await g.handler(fileCall("read", { path: "~/notes/a" }), ui.ctx);
+	assert.equal(r, undefined);
+	assert.equal(ui.dialogs.length, 1);
+});
+
+test("an untrusted project's deny rule tightens a path", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		rules: [
+			{
+				name: "lock",
+				paths: ["src/**"],
+				level: { write: "deny" },
+				summary: "x",
+			},
+		],
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: {
+			rules: [{ name: "open", paths: ["**"], level: "allow", summary: "o" }],
+		},
+	});
+	await g.startSession("startup", uiContext(dir, false).ctx);
+	const r = await g.handler(
+		fileCall("write", { path: "src/a.ts", content: "" }),
+		fakeContext(dir),
+	);
+	assert.match(r?.reason ?? "", /\(rule: lock\)/);
+	assert.equal(
+		await g.handler(fileCall("read", { path: "src/a.ts" }), fakeContext(dir)),
+		undefined,
+	);
+});
+
+test("a path steer sends its instead text, in YOLO mode too", async () => {
+	const rule = {
+		name: "use-vault",
+		paths: ["secrets/**"],
+		level: "deny",
+		summary: "secrets live in the vault",
+		instead: "Use `vault kv get` instead.",
+	};
+	const g = await gate({ rules: [rule] });
+	const dir = project();
+	const r = await g.handler(
+		fileCall("read", { path: "secrets/a" }),
+		fakeContext(dir),
+	);
+	assert.match(
+		r?.reason ?? "",
+		/\(rule: use-vault\): secrets live in the vault\. The read of `secrets\/a` did not run\. Use `vault kv get` instead\./,
+	);
+	await g.runCommand("yolo", "", uiContext(dir).ctx);
+	const yolo = await g.handler(
+		fileCall("read", { path: "secrets/a" }),
+		fakeContext(dir),
+	);
+	assert.match(yolo?.reason ?? "", /Use `vault kv get` instead\./);
+});
+
+test("a rule with both command and paths, or a path- name, is a problem", async () => {
+	const g = await gate({
+		rules: [
+			{ name: "both", command: "x", paths: ["a"], summary: "x" },
+			{ name: "path-mine", paths: ["a"], summary: "x" },
+			{ name: "bad-glob", paths: ["a/!b"], summary: "x" },
+			{ name: "cmd-allow", command: "x", level: "allow", summary: "x" },
+		],
+	});
+	const ui = uiContext();
+	await g.runCommand("bouncer", "check", ui.ctx);
+	const text = messages(ui.notices);
+	assert.match(text, /rules\[0\]: a rule takes "command" or "paths", not both/);
+	assert.match(
+		text,
+		/rules: "path-mine": names starting with "path-" are kept for built-in path groups/,
+	);
+	assert.match(text, /rules: "bad-glob": path pattern "a\/!b" is not valid/);
+	assert.match(text, /rules\[3\]: "level" must be "ask", "deny", "off"/);
+});
+
+test("a path rule written through a symlinked folder also matches the real path", async () => {
+	const dir = project();
+	mkdirSync(join(dir, "real"));
+	symlinkSync(join(dir, "real"), join(dir, "link"));
+	const g = await gate({
+		rules: [
+			{
+				name: "linked",
+				paths: [`${dir}/link/**`],
+				level: "deny",
+				summary: "x",
+			},
+		],
+	});
+	const r = await g.handler(
+		fileCall("read", { path: join(dir, "real", "a") }),
+		fakeContext(dir),
+	);
+	assert.match(r?.reason ?? "", /\(rule: linked\)/);
+});
+
+test("an untrusted project's profile path rule can't lower path-ssh", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		profiles: {
+			open: {
+				rules: [
+					{ name: "ssh", paths: ["~/.ssh/**"], level: "ask", summary: "x" },
+				],
+			},
+		},
+		agents: { scout: "open" },
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		env: { PI_BOUNCER_AGENT: "scout" },
+	});
+	await g.startSession("startup", uiContext(dir, false).ctx);
+	const ui = scriptedUI(["Allow once"], dir);
+	const r = await g.handler(
+		fileCall("read", { path: "~/.ssh/id_ed25519" }),
+		ui.ctx,
+	);
+	assert.equal(ui.dialogs.length, 0);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
 });

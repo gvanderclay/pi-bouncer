@@ -20,8 +20,12 @@ so `/trust` applies after a restart or `/reload`. What a project file may do:
 - An untrusted project may only make things stricter: raise a level (each
   direction of a path group separately), add `protect` paths, and add ask or
   deny custom rules. It may not lower a level, set a path direction to
-  `"allow"`, or add a steer rule, because steer text is sent to the model.
-- A trusted project may also lower levels and turn rules off.
+  `"allow"`, add a path rule that allows, or add a steer rule, because steer
+  text is sent to the model. Its path rules are raise-only: they never take
+  part in last-match-wins, so its `ask` rule cannot turn an earlier deny into
+  an ask; it only makes the result stricter.
+- A trusted project may also lower levels, turn rules off, and add path
+  rules that allow; its path rules follow the user's in last-match-wins.
 - No project file, trusted or not, may loosen the always-deny set, or set
   `log`, `auto`, `mcp` or `startMode`; only the user config can. The one exception
   is a profile's `mode`: a trusted project's profile may set `"off"` or
@@ -176,9 +180,12 @@ the user config may set it.
 
 ## `rules`
 
-`rules` is a list of custom rules. Each one has:
+`rules` is a list of custom rules. A rule has `command` (a bash rule) or
+`paths` (a path rule, see [Path rules](#path-rules)), never both. Each one
+has:
 
-- `name`: lowercase, and not the name of a built-in rule.
+- `name`: lowercase, not the name of a built-in rule, and not starting with
+  `path-`, which is kept for path groups.
 - `command`: a program name, or a list of them. `/usr/bin/kubectl` matches
   `kubectl`.
 - `args` (optional): arguments that must all follow the command, in order,
@@ -209,6 +216,60 @@ wrappers, in chains, inside `sh -c`, and in the commands `find -exec` and
 an ask or deny custom rule, and auto mode sends its asks to the judge.
 [`examples/prefer-rg.json`](../examples/prefer-rg.json) is a steer rule that
 sends the model from `grep` to `rg`.
+
+### Path rules
+
+A rule with `paths` in place of `command` decides Pi's file tools, as the
+[path groups](#path-groups) do. `paths` is a list of gitignore-style globs:
+`*` and `?` within one folder name, `**` across folders, and no `!`. A
+pattern starting with `/` is absolute, one starting with `~/` is in your home
+folder, one with no `/` is a file name at any depth (`**` alone matches every
+path), and any other is relative to the working directory. A pattern that
+does not compile is a problem, and the rule is dropped.
+
+`level` takes `"allow"`, `"ask"` (the default), `"deny"` or `"off"`, or an
+object with `read` and/or `write`; a direction the object leaves out is off,
+so the rule never decides it. With `instead` the rule is a steer: its level
+is `"deny"` or `"off"`, and a match denies in every mode with that text.
+`args` is for bash rules only.
+
+The built-in groups come first, then the user config's path rules, then the
+project file's, then the profile's, each file in list order, and the last
+rule that matches decides. So a later rule makes an exception to an earlier
+one. A delegate that may write only to its docs folder:
+
+```json
+{
+  "profiles": {
+    "docs": {
+      "rules": [
+        {
+          "name": "no-writes",
+          "paths": ["**"],
+          "level": { "write": "deny" },
+          "summary": "this agent writes only to docs"
+        },
+        {
+          "name": "docs-only",
+          "paths": ["/home/me/project/docs/**"],
+          "level": { "write": "allow" },
+          "summary": "the docs folder"
+        }
+      ]
+    }
+  },
+  "agents": { "writer": "docs" }
+}
+```
+
+An `allow` overrides the built-in groups inside its folder too: a rule
+allowing `**/.git/hooks/**` lets a hook be written without the `path-git`
+ask, and an `allow` for `~/**` would open `~/.ssh`. Add a later rule to
+restore a group inside it. Two things no rule overrides: `path-bouncer`,
+which is checked before every other path rule, and a search (`grep`, `find`,
+`ls`) of a folder that holds a protected path, which the strictest rule
+inside it decides. A path rule written through a symlinked folder also
+matches the same files by their real path.
 
 ## `log`
 
@@ -273,7 +334,7 @@ How a profile applies:
   `ask` and never `off`, and YOLO and auto mode deny it whatever its level.
 - A `rules` entry named like a normal custom rule replaces it in place, so a
   profile can change its level or turn it off. Any other entry is added after
-  the normal custom rules. Steer rules still go last.
+  the normal custom rules. Bash steer rules still go last.
 - `protect` adds to the normal paths.
 - `mode` replaces `startMode`, but only when the session has no `--auto` or
   `--yolo`. A session whose parent runs in YOLO or auto mode gets that flag
@@ -288,7 +349,8 @@ How a profile applies:
 A project file may define profiles too, and its definition of a name is laid
 over the user config's. An untrusted project can only tighten: its levels may
 only be raised, direction by direction, it may not set a path direction to
-`"allow"`, it may not add steer rules, and its `mode` may be only `"off"`. A
+`"allow"` or add a path rule that allows, its path rules are raise-only, it
+may not add steer rules, and its `mode` may be only `"off"`. A
 trusted project may also lower levels and set `"off"` or `"auto"`. Every problem in either file is reported at session start and by
 `/bouncer check`, whether or not the session uses the profile.
 
