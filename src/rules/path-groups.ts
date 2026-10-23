@@ -32,6 +32,9 @@ const ASK_WRITE: DirectionLevels = { read: "allow", write: "ask" };
 // The agent dir is known where a call is decided, so a test's temporary agent
 // dir is the one matched.
 const AGENT_DIR = "<agent dir>/";
+// The session's working directory: the project whose own config Pi and the
+// bouncer load, so a symlink there is followed to the file it names.
+const PROJECT = "<project>/";
 const PACKAGE = "<package dir>/**";
 
 const DEFS: readonly GroupDef[] = [
@@ -42,9 +45,11 @@ const DEFS: readonly GroupDef[] = [
 		patterns: [
 			`${AGENT_DIR}bouncer.json`,
 			"**/.pi/extensions/bouncer/config.json",
+			`${PROJECT}.pi/extensions/bouncer/config.json`,
 			PACKAGE,
 			`${AGENT_DIR}settings.json`,
 			"**/.pi/settings.json",
+			`${PROJECT}.pi/settings.json`,
 		],
 		levels: { read: "allow", write: "deny" },
 		secret: false,
@@ -201,15 +206,23 @@ const DEFS: readonly GroupDef[] = [
 	},
 ];
 
-// `<agent dir>/…` is one absolute path, whose leading folder comes from the
-// decision; `base` is the whole path, so a search above it still fires.
-function agentFile(file: string): PathPattern {
-	const pathOf = (where: PathWhere): string => posix.join(where.agentDir, file);
+// `<agent dir>/…` and `<project>/…` are one absolute path, whose leading
+// folder comes from the decision; `base` is the whole path, so a search above
+// it still fires. The file's own target matches too: when the file is a
+// symlink, whatever reads it reads the target. Resolved per call, inside the
+// decision that blocks on an error.
+function fixedFile(
+	source: string,
+	pathOf: (where: PathWhere) => string,
+): PathPattern {
 	return {
-		source: `${AGENT_DIR}${file}`,
+		source,
 		anchor: "root",
 		base: pathOf,
-		test: (path: string, where: PathWhere): boolean => path === pathOf(where),
+		test: (path: string, where: PathWhere): boolean => {
+			const file = pathOf(where);
+			return path === file || path === realOf(file);
+		},
 	};
 }
 
@@ -230,7 +243,12 @@ const packageFolder: PathPattern = {
 function compile(source: string): PathPattern {
 	if (source === PACKAGE) return packageFolder;
 	if (source.startsWith(AGENT_DIR)) {
-		return agentFile(source.slice(AGENT_DIR.length));
+		const file = source.slice(AGENT_DIR.length);
+		return fixedFile(source, (where) => posix.join(where.agentDir, file));
+	}
+	if (source.startsWith(PROJECT)) {
+		const file = source.slice(PROJECT.length);
+		return fixedFile(source, (where) => posix.join(where.cwd, file));
 	}
 	const compiled = compilePattern(source);
 	if (!compiled) throw new Error(`bad built-in path pattern: ${source}`);

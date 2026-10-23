@@ -2,8 +2,8 @@
 // settings, in any mode. Driven through the tool_call handler with a
 // temporary HOME and agent dir.
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { judgedGate, noUI } from "../test/auto-harness.ts";
@@ -179,4 +179,48 @@ test("path-bouncer at ask still denies in YOLO mode, even after a session allow"
 	const r = await g.handler(edit(path), fakeContext(project()));
 	assert.equal(r?.block, true);
 	assert.match(r?.reason ?? "", /\(rule: path-bouncer\)/);
+});
+
+// A config file that is a symlink is guarded at its target too: Pi and the
+// bouncer read the target, so writing it changes the config.
+for (const file of ["bouncer.json", "settings.json"]) {
+	test(`a write to the target of a symlinked <agent dir>/${file} is denied`, async () => {
+		const g = await gate();
+		const dir = project();
+		writeFileSync(join(dir, "real.json"), "{}");
+		rmSync(join(g.agentDir, file), { force: true });
+		symlinkSync(join(dir, "real.json"), join(g.agentDir, file));
+		const r = await g.handler(
+			fileCall("write", { path: "real.json", content: "{}" }),
+			fakeContext(dir),
+		);
+		assert.match(r?.reason ?? "", /\(rule: path-bouncer\)/);
+	});
+}
+
+for (const rel of [".pi/extensions/bouncer/config.json", ".pi/settings.json"]) {
+	test(`a write to the target of the project's symlinked ${rel} is denied`, async () => {
+		const g = await gate();
+		const dir = project();
+		writeFileSync(join(dir, "real.json"), "{}");
+		mkdirSync(dirname(join(dir, rel)), { recursive: true });
+		symlinkSync(join(dir, "real.json"), join(dir, rel));
+		const r = await g.handler(
+			fileCall("write", { path: "real.json", content: "{}" }),
+			fakeContext(dir),
+		);
+		assert.match(r?.reason ?? "", /\(rule: path-bouncer\)/);
+	});
+}
+
+test("a read of the target of a symlinked auth.json is denied by path-pi-auth", async () => {
+	const g = await gate();
+	const dir = project();
+	writeFileSync(join(dir, "creds.json"), "{}");
+	symlinkSync(join(dir, "creds.json"), join(g.agentDir, "auth.json"));
+	const r = await g.handler(
+		fileCall("read", { path: "creds.json" }),
+		fakeContext(dir),
+	);
+	assert.match(r?.reason ?? "", /\(rule: path-pi-auth\)/);
 });

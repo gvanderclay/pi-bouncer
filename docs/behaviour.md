@@ -162,6 +162,11 @@ only, so no later path rule decides a path it covers:
 | --- | --- | --- | --- |
 | `path-bouncer` ✱ | `<agent dir>/bouncer.json`, `**/.pi/extensions/bouncer/config.json`, the folder the bouncer was loaded from, `<agent dir>/settings.json`, `**/.pi/settings.json` | allow | deny |
 
+When the agent dir's `bouncer.json`, `settings.json` or `auth.json`, or the
+session project's `.pi/settings.json` or `.pi/extensions/bouncer/config.json`,
+is a symlink, the file it points to is covered too, as Pi and the bouncer read
+that file.
+
 ✱ `path-bouncer` is in the always-deny set: its write level is `ask` or
 `deny`, never `off`, and YOLO and auto mode deny the write whatever its
 level, with no judge asked. A `levels` line sets only its write level; reads
