@@ -1,6 +1,6 @@
 // The policy a session runs: the built-ins at their configured levels, then
 // custom rules. A rule set to "off" leaves it.
-import type { Levels } from "./project-config.ts";
+import type { Levels, PathLevels } from "./project-config.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
 import { type CustomRule, customEntry, customRule } from "./rules/custom.ts";
 import {
@@ -9,6 +9,7 @@ import {
 	trashRootFor,
 } from "./rules/filesystem.ts";
 import {
+	directionLevels,
 	entryLevel,
 	type PathEntry,
 	type PathRule,
@@ -39,12 +40,15 @@ function configured(
 	return rule;
 }
 
-// A plain level sets both directions.
-function pathEntryAt(
+// A path entry at its configured direction levels, or none when both are off.
+function pathEntry(
 	entry: PathEntry,
-	level: "ask" | "deny" | undefined,
-): PathEntry {
-	return level ? { ...entry, levels: { read: level, write: level } } : entry;
+	level: ConfigLevel | PathLevels | undefined,
+): PathEntry | undefined {
+	const levels = directionLevels(entry, level);
+	return levels.read === "off" && levels.write === "off"
+		? undefined
+		: { ...entry, levels };
 }
 
 // A rule set to "off" leaves the policy. Custom rules follow the built-ins,
@@ -59,15 +63,16 @@ export function effectivePolicy(
 	const policy: PolicyEntry[] = [];
 	for (const entry of builtInPolicy) {
 		if (entry.kind === "path") {
-			const level = levels[entry.rule.name];
-			if (level === "off") off.push(entry.rule);
-			else policy.push(pathEntryAt(entry, level));
+			const at = pathEntry(entry, levels[entry.rule.name]);
+			if (at) policy.push(at);
+			else off.push(entry.rule);
 			continue;
 		}
-		const level =
-			entry.kind === "unreadable"
-				? entry.level
-				: (levels[entry.rule.name] ?? entry.level);
+		let level: ConfigLevel = entry.level;
+		if (entry.kind !== "unreadable") {
+			const given = levels[entry.rule.name];
+			if (typeof given === "string") level = given;
+		}
 		if (level === "off" && entry.kind !== "unreadable") off.push(entry.rule);
 		else if (entry.kind !== "rule" || level === "off") policy.push(entry);
 		else {

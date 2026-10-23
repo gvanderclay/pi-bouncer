@@ -46,6 +46,19 @@ const VALID: readonly unknown[] = [
 	{ $schema: schema.$id, levels: {} },
 	{ levels: { "recursive-rm": "deny", "rm-root": "ask" } },
 	{ levels: { "recursive-rm": "off", "rm-root": "deny" } },
+	{
+		levels: {
+			"path-git": "ask",
+			"path-env": { read: "allow" },
+			"path-ssh": { read: "deny", write: "ask" },
+		},
+	},
+	{ levels: { "path-env": { read: "off", write: "ask" } } },
+	{ levels: { "path-bouncer": { write: "ask" } } },
+	{
+		profiles: { reader: { levels: { "path-env": { read: "allow" } } } },
+		agents: { scout: "reader" },
+	},
 	PREFER_RG,
 	{ rules: [] },
 	{
@@ -151,6 +164,13 @@ const INVALID: readonly unknown[] = [
 	{ levels: { "rm-root": "off" } },
 	{ levels: { "no-such-rule": "ask" } },
 	{ levels: { "recursive-rm": "allow" } },
+	{ levels: { "path-env": {} } },
+	{ levels: { "path-env": { read: "allow", other: "ask" } } },
+	{ levels: { "path-env": { read: "yes" } } },
+	{ levels: { "path-ssh": "allow" } },
+	{ levels: { "path-bouncer": { read: "allow" } } },
+	{ levels: { "path-bouncer": { write: "off" } } },
+	{ levels: { "path-nope": "deny" } },
 	{ levels: [] },
 	{ log: { rotateAboveMiB: 0 } },
 	{ log: { generations: 1.5 } },
@@ -184,6 +204,7 @@ const INVALID: readonly unknown[] = [
 	{ profiles: { w: { colour: 1 } } },
 	{ profiles: { "Bad Name": {} } },
 	{ profiles: { w: { levels: { "rm-root": "off" } } } },
+	{ profiles: { reader: { levels: { "path-env": { read: "yes" } } } } },
 	{ profiles: { w: {} }, agents: { scout: 1 } },
 ];
 

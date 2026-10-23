@@ -17,9 +17,10 @@ Because the project file sits under `.pi/extensions`, Pi asks you to trust a
 project that ships one. The bouncer reads that trust once per session start,
 so `/trust` applies after a restart or `/reload`. What a project file may do:
 
-- An untrusted project may only make things stricter: raise a level, add
-  `protect` paths, and add ask or deny custom rules. It may not lower a level
-  or add a steer rule, because steer text is sent to the model.
+- An untrusted project may only make things stricter: raise a level (each
+  direction of a path group separately), add `protect` paths, and add ask or
+  deny custom rules. It may not lower a level, set a path direction to
+  `"allow"`, or add a steer rule, because steer text is sent to the model.
 - A trusted project may also lower levels and turn rules off.
 - No project file, trusted or not, may loosen the always-deny set, or set
   `log`, `auto`, `mcp` or `startMode`; only the user config can. The one exception
@@ -54,17 +55,78 @@ in your editor. `/bouncer init` writes it for you.
 `levels` maps a built-in rule name to `"ask"`, `"deny"` or `"off"`. `off`
 removes the rule. The always-deny set (`rm-root`, `disk-format`, `dd-device`,
 `power`, `privilege`, `path-bouncer`) accepts `ask` or `deny` but never `off`,
-and YOLO and auto mode deny it whatever its level. `path-bouncer` guards
-writes to the bouncer's config, its own code and Pi's `settings.json`; its
-level sets only the write level, and reads stay allowed. Under
-`pi -e <checkout>` its code folder is that checkout, so a session running a
-checkout cannot write the checkout's source unless `path-bouncer` is `ask`. The unreadable-command denies
-(`parser-unavailable`, `unparseable`, `inline-too-deep`) cannot be set.
+and YOLO and auto mode deny it whatever its level. The unreadable-command
+denies (`parser-unavailable`, `unparseable`, `inline-too-deep`) cannot be set.
 `/bouncer rules` lists every rule name.
 
 ```json
 { "levels": { "git-push-force": "deny", "opaque-exec": "off" } }
 ```
+
+### Path groups
+
+The `path-` rules are path groups. They decide Pi's file tools (`read`,
+`write`, `edit`, `grep`, `find` and `ls`) by the path a call touches, with
+one level for reading and searching and another for writing and editing.
+Both take `"allow"`, `"ask"`, `"deny"` or `"off"`.
+
+A plain level sets both directions. An object sets the directions it names
+and leaves the other at the group's built-in level, so `{ "read": "allow" }`
+on `path-env` allows reading a `.env` and still asks before writing one. The
+empty object, an unknown key and an unknown group name are all problems, and
+the group keeps its built-in levels.
+
+```json
+{
+  "levels": {
+    "path-git": "ask",
+    "path-env": { "read": "allow" },
+    "path-ssh": { "read": "deny", "write": "ask" }
+  }
+}
+```
+
+`path-git` as `"ask"` makes a read of `.git/config` ask, because a plain
+level sets both directions. `path-ssh`'s `"read": "deny"` keeps `~/.ssh`
+closed while `"write": "ask"` lets the dialog decide a write.
+
+| Group | Matches | Built-in read | Built-in write |
+| --- | --- | --- | --- |
+| `path-bouncer` | `<agent dir>/bouncer.json`, any `.pi/extensions/bouncer/config.json`, the folder the bouncer was loaded from, `<agent dir>/settings.json`, any `.pi/settings.json` | allow | deny |
+| `path-system` | `/etc`, `/usr`, `/bin`, `/sbin`, `/opt`, `/System`, `/Library`, `/Applications`, `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap`, `/nix`, `/private/etc` and everything in them | allow | ask |
+| `path-git` | any `.git` folder | allow | ask |
+| `path-shell-rc` | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `~/.config/fish/config.fish` | allow | ask |
+| `path-keys` | `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` anywhere on disk, except `*.pub` | deny | deny |
+| `path-ssh` | `~/.ssh` | deny | deny |
+| `path-gnupg` | `~/.gnupg` | deny | deny |
+| `path-aws` | `~/.aws` | deny | deny |
+| `path-gcloud` | `~/.config/gcloud` | deny | deny |
+| `path-azure` | `~/.azure` | deny | deny |
+| `path-kube` | `~/.kube` | deny | deny |
+| `path-docker` | `~/.docker/config.json` | deny | deny |
+| `path-pi-auth` | `<agent dir>/auth.json` | deny | deny |
+| `path-env` | `.env*` at any depth, except `.env.example`, `.env.sample` and `.env.template` | deny | ask |
+| `path-npmrc` | `.npmrc` at any depth | deny | ask |
+| `path-pypirc` | `.pypirc` at any depth | deny | ask |
+| `path-netrc` | `.netrc` at any depth | deny | ask |
+| `path-git-credentials` | `.git-credentials` at any depth | deny | ask |
+
+The groups run broad to narrow and the last match wins, so
+`~/.ssh/id_ed25519` is decided by `path-ssh` rather than by `path-keys`.
+`path-bouncer` is checked first, outside that order, and only for writes: it
+takes `ask` or `deny` for writing, never `off`, and has no read level, since
+reads stay allowed. Under `pi -e <checkout>` its code folder is that checkout,
+so a session running a checkout cannot write the checkout's source unless
+`path-bouncer` is `ask`.
+
+A project file may only raise a direction: an untrusted project's `"allow"`,
+or a level looser than the one that direction would otherwise have, is a
+problem and that direction keeps its level. A trusted project may set any
+level, except on `path-bouncer`, which no project file may loosen. A
+profile's `levels` take path groups the same way, with the same checks when
+the profile is in a project file, and its object replaces the whole entry for
+that group. `/bouncer rules` shows one level per group: the stricter of its
+two directions.
 
 ## `protect`
 
@@ -202,9 +264,10 @@ dashes. `"yolo"` is not accepted as a `mode`.
 
 How a profile applies:
 
-- `levels` replace the normal level rule by rule. A profile in the user
-  config may loosen as well as tighten, but the always-deny set can be `ask`
-  and never `off`, and YOLO and auto mode deny it whatever its level.
+- `levels` replace the normal level rule by rule, including a path group's
+  directions: an object replaces the whole entry for that group. A profile in
+  the user config may loosen as well as tighten, but the always-deny set can be
+  `ask` and never `off`, and YOLO and auto mode deny it whatever its level.
 - A `rules` entry named like a normal custom rule replaces it in place, so a
   profile can change its level or turn it off. Any other entry is added after
   the normal custom rules. Steer rules still go last.
@@ -221,9 +284,9 @@ How a profile applies:
 
 A project file may define profiles too, and its definition of a name is laid
 over the user config's. An untrusted project can only tighten: its levels may
-only be raised, it may not add steer rules, and its `mode` may be only
-`"off"`. A trusted project may also lower levels and set `"off"` or
-`"auto"`. Every problem in either file is reported at session start and by
+only be raised, direction by direction, it may not set a path direction to
+`"allow"`, it may not add steer rules, and its `mode` may be only `"off"`. A
+trusted project may also lower levels and set `"off"` or `"auto"`. Every problem in either file is reported at session start and by
 `/bouncer check`, whether or not the session uses the profile.
 
 A profile is **broken** when neither file defines it or the user config's

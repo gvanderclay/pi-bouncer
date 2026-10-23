@@ -3,7 +3,14 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
-import { entryLevel } from "./rules/rule.ts";
+import {
+	type DirectionLevels,
+	directionLevels,
+	entryLevel,
+	namedLevels,
+	type PathEntry,
+	type PathLevel,
+} from "./rules/rule.ts";
 import type { ConfigLevel, RuleName } from "./verdict.ts";
 
 export type ConfigFile = {
@@ -12,7 +19,15 @@ export type ConfigFile = {
 	readonly problems: readonly string[];
 };
 
-export type Levels = Readonly<Partial<Record<RuleName, ConfigLevel>>>;
+/** The directions a config may set for a path group; a missing one keeps its default. */
+export type PathLevels = {
+	readonly read?: PathLevel;
+	readonly write?: PathLevel;
+};
+
+export type Levels = Readonly<
+	Partial<Record<RuleName, ConfigLevel | PathLevels>>
+>;
 
 // Below `.pi/extensions`, so Pi asks the user to trust the project.
 export function projectConfigFile(cwd: string): string {
@@ -26,7 +41,15 @@ export function oldProjectFile(cwd: string): ConfigFile[] {
 	return [{ path, loaded: false, problems: [problem] }];
 }
 
-const RANK: Readonly<Record<ConfigLevel, number>> = { off: 0, ask: 1, deny: 2 };
+const DIRECTIONS = ["read", "write"] as const;
+
+// A direction's order, allow the loosest: an untrusted project may only raise.
+const RANK: Readonly<Record<PathLevel, number>> = {
+	allow: 0,
+	off: 1,
+	ask: 2,
+	deny: 3,
+};
 
 function refusal(
 	rule: RuleName,
@@ -44,25 +67,88 @@ function refusal(
 	return undefined;
 }
 
+// A project group's level, direction by direction: the always-deny set takes
+// only deny, and an untrusted project may only raise a direction. Whatever is
+// refused is left out, so the group keeps the level it had.
+function pathKept(
+	rule: RuleName,
+	given: PathLevels,
+	route: DirectionLevels,
+	trusted: boolean,
+	refusals: string[],
+): PathLevels {
+	const kept: { read?: PathLevel; write?: PathLevel } = {};
+	for (const direction of DIRECTIONS) {
+		const level = given[direction];
+		if (level === undefined) continue;
+		if (alwaysDenySet.has(rule) && level !== "deny") {
+			refusals.push(
+				`levels: "${rule}" is in the always-deny set; a project config cannot loosen it`,
+			);
+		} else if (
+			!trusted &&
+			(level === "allow" || RANK[level] < RANK[route[direction]])
+		) {
+			refusals.push(
+				`levels: an untrusted project may not lower "${rule}" ${direction}`,
+			);
+		} else kept[direction] = level;
+	}
+	return kept;
+}
+
 export type ProjectFile = {
 	readonly file: ConfigFile;
 	readonly levels: Levels;
 };
+
+// A project's level for one path group, as kept after its refusals: a plain
+// level stays plain when both directions it named are kept.
+function keptPath(
+	rule: RuleName,
+	entry: PathEntry,
+	level: ConfigLevel | PathLevels,
+	routeLevels: Levels,
+	trusted: boolean,
+	refusals: string[],
+): ConfigLevel | PathLevels | undefined {
+	const accepted = pathKept(
+		rule,
+		namedLevels(entry.rule, level),
+		directionLevels(entry, routeLevels[rule]),
+		trusted,
+		refusals,
+	);
+	const directions = DIRECTIONS.filter(
+		(direction) => accepted[direction] !== undefined,
+	).length;
+	if (directions === 0) return undefined;
+	return typeof level === "string" && directions === DIRECTIONS.length
+		? level
+		: accepted;
+}
 
 export function projectLevels(
 	project: ProjectFile,
 	routeLevels: Levels,
 	trusted: boolean,
 ): ProjectFile {
-	const kept: Partial<Record<RuleName, ConfigLevel>> = {};
+	const kept: Partial<Record<RuleName, ConfigLevel | PathLevels>> = {};
 	const refusals: string[] = [];
 	for (const [rule, level] of Object.entries(project.levels) as [
 		RuleName,
-		ConfigLevel,
+		ConfigLevel | PathLevels,
 	][]) {
 		const entry = builtInEntries.get(rule);
-		const routeLevel = routeLevels[rule] ?? (entry && entryLevel(entry));
-		const why = refusal(rule, level, routeLevel, trusted);
+		if (entry?.kind === "path") {
+			const at = keptPath(rule, entry, level, routeLevels, trusted, refusals);
+			if (at !== undefined) kept[rule] = at;
+			continue;
+		}
+		const given = routeLevels[rule];
+		const routeLevel =
+			typeof given === "string" ? given : entry && entryLevel(entry);
+		const why = refusal(rule, level as ConfigLevel, routeLevel, trusted);
 		if (why) refusals.push(why);
 		else kept[rule] = level;
 	}

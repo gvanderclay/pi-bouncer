@@ -8,6 +8,17 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Path groups in `levels` take a level per direction. A plain level sets both,
+  as before, and an object sets `read` and/or `write` and leaves the other
+  direction at the group's built-in level: `"path-env": {"read": "allow"}`
+  allows reading a `.env` and still asks before writing one, and
+  `"path-ssh": {"read": "deny", "write": "ask"}` asks for writes while
+  denying reads. A group leaves the policy only when both directions are
+  `off`. A project file may only raise each direction, and an untrusted one
+  may not set `"allow"`; a trusted project may set any level. `path-bouncer`
+  takes only a write level, `"ask"` or `"deny"`. Every existing config keeps
+  its behaviour: a plain level means both directions.
+
 - `path-bouncer` joins the always-deny set: the `write` and `edit` tools can
   no longer change the bouncer's user config (`<agent dir>/bouncer.json`), a
   project's `.pi/extensions/bouncer/config.json`, the folder the bouncer was

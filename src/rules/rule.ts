@@ -1,5 +1,6 @@
 import type { AgentMade } from "../agent-made.ts";
 import type { RmChecks } from "../agent-made-check.ts";
+import type { PathLevels } from "../project-config.ts";
 import type { Invocation } from "../scan/walk.ts";
 import type { ConfigLevel, RuleName, VerdictLevel } from "../verdict.ts";
 import type { PathPattern } from "./path-patterns.ts";
@@ -40,6 +41,9 @@ export type SteerEntry = {
 	readonly level: "deny";
 };
 
+/** The bouncer's own config and code: checked before the walk, writes only. */
+export const BOUNCER = "path-bouncer";
+
 export type PathLevel = "allow" | "ask" | "deny" | "off";
 
 export type DirectionLevels = {
@@ -63,6 +67,32 @@ export type PathEntry = {
 	/** Set on a custom path steer rule. */
 	readonly instead?: string;
 };
+
+// The directions a config level names: a plain level names both, except
+// path-bouncer's, which sets its write level only.
+export function namedLevels(
+	rule: PathRule,
+	level: ConfigLevel | PathLevels,
+): PathLevels {
+	if (typeof level !== "string") return level;
+	return rule.name === BOUNCER
+		? { write: level }
+		: { read: level, write: level };
+}
+
+// A path entry's levels with the config's directions applied; a direction the
+// config leaves out keeps the group's default.
+export function directionLevels(
+	entry: PathEntry,
+	level: ConfigLevel | PathLevels | undefined,
+): DirectionLevels {
+	if (level === undefined) return entry.levels;
+	const named = namedLevels(entry.rule, level);
+	return {
+		read: named.read ?? entry.levels.read,
+		write: named.write ?? entry.levels.write,
+	};
+}
 
 export type PolicyEntry = UnreadableDeny | RuleEntry | SteerEntry | PathEntry;
 

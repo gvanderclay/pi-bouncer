@@ -6,7 +6,8 @@
 				"recursive-rm": "deny",
 				"git-push-force": "deny",
 				"publish": "deny",
-				"gh-delete": "deny"
+				"gh-delete": "deny",
+				"path-env": { "read": "allow" }
 			},
 			"rules": [
 				{

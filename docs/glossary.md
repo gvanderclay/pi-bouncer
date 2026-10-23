@@ -51,7 +51,8 @@ _Avoid_: file rule, path pattern, protected path
 
 **Path group**:
 A built-in path rule, named with a `path-` prefix, such as `path-ssh`. A
-plain level in `levels` sets both directions.
+plain level in `levels` sets both directions, and an object with `read` and/or
+`write` sets the directions it names.
 _Avoid_: path preset, secret list
 
 **File access**:

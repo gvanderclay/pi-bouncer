@@ -9,7 +9,7 @@ import type { Match, Ranking } from "../rank.ts";
 import { pathDenied, pathUnanswered } from "../verdict.ts";
 import { alwaysDenySet } from "./built-in-policy.ts";
 import type { PathPattern, PathWhere } from "./path-patterns.ts";
-import type { PathEntry, PathRule, Policy } from "./rule.ts";
+import { BOUNCER, type PathEntry, type PathRule, type Policy } from "./rule.ts";
 
 export type FileMode = "normal" | "yolo" | "auto";
 
@@ -19,10 +19,6 @@ type Decided = {
 };
 
 const STRICTNESS = { allow: 0, ask: 1, deny: 2 } as const;
-
-// Checked before the walk and only for writes, so no later entry overrides it
-// and its read level, which a plain `levels` value would set, never applies.
-const BOUNCER = "path-bouncer";
 
 type Matcher = (
 	rule: PathRule,

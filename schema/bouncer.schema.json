@@ -165,7 +165,7 @@
 	"definitions": {
 		"levels": {
 			"type": "object",
-			"description": "The level of a built-in rule: ask, deny or off. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege, path-bouncer) cannot be off. A custom rule's level is set in its definition under rules.",
+			"description": "The level of a built-in rule: ask, deny or off. A path group also takes an object with a read and/or a write level. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege, path-bouncer) cannot be off. A custom rule's level is set in its definition under rules.",
 			"additionalProperties": false,
 			"properties": {
 				"rm-root": {
@@ -261,77 +261,156 @@
 					"description": "starting pi with --yolo, or setting or clearing an agent variable (PI_BOUNCER_AGENT, PI_SUBAGENT_AGENT, PI_DADDY_DEFINITION), from bash sidesteps the user's rules. Built-in level: deny."
 				},
 				"path-bouncer": {
-					"enum": ["ask", "deny"],
+					"oneOf": [
+						{ "enum": ["ask", "deny"] },
+						{ "$ref": "#/definitions/bouncerLevels" }
+					],
 					"description": "path group: the bouncer's config (<agent dir>/bouncer.json, any .pi/extensions/bouncer/config.json), the folder the bouncer was loaded from, and Pi's settings.json (<agent dir>/settings.json, any .pi/settings.json) decide what the bouncer guards. In the always-deny set: denied in YOLO and auto mode, and never off. Sets the write level of Pi's file tools; reads stay allowed. Built-in levels: read allow, write deny."
 				},
 				"path-system": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: system folders such as /etc, /usr and /Library change software for the whole machine. Sets both directions of Pi's file tools. Built-in levels: read allow, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: system folders such as /etc, /usr and /Library change software for the whole machine. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read allow, write ask."
 				},
 				"path-git": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: any .git folder holds the repository's config, hooks and history. Sets both directions of Pi's file tools. Built-in levels: read allow, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: any .git folder holds the repository's config, hooks and history. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read allow, write ask."
 				},
 				"path-shell-rc": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: shell startup files (.zshrc, .bashrc, .profile and the like, and ~/.config/fish/config.fish) run on every new shell. Sets both directions of Pi's file tools. Built-in levels: read allow, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: shell startup files (.zshrc, .bashrc, .profile and the like, and ~/.config/fish/config.fish) run on every new shell. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read allow, write ask."
 				},
 				"path-keys": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: private keys and certificates (*.pem, *.key, id_rsa*, id_ed25519*, except *.pub) anywhere on disk. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: private keys and certificates (*.pem, *.key, id_rsa*, id_ed25519*, except *.pub) anywhere on disk. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-ssh": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.ssh holds SSH keys and their settings. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.ssh holds SSH keys and their settings. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-gnupg": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.gnupg holds GPG keys and its trust database. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.gnupg holds GPG keys and its trust database. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-aws": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.aws holds AWS credentials and settings. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.aws holds AWS credentials and settings. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-gcloud": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.config/gcloud holds Google Cloud credentials. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.config/gcloud holds Google Cloud credentials. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-azure": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.azure holds Azure credentials. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.azure holds Azure credentials. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-kube": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.kube holds Kubernetes cluster credentials. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.kube holds Kubernetes cluster credentials. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-docker": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.docker/config.json holds registry logins. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: ~/.docker/config.json holds registry logins. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-pi-auth": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: Pi's auth.json in the agent dir holds the credentials Pi uses for you. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: Pi's auth.json in the agent dir holds the credentials Pi uses for you. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write deny."
 				},
 				"path-env": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: .env files hold a project's secrets, except .env.example, .env.sample and .env.template. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: .env files hold a project's secrets, except .env.example, .env.sample and .env.template. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write ask."
 				},
 				"path-npmrc": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: .npmrc holds registry tokens. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: .npmrc holds registry tokens. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write ask."
 				},
 				"path-pypirc": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: .pypirc holds package registry tokens. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: .pypirc holds package registry tokens. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write ask."
 				},
 				"path-netrc": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: .netrc holds server logins. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: .netrc holds server logins. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write ask."
 				},
 				"path-git-credentials": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: .git-credentials holds saved git logins. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
+					"oneOf": [
+						{ "enum": ["ask", "deny", "off"] },
+						{ "$ref": "#/definitions/pathLevels" }
+					],
+					"description": "path group: .git-credentials holds saved git logins. Sets both directions of Pi's file tools, or the directions an object names. Built-in levels: read deny, write ask."
 				}
+			}
+		},
+		"pathLevels": {
+			"type": "object",
+			"description": "The read and/or write level of a path group. A direction left out keeps the group's built-in level; a plain level sets both.",
+			"additionalProperties": false,
+			"minProperties": 1,
+			"properties": {
+				"read": {
+					"enum": ["allow", "ask", "deny", "off"],
+					"description": "Reading or searching the file with read, grep, find or ls."
+				},
+				"write": {
+					"enum": ["allow", "ask", "deny", "off"],
+					"description": "Writing or editing the file."
+				}
+			}
+		},
+		"bouncerLevels": {
+			"type": "object",
+			"description": "path-bouncer's write level: ask or deny, never off. It has no read level, because reads stay allowed.",
+			"additionalProperties": false,
+			"minProperties": 1,
+			"properties": {
+				"write": { "enum": ["ask", "deny"] }
 			}
 		},
 		"rules": {
