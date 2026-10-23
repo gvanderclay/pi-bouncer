@@ -270,8 +270,8 @@ allowing `**/.git/hooks/**` lets a hook be written without the `path-git`
 ask, and an `allow` for `~/**` would open `~/.ssh`. Add a later rule to
 restore a group inside it. Two things no rule overrides: `path-bouncer`,
 which is checked before every other path rule, and a search (`grep`, `find`,
-`ls`) of a folder that holds a protected path, which the strictest rule
-inside it decides. A path rule written through a symlinked folder also
+`ls`) of a folder that holds a path a path rule matches, which the strictest
+rule inside it decides. A path rule written through a symlinked folder also
 matches the same files by their real path.
 
 `/bouncer explain read <path>` replays a file call under the config in force,

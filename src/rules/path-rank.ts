@@ -1,10 +1,10 @@
 // Ranking a file access against the policy's path entries: within one
 // spelling the last match wins, so a later entry can carve an exception out of
 // an earlier one; across spellings the strictest result wins. A search also
-// reaches a protected path inside the folder it searches, and that scope is
-// strictest-wins, so no allow unblocks it. An untrusted project's entries are
-// raise-only: they stay out of last-match-wins and their strictest match
-// combines strictest-wins with the rest.
+// reaches the paths a path rule matches inside the folder it searches, and
+// that scope is strictest-wins, so no allow unblocks it. An untrusted
+// project's entries are raise-only: they stay out of last-match-wins and
+// their strictest match combines strictest-wins with the rest.
 import type { Direction, FileAccess } from "../file-call.ts";
 import { realOf, type Spellings } from "../path-spellings.ts";
 import type { Match, Ranking } from "../rank.ts";

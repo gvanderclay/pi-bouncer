@@ -21,7 +21,7 @@ type GroupDef = {
 	readonly patterns: readonly string[];
 	readonly except?: readonly string[];
 	readonly levels: DirectionLevels;
-	/** 08 keeps a secret group's content away from the judge and Jev. */
+	/** The group holds secrets: its content stays out of what the judge and Jev see. */
 	readonly secret: boolean;
 };
 
