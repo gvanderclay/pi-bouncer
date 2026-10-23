@@ -108,7 +108,10 @@ export function policyEntryName(entry: PolicyEntry): RuleName {
 	return entry.kind === "unreadable" ? entry.name : entry.rule.name;
 }
 
-const STRICTNESS: Readonly<Record<PathLevel, number>> = {
+// A path level's strictness, `off` tying with `allow`: ranking only sees
+// allow, ask and deny, and a project file ranks `off` separately
+// (`src/project-config.ts`).
+export const STRICTNESS: Readonly<Record<PathLevel, number>> = {
 	off: 0,
 	allow: 0,
 	ask: 1,

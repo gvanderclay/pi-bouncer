@@ -434,12 +434,17 @@ export type Inspection = {
 	readonly withAuto: AutoWould;
 };
 
-function yoloWould(ranking: Ranking | undefined): Would {
+// Only a deny survives YOLO mode, so this is narrower than `Would`.
+export function yoloWould(
+	ranking: Ranking | undefined,
+):
+	| { readonly kind: "allow" }
+	| { readonly kind: "deny"; readonly rule: RuleName } {
 	if (ranking?.kind !== "deny") return { kind: "allow" };
 	return { kind: "deny", rule: ranking.verdict.rule };
 }
 
-function autoWould(ranking: Ranking | undefined): AutoWould {
+export function autoWould(ranking: Ranking | undefined): AutoWould {
 	if (!ranking) return { kind: "allow" };
 	if (ranking.kind === "deny") {
 		return { kind: "deny", rule: ranking.verdict.rule };

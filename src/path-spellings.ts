@@ -20,7 +20,9 @@ function code(error: unknown): string | undefined {
 	return (error as NodeJS.ErrnoException | undefined)?.code;
 }
 
-function missing(error: unknown): boolean {
+// Whether `error` is a path that does not exist, or a parent of it that is
+// not a directory.
+export function missing(error: unknown): boolean {
 	return code(error) === "ENOENT" || code(error) === "ENOTDIR";
 }
 

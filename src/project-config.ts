@@ -42,7 +42,10 @@ export function oldProjectFile(cwd: string): ConfigFile[] {
 
 const DIRECTIONS = ["read", "write"] as const;
 
-// A direction's order, allow the loosest: an untrusted project may only raise.
+// A direction's order, allow the loosest: an untrusted project may only
+// raise. `off` sits between `allow` and `ask` here, unlike the policy's own
+// strictness order where it ties with `allow`: turning off a group that asked
+// or denied loosens it, while turning off one that allowed changes nothing.
 const RANK: Readonly<Record<PathLevel, number>> = {
 	allow: 0,
 	off: 1,

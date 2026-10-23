@@ -23,6 +23,7 @@ import {
 	type PathLevel,
 	type PathRule,
 	type Policy,
+	STRICTNESS,
 } from "./rule.ts";
 
 export type FileMode = "normal" | "yolo" | "auto";
@@ -31,8 +32,6 @@ type Decided = {
 	readonly entry: PathEntry;
 	readonly level: "allow" | "ask" | "deny";
 };
-
-const STRICTNESS = { allow: 0, ask: 1, deny: 2 } as const;
 
 type Matcher = (
 	rule: PathRule,

@@ -100,7 +100,7 @@ async function decidedFor(
 	const detail = fileDiff(access, paths.real);
 	return decideToolAsk({
 		...call,
-		...judgedBy(access, paths, call),
+		...judgedBy(access, paths, call, where),
 		command,
 		title: heading(access, paths),
 		asks:
@@ -132,9 +132,9 @@ function judgedBy(
 	access: FileAccess,
 	paths: Spellings,
 	call: FileCall,
+	where: PathWhere,
 ): Pick<FileCall, "judge" | "judgesChange"> {
 	if (!call.judgeFile) return {};
-	const where = { cwd: call.cwd, home: call.home, agentDir: call.agentDir };
 	const file = fileJudged(access, paths, where);
 	const { tool } = access;
 	const judge = call.judgeFile(`${tool} ${paths.real}`, file);

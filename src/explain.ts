@@ -34,7 +34,14 @@ import {
 } from "./config.ts";
 import { errorText } from "./error-text.ts";
 import { type Direction, type FileTool, readFileCall } from "./file-call.ts";
-import { type Inspection, inspect, type ParseFn } from "./gate.ts";
+import {
+	type AutoWould,
+	autoWould,
+	type Inspection,
+	inspect,
+	type ParseFn,
+	yoloWould,
+} from "./gate.ts";
 import { type Spellings, spellings } from "./path-spellings.ts";
 import { importPi } from "./pi-package.ts";
 import type { Ranking } from "./rank.ts";
@@ -128,18 +135,13 @@ export type FileExplanation = {
 	readonly withUI: FileWould;
 	readonly withoutUI: FileWould;
 	readonly withYolo: FileWould;
-	readonly withAuto: FileAutoWould;
+	readonly withAuto: AutoWould;
 	readonly config: GateConfig;
 };
 
 export type FileWould =
 	| { readonly kind: "allow" }
 	| { readonly kind: "ask"; readonly rule: RuleName }
-	| { readonly kind: "deny"; readonly rule: RuleName };
-
-export type FileAutoWould =
-	| { readonly kind: "allow" }
-	| { readonly kind: "judge" }
 	| { readonly kind: "deny"; readonly rule: RuleName };
 
 function uiWould(ranking: Ranking | undefined): FileWould {
@@ -158,18 +160,6 @@ function noUiWould(ranking: Ranking | undefined): FileWould {
 		rule:
 			ranking.kind === "deny" ? ranking.verdict.rule : ranking.fallback.rule,
 	};
-}
-
-function yoloWould(ranking: Ranking | undefined): FileWould {
-	if (ranking?.kind !== "deny") return { kind: "allow" };
-	return { kind: "deny", rule: ranking.verdict.rule };
-}
-
-function autoWould(ranking: Ranking | undefined): FileAutoWould {
-	if (!ranking) return { kind: "allow" };
-	return ranking.kind === "deny"
-		? { kind: "deny", rule: ranking.verdict.rule }
-		: { kind: "judge" };
 }
 
 /**

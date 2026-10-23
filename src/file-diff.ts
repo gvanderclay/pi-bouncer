@@ -3,6 +3,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { errorText } from "./error-text.ts";
 import type { FileAccess, FileEdit } from "./file-call.ts";
+import { missing } from "./path-spellings.ts";
 
 const DETAIL_LIMIT = 2000;
 const MAX_READ_BYTES = 1024 * 1024;
@@ -79,8 +80,7 @@ function readExisting(real: string): Existing {
 		}
 		return { kind: "text", text: readFileSync(real, "utf8") };
 	} catch (error) {
-		const code = (error as NodeJS.ErrnoException).code;
-		if (code === "ENOENT" || code === "ENOTDIR") return { kind: "missing" };
+		if (missing(error)) return { kind: "missing" };
 		return {
 			kind: "note",
 			note: `(could not read the existing file: ${errorText(error)})`,
