@@ -1,5 +1,5 @@
-import { dirname } from "node:path";
 import type { Direction } from "./file-call.ts";
+import { PACKAGE_DIR } from "./package-dir.ts";
 
 export type VerdictLevel = "deny" | "ask";
 
@@ -41,9 +41,6 @@ function truncate(text: string, limit: number): string {
 export function clip(command: string): string {
 	return truncate(command, REASON_LIMIT);
 }
-
-// The package root, one level above this file in src/.
-const PACKAGE_DIR = dirname(import.meta.dirname);
 
 export function parserUnavailable(command: string): Verdict {
 	return {

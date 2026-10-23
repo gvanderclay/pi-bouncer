@@ -53,8 +53,12 @@ in your editor. `/bouncer init` writes it for you.
 
 `levels` maps a built-in rule name to `"ask"`, `"deny"` or `"off"`. `off`
 removes the rule. The always-deny set (`rm-root`, `disk-format`, `dd-device`,
-`power`, `privilege`) accepts `ask` or `deny` but never `off`, and YOLO and
-auto mode deny it whatever its level. The unreadable-command denies
+`power`, `privilege`, `path-bouncer`) accepts `ask` or `deny` but never `off`,
+and YOLO and auto mode deny it whatever its level. `path-bouncer` guards
+writes to the bouncer's config, its own code and Pi's `settings.json`; its
+level sets only the write level, and reads stay allowed. Under
+`pi -e <checkout>` its code folder is that checkout, so a session running a
+checkout cannot write the checkout's source unless `path-bouncer` is `ask`. The unreadable-command denies
 (`parser-unavailable`, `unparseable`, `inline-too-deep`) cannot be set.
 `/bouncer rules` lists every rule name.
 

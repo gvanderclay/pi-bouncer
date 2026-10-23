@@ -155,6 +155,22 @@ run from the broad folder groups to the narrow secret ones:
 | `path-netrc` | `.netrc` | deny | ask |
 | `path-git-credentials` | `.git-credentials` | deny | ask |
 
+`path-bouncer` stands outside that order and is checked first, for writes
+only, so no later path rule decides a path it covers:
+
+| group | covers | read | write |
+| --- | --- | --- | --- |
+| `path-bouncer` ✱ | `<agent dir>/bouncer.json`, `**/.pi/extensions/bouncer/config.json`, the folder the bouncer was loaded from, `<agent dir>/settings.json`, `**/.pi/settings.json` | allow | deny |
+
+✱ `path-bouncer` is in the always-deny set: its write level is `ask` or
+`deny`, never `off`, and YOLO and auto mode deny the write whatever its
+level, with no judge asked. A `levels` line sets only its write level; reads
+stay allowed, so the bouncer's config can still be read for debugging. The
+folder the bouncer was loaded from is the checkout itself under
+`pi -e <checkout>`, so a session running a checkout cannot write that
+checkout's source: develop the bouncer from a session that loads another
+copy, or set `"levels": {"path-bouncer": "ask"}`.
+
 A pattern with no slash, such as `*.pem` or `.npmrc`, matches that name in
 any folder. `~` anchors at home and a leading `/` at the root. A leading
 `**/` matches in any folder on disk, so `path-git` catches a `.git` folder
@@ -169,12 +185,13 @@ names Pi's `read` tries on macOS when the typed name does not exist. Among
 the path rules that match one spelling, the last in the effective policy
 decides; across the spellings of one path, the strictest result wins, so a
 symlink into `~/.ssh` is caught even when the link's own spelling is innocent.
-The agent dir of the running session is the one matched for `path-pi-auth`.
+The agent dir of the running session is the one matched for `path-pi-auth`
+and `path-bouncer`.
 
 A deny blocks the call and tells the model the rule, its summary and the
 path. An ask opens the dialog, and with no UI it is blocked with a reason
 saying no one could answer it. YOLO mode lets a path ask or deny through, as
-it does for bash. Session allows, `levels` and profiles work for path rules
+it does for bash, except a `path-bouncer` write. Session allows, `levels` and profiles work for path rules
 as they do for command rules.
 
 ### Search scope

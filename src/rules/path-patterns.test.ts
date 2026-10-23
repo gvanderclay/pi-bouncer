@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { compilePattern } from "./path-patterns.ts";
 
-const W = { cwd: "/p", home: "/h" };
+const W = { cwd: "/p", home: "/h", agentDir: "/h/.pi/agent" };
 
 // Each row is a pattern reaching a path it must not, or missing one it must.
 const cases: [string, string, boolean][] = [

@@ -165,7 +165,7 @@
 	"definitions": {
 		"levels": {
 			"type": "object",
-			"description": "The level of a built-in rule: ask, deny or off. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege) cannot be off. A custom rule's level is set in its definition under rules.",
+			"description": "The level of a built-in rule: ask, deny or off. Rules in the always-deny set (rm-root, disk-format, dd-device, power, privilege, path-bouncer) cannot be off. A custom rule's level is set in its definition under rules.",
 			"additionalProperties": false,
 			"properties": {
 				"rm-root": {
@@ -259,6 +259,10 @@
 				"bouncer-escape": {
 					"enum": ["ask", "deny", "off"],
 					"description": "starting pi with --yolo, or setting or clearing an agent variable (PI_BOUNCER_AGENT, PI_SUBAGENT_AGENT, PI_DADDY_DEFINITION), from bash sidesteps the user's rules. Built-in level: deny."
+				},
+				"path-bouncer": {
+					"enum": ["ask", "deny"],
+					"description": "path group: the bouncer's config (<agent dir>/bouncer.json, any .pi/extensions/bouncer/config.json), the folder the bouncer was loaded from, and Pi's settings.json (<agent dir>/settings.json, any .pi/settings.json) decide what the bouncer guards. In the always-deny set: denied in YOLO and auto mode, and never off. Sets the write level of Pi's file tools; reads stay allowed. Built-in levels: read allow, write deny."
 				},
 				"path-system": {
 					"enum": ["ask", "deny", "off"],
@@ -370,6 +374,7 @@
 								"publish",
 								"gh-delete",
 								"bouncer-escape",
+								"path-bouncer",
 								"path-system",
 								"path-git",
 								"path-shell-rc",

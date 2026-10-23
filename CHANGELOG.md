@@ -8,6 +8,16 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `path-bouncer` joins the always-deny set: the `write` and `edit` tools can
+  no longer change the bouncer's user config (`<agent dir>/bouncer.json`), a
+  project's `.pi/extensions/bouncer/config.json`, the folder the bouncer was
+  loaded from, or Pi's `settings.json` (`<agent dir>/settings.json` and any
+  `.pi/settings.json`). It is checked before every other path rule, denies in
+  YOLO and auto mode without asking a judge, and cannot be `off`; reads stay
+  allowed. `"levels": {"path-bouncer": "ask"}` brings back a dialog in normal
+  mode. Under `pi -e <checkout>` the checkout is the bouncer's folder, so a
+  session running a checkout cannot write its source while at `deny`.
+
 - The `write` and `edit` tools are now gated by the same path rules as `read`.
   A path rule's read level and write level are separate, so a `.env` file is
   denied to read and asked about to write. The dialog shows the rule, the

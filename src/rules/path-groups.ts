@@ -1,7 +1,10 @@
 // The built-in path groups, in evaluation order, each at its shipped levels:
 // the last match wins, so the broad folder groups come first and the secret
-// groups after them, and a secret group decides its own paths.
+// groups after them, and a secret group decides its own paths. path-bouncer
+// is listed first but ranked before the walk (`src/rules/path-rank.ts`).
 import { posix } from "node:path";
+import { PACKAGE_DIR } from "../package-dir.ts";
+import { realOf } from "../path-spellings.ts";
 import type { RuleName } from "../verdict.ts";
 import {
 	compilePattern,
@@ -29,8 +32,23 @@ const ASK_WRITE: DirectionLevels = { read: "allow", write: "ask" };
 // The agent dir is known where a call is decided, so a test's temporary agent
 // dir is the one matched.
 const AGENT_DIR = "<agent dir>/";
+const PACKAGE = "<package dir>/**";
 
 const DEFS: readonly GroupDef[] = [
+	{
+		name: "path-bouncer",
+		summary:
+			"the bouncer's config, its code and Pi's settings decide what the bouncer guards",
+		patterns: [
+			`${AGENT_DIR}bouncer.json`,
+			"**/.pi/extensions/bouncer/config.json",
+			PACKAGE,
+			`${AGENT_DIR}settings.json`,
+			"**/.pi/settings.json",
+		],
+		levels: { read: "allow", write: "deny" },
+		secret: false,
+	},
 	{
 		name: "path-system",
 		summary: "a system folder changes software for the whole machine",
@@ -185,9 +203,8 @@ const DEFS: readonly GroupDef[] = [
 
 // `<agent dir>/…` is one absolute path, whose leading folder comes from the
 // decision; `base` is the whole path, so a search above it still fires.
-function agentFile(agentDir: string, file: string): PathPattern {
-	const pathOf = (where: PathWhere): string =>
-		posix.join(where.agentDir ?? agentDir, file);
+function agentFile(file: string): PathPattern {
+	const pathOf = (where: PathWhere): string => posix.join(where.agentDir, file);
 	return {
 		source: `${AGENT_DIR}${file}`,
 		anchor: "root",
@@ -196,25 +213,40 @@ function agentFile(agentDir: string, file: string): PathPattern {
 	};
 }
 
-function compile(source: string, agentDir: string): PathPattern {
+// The folder the bouncer was loaded from and everything in it, by the
+// spelling it was loaded from and by its real path: a loader may keep a
+// symlinked `pi -e` path as given. Resolved per call, so a failure blocks
+// that call rather than the bouncer's load.
+const packageFolder: PathPattern = {
+	source: PACKAGE,
+	anchor: "root",
+	base: (): string => PACKAGE_DIR,
+	test: (path: string): boolean =>
+		[PACKAGE_DIR, realOf(PACKAGE_DIR)].some(
+			(dir) => path === dir || path.startsWith(`${dir}/`),
+		),
+};
+
+function compile(source: string): PathPattern {
+	if (source === PACKAGE) return packageFolder;
 	if (source.startsWith(AGENT_DIR)) {
-		return agentFile(agentDir, source.slice(AGENT_DIR.length));
+		return agentFile(source.slice(AGENT_DIR.length));
 	}
 	const compiled = compilePattern(source);
 	if (!compiled) throw new Error(`bad built-in path pattern: ${source}`);
 	return compiled;
 }
 
-function entry(def: GroupDef, agentDir: string): PathGroup {
+function entry(def: GroupDef): PathGroup {
 	const { name, summary, patterns, except, levels, secret } = def;
 	return {
 		kind: "path",
 		rule: {
 			name,
 			summary,
-			patterns: patterns.map((source) => compile(source, agentDir)),
+			patterns: patterns.map(compile),
 			...(except && {
-				except: except.map((source) => compile(source, agentDir)),
+				except: except.map(compile),
 			}),
 		},
 		levels,
@@ -222,9 +254,8 @@ function entry(def: GroupDef, agentDir: string): PathGroup {
 	};
 }
 
-/** `agentDir` is the fallback for a decision that names none. */
-export function pathGroups(agentDir: string): readonly PathGroup[] {
-	return DEFS.map((def) => entry(def, agentDir));
+export function pathGroups(): readonly PathGroup[] {
+	return DEFS.map(entry);
 }
 
 const SECRET: ReadonlySet<RuleName> = new Set(

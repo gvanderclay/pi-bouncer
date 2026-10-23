@@ -20,6 +20,10 @@ type Decided = {
 
 const STRICTNESS = { allow: 0, ask: 1, deny: 2 } as const;
 
+// Checked before the walk and only for writes, so no later entry overrides it
+// and its read level, which a plain `levels` value would set, never applies.
+const BOUNCER = "path-bouncer";
+
 type Matcher = (
 	rule: PathRule,
 	path: string,
@@ -79,7 +83,7 @@ function lastMatch(
 ): Decided | undefined {
 	let found: Decided | undefined;
 	for (const entry of policy) {
-		if (entry.kind !== "path") continue;
+		if (entry.kind !== "path" || entry.rule.name === BOUNCER) continue;
 		const level = entry.levels[direction];
 		if (level === "off" || !matches(entry.rule, path, wheres)) continue;
 		found = { entry, level };
@@ -93,7 +97,7 @@ function wheresOf(where: PathWhere): PathWhere[] {
 	const real = {
 		cwd: realOf(where.cwd),
 		home: realOf(where.home),
-		...(where.agentDir !== undefined && { agentDir: realOf(where.agentDir) }),
+		agentDir: realOf(where.agentDir),
 	};
 	const same =
 		real.cwd === where.cwd &&
@@ -129,7 +133,7 @@ function inScope(
 ): Decided | undefined {
 	let worst: Decided | undefined;
 	for (const entry of policy) {
-		if (entry.kind !== "path") continue;
+		if (entry.kind !== "path" || entry.rule.name === BOUNCER) continue;
 		const level = entry.levels[direction];
 		if (level === "off") continue;
 		if (!paths.all.some((path) => scoped(entry.rule, path, wheres))) continue;
@@ -138,6 +142,24 @@ function inScope(
 		}
 	}
 	return worst;
+}
+
+function selfWrite(
+	paths: Spellings,
+	direction: Direction,
+	policy: Policy,
+	wheres: readonly PathWhere[],
+): Decided | undefined {
+	if (direction !== "write") return undefined;
+	for (const entry of policy) {
+		if (entry.kind !== "path" || entry.rule.name !== BOUNCER) continue;
+		const level = entry.levels.write;
+		if (level === "off" || level === "allow") continue;
+		if (paths.all.some((path) => covers(entry.rule, path, wheres))) {
+			return { entry, level };
+		}
+	}
+	return undefined;
 }
 
 function stricter(
@@ -156,6 +178,19 @@ function denies(decided: Decided, mode: FileMode): boolean {
 	return decided.level === "deny";
 }
 
+function walked(
+	access: FileAccess,
+	paths: Spellings,
+	policy: Policy,
+	wheres: readonly PathWhere[],
+): Decided | undefined {
+	const { direction } = access;
+	const direct = strictest(paths, direction, policy, wheres, covers);
+	return access.search
+		? stricter(direct, inScope(paths, direction, policy, wheres))
+		: direct;
+}
+
 export function rankFile(
 	access: FileAccess,
 	paths: Spellings,
@@ -165,10 +200,9 @@ export function rankFile(
 ): Ranking | undefined {
 	const { direction } = access;
 	const wheres = wheresOf(where);
-	const direct = strictest(paths, direction, policy, wheres, covers);
-	const decided = access.search
-		? stricter(direct, inScope(paths, direction, policy, wheres))
-		: direct;
+	const decided =
+		selfWrite(paths, direction, policy, wheres) ??
+		walked(access, paths, policy, wheres);
 	if (!decided || decided.level === "allow") return undefined;
 	const { rule } = decided.entry;
 	const matches: Match[] = [

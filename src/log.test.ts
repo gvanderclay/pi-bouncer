@@ -385,6 +385,7 @@ const BUILT_IN_LEVELS = {
 	publish: "ask",
 	"gh-delete": "ask",
 	"bouncer-escape": "deny",
+	"path-bouncer": "deny",
 	"path-system": "ask",
 	"path-git": "ask",
 	"path-shell-rc": "ask",

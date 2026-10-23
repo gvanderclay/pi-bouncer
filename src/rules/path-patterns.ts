@@ -6,7 +6,7 @@ export type PathWhere = {
 	readonly cwd: string;
 	readonly home: string;
 	/** The session's agent dir, for the patterns that live in it. */
-	readonly agentDir?: string;
+	readonly agentDir: string;
 };
 
 export type PathPattern = {

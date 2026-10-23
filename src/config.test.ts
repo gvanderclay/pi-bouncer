@@ -42,6 +42,7 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["publish", "ask"],
 	["gh-delete", "ask"],
 	["bouncer-escape", "deny"],
+	["path-bouncer", "deny"],
 	["path-system", "ask"],
 	["path-git", "ask"],
 	["path-shell-rc", "ask"],
