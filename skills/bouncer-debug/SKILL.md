@@ -245,8 +245,11 @@ Every record has `v` (format version, `1`), `type`, `time` (ISO 8601),
       `safety` answer's), the four answers behind the deny score (`effect`
       and `user_intent` as a probability per class, `created` and
       `risky_target` as the probability of true) and `ms`; or, when the call failed,
-      `error` and `ms`. `verdict` and `model` still describe the decision
-      that took effect.
+      `error` and `ms`. For a file call there is no `safe` or `confidence`,
+      and the answers are `kind` and `effect` and `user_intent` (a
+      probability per class) and `contains_secret` (the probability of
+      true); its cutoffs are the built-in file ones, not `auto.jev`'s.
+      `verdict` and `model` still describe the decision that took effect.
     - `sent`: `{history, earlierMessages}`, how many session-history
       entries and earlier user messages the judge was sent, only when a
       judge was asked. Never their content.

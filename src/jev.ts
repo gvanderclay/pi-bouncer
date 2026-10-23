@@ -8,10 +8,14 @@ import {
 	DENY_QUESTIONS,
 	type DenyAnswers,
 	denyScore,
+	FILE_DENY_QUESTIONS,
+	type FileDenyAnswers,
 	field,
+	fileDenyScore,
 	OTHER_AT,
 	probability,
 	readDenyAnswers,
+	readFileDenyAnswers,
 } from "./jev-questions.ts";
 import {
 	JUDGE_CRITERIA,
@@ -51,12 +55,21 @@ const QUESTIONS: Readonly<
 };
 
 // Pi's public name for SystemOne's wire-level `noul` question.
-const PI_QUESTIONS = Object.fromEntries(
-	Object.entries(QUESTIONS).map(([id, question]) => [
-		id,
-		question.type === "noul" ? { ...question, type: "bool" } : question,
-	]),
-);
+function piQuestions(
+	questions: Readonly<Record<string, { readonly type: string }>>,
+): Record<string, object> {
+	return Object.fromEntries(
+		Object.entries(questions).map(([id, question]) => [
+			id,
+			question.type === "noul" ? { ...question, type: "bool" } : question,
+		]),
+	);
+}
+
+const PI_QUESTIONS = piQuestions(QUESTIONS);
+
+// A file call gets no `safety` question: its allow score is 1 − its deny score.
+const PI_FILE_QUESTIONS = piQuestions(FILE_DENY_QUESTIONS);
 
 type PiResult = {
 	readonly answers: Readonly<Record<string, object>>;
@@ -176,7 +189,10 @@ export async function jevAsker(
 				const result = await classify.call(
 					registry,
 					found,
-					{ state: jevState(request), questions: PI_QUESTIONS },
+					{
+						state: jevState(request),
+						questions: request.file ? PI_FILE_QUESTIONS : PI_QUESTIONS,
+					},
 					{ ...options, signal: both, maxRetries: 0 },
 				);
 				if (result.stopReason !== "stop") {
@@ -231,16 +247,62 @@ export type JevAnswer =
 	| { readonly answer: "unsure"; readonly error: string; readonly ms: number };
 
 // Both cutoffs reached is a contradiction, and P(effect = other) at 0.5 is an exit: both are unsure.
+function answerFor(
+	allow: number,
+	unsafe: number,
+	other: number,
+	{ allowAt, denyAt }: { allowAt: number | null; denyAt: number | null },
+): "safe" | "unsafe" | "unsure" {
+	const safe = allowAt !== null && allow >= allowAt;
+	const denied = denyAt !== null && unsafe >= denyAt;
+	if (safe === denied || other >= OTHER_AT) return "unsure";
+	return safe ? "safe" : "unsafe";
+}
+
 export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 	const reading = "error" in call ? call.error : readReply(call.reply);
 	if (typeof reading === "string") {
 		return { answer: "unsure", error: reading, ms: call.ms };
 	}
-	const { allowAt, allowFrom, denyAt } = cutoffs;
-	const safe = allowAt !== null && allowScore(reading, allowFrom) >= allowAt;
-	const unsafe = denyAt !== null && reading.unsafe >= denyAt;
-	let answer: "safe" | "unsafe" | "unsure" = safe ? "safe" : "unsafe";
-	if (safe === unsafe || reading.effect.other >= OTHER_AT) answer = "unsure";
+	const allow = allowScore(reading, cutoffs.allowFrom);
+	const { unsafe, effect } = reading;
+	const answer = answerFor(allow, unsafe, effect.other, cutoffs);
+	return { answer, ...reading, ms: call.ms };
+}
+
+/**
+ * Jev's cutoffs for file calls, used in place of `auto.jev`'s; the allow score
+ * is 1 − the file deny score. Read at each call, so a test can set them.
+ * Until a bench run measures them, `allowAt` above 1 and no `denyAt` leave
+ * every file call to the judge list.
+ */
+export const FILE_JEV_CUTOFFS: {
+	readonly allowAt: number;
+	readonly denyAt: number | null;
+} = { allowAt: 1.01, denyAt: null };
+
+export type FileJevReading = FileDenyAnswers & { readonly unsafe: number };
+
+export function readFileReply(reply: unknown): FileJevReading | string {
+	const deny = readFileDenyAnswers(field(reply, "answers"));
+	if (typeof deny === "string") return deny;
+	return { unsafe: fileDenyScore(deny), ...deny };
+}
+
+export type FileJevAnswer =
+	| (FileJevReading & {
+			readonly answer: "safe" | "unsafe" | "unsure";
+			readonly ms: number;
+	  })
+	| { readonly answer: "unsure"; readonly error: string; readonly ms: number };
+
+export function classifyFile(call: JevCall): FileJevAnswer {
+	const reading = "error" in call ? call.error : readFileReply(call.reply);
+	if (typeof reading === "string") {
+		return { answer: "unsure", error: reading, ms: call.ms };
+	}
+	const { unsafe, effect } = reading;
+	const answer = answerFor(1 - unsafe, unsafe, effect.other, FILE_JEV_CUTOFFS);
 	return { answer, ...reading, ms: call.ms };
 }
 
@@ -262,7 +324,7 @@ export function jevName(model: string | undefined): string {
 }
 
 export function jevVerdict(
-	answer: JevAnswer,
+	answer: JevAnswer | FileJevAnswer,
 	model = JEV_NAME,
 ): JevVerdict | undefined {
 	if (answer.answer === "unsure") return undefined;
@@ -289,8 +351,33 @@ export type JevRecord = { readonly model?: string } & (
 			readonly confidence: number;
 			readonly ms: number;
 	  })
+	| (FileDenyAnswers & {
+			readonly answer: "safe" | "unsafe" | "unsure";
+			readonly unsafe: number;
+			readonly ms: number;
+	  })
 	| { readonly error: string; readonly ms: number }
 );
+
+export function fileJevRecord(
+	answer: FileJevAnswer,
+	model?: string,
+): JevRecord {
+	const named = model ? { model } : {};
+	if ("error" in answer)
+		return { ...named, error: answer.error, ms: answer.ms };
+	const { unsafe, kind, contains_secret, effect, user_intent, ms } = answer;
+	return {
+		...named,
+		answer: answer.answer,
+		unsafe,
+		kind,
+		contains_secret,
+		effect,
+		user_intent,
+		ms,
+	};
+}
 
 export function jevRecord(answer: JevAnswer, model?: string): JevRecord {
 	const named = model ? { model } : {};

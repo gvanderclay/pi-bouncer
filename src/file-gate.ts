@@ -15,6 +15,7 @@ import {
 } from "./gate.ts";
 import type { FileJudged } from "./judge-request.ts";
 import { type Spellings, spellings } from "./path-spellings.ts";
+import type { PathWhere } from "./rules/path-patterns.ts";
 import { rankFile, touchesSecret } from "./rules/path-rank.ts";
 import type { Policy } from "./rules/rule.ts";
 import { decideToolAsk } from "./tool-ask.ts";
@@ -111,22 +112,31 @@ async function decidedFor(
 	});
 }
 
-// No content of a file in a secret group reaches the judge.
+/** What the judge and Jev see of a file call: no content of a file in a secret group. */
+export function fileJudged(
+	access: FileAccess,
+	paths: Spellings,
+	where: PathWhere,
+): FileJudged {
+	const { tool, direction, change } = access;
+	const redacted = touchesSecret(paths, where);
+	return {
+		tool,
+		direction,
+		path: paths.real,
+		...(redacted ? { redacted: true as const } : change && { change }),
+	};
+}
+
 function judgedBy(
 	access: FileAccess,
 	paths: Spellings,
 	call: FileCall,
 ): Pick<FileCall, "judge" | "judgesChange"> {
 	if (!call.judgeFile) return {};
-	const { tool, direction, change } = access;
 	const where = { cwd: call.cwd, home: call.home, agentDir: call.agentDir };
-	const redacted = touchesSecret(paths, where);
-	const file: FileJudged = {
-		tool,
-		direction,
-		path: paths.real,
-		...(redacted ? { redacted: true as const } : change && { change }),
-	};
+	const file = fileJudged(access, paths, where);
+	const { tool } = access;
 	const judge = call.judgeFile(`${tool} ${paths.real}`, file);
 	return { judge, ...(file.change && { judgesChange: true }) };
 }

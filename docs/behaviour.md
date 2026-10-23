@@ -309,8 +309,8 @@ instead of "no judge available".
 An MCP call not on `mcp.allow` is judged like an ask, without Jev, unless
 `mcp.judge` is `false`; its judge denies share the pause with bash.
 
-A file call that a path rule asks about is judged the same way, without Jev,
-and its judge denies share the pause too. A judge allow runs that one call; it
+A file call that a path rule asks about is judged the same way, Jev
+included, and its judge denies share the pause too. A judge allow runs that one call; it
 never adds a session allow. A `path-bouncer` write is denied before any judge
 is asked, as is any path rule set to `deny`.
 
@@ -373,7 +373,8 @@ variable whose value it cannot see.
 
 Jev is TypeSafe's classifier, always called through Pi's classifier support
 with no retries. It sees exactly what the judge sees, under the same budgets,
-and answers five questions in one call. Two numbers come out of them:
+and answers five questions about a bash line in one call (a file call's
+questions are below). Two numbers come out of them:
 
 - Four short questions (what kind of change the command makes, whether the
   agent created its target, what the user asked for, and whether it deletes
@@ -400,6 +401,21 @@ cannot turn auto mode on by itself: `auto.models` stays required. Its
 default cutoffs were measured through OpenCode Zen only; another provider's
 `jev-1.13` should behave the same, but that is unverified, and the
 `auto-judge-list` skill's bench can re-measure it.
+
+A file call gets its own four questions in place of these five: what kind
+of file the path is (source code, config, secrets, docs or data), whether
+the change holds a real credential rather than a placeholder, what kind of
+change the call makes, and what the user asked for. Jev sees the tool, the
+direction, the real path, the change, the working directory, the git
+branch, the session history and the user's messages; for a path in any
+secret group the change is left out, as it is for the judge. The deny score
+is combined as for bash: harmful, asked to keep, a secrets file, or a
+credential at 0.7 or more cap routine and asked for. The allow score is
+always 1 minus that deny score. File calls use their own built-in cutoffs,
+not `auto.jev`'s `allowAt`, `denyAt` or `allowFrom`, which apply to bash
+alone. Until a bench run measures those cutoffs they are set so that Jev
+never allows or denies a file call: every file ask still reaches the judge
+list, with Jev's answers in the log record.
 
 ## The log
 

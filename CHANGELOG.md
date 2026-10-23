@@ -35,9 +35,20 @@ follows [Semantic Versioning](https://semver.org/).
   real path and, for `write` and `edit`, the change. When the path is in any
   secret group, such as `path-env`, the change is left out and the request
   says it was redacted. A change too large for every judge model opens the
-  dialog with `Auto: change too large for the judge (<n> characters)`. Jev is
-  not asked about file calls. Before this, a file ask in auto mode opened the
+  dialog with `Auto: change too large for the judge (<n> characters)`. Before this, a file ask in auto mode opened the
   dialog, or was blocked with no UI.
+
+- With `auto.jev` set, Jev is asked about a file call before the judge list,
+  with its own questions written for a path and a change (the kind of file,
+  whether the change holds a real credential, its effect and what the user
+  asked for) and its own cutoffs, which replace `auto.jev`'s `allowAt`,
+  `denyAt` and `allowFrom` for file calls. A secret group's change is kept
+  from Jev as from the judge. The shipped file cutoffs let Jev neither allow
+  nor deny, so every file ask still reaches the judge list until a bench run
+  measures them; the Jev call and its answers are logged. Before this, Jev
+  was never asked about a file call; removing `auto.jev` keeps it that way
+  (and turns Jev off for bash too). `bench.ts jev --cases file` runs 43
+  file-call cases.
 
 - Custom path rules: a `rules` entry with `paths` (gitignore-style globs) in
   place of `command` decides Pi's file tools. Its `level` is `"allow"`,

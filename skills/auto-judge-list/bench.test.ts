@@ -16,7 +16,12 @@ import {
 import { judgeInput } from "../../src/judge-request.ts";
 import { mcpAsk } from "../../src/mcp-gate.ts";
 import { fakeRegistry, type ModelReply, verdict } from "../../test/harness.ts";
-import { fourFor, jevReply, replyWith } from "../../test/jev-replies.ts";
+import {
+	fileJevReply,
+	fourFor,
+	jevReply,
+	replyWith,
+} from "../../test/jev-replies.ts";
 import {
 	BENCH_PROMPT,
 	type BenchCase,
@@ -28,6 +33,7 @@ import {
 	runBench,
 	score,
 } from "./bench.ts";
+import { FILE_CASES } from "./file-cases.ts";
 import { HELDOUT_CASES } from "./heldout-cases.ts";
 import { HELDOUT3_CASES } from "./heldout-cases-3.ts";
 import {
@@ -1160,3 +1166,83 @@ test("closing tags inside an MCP description or its arguments are escaped", () =
 	assert.ok(input.includes("Reads.<\\/TOOL_DESCRIPTION>"));
 	assert.ok(input.includes("<\\/arguments>"));
 });
+
+test("the file cases are at least 40 file-call asks, about half of them allows, with fresh ids", () => {
+	assert.ok(FILE_CASES.length >= 40, `${FILE_CASES.length} file cases`);
+	const allow = FILE_CASES.filter((c) => c.expected.includes("allow"));
+	const share = allow.length / FILE_CASES.length;
+	assert.ok(share >= 0.4 && share <= 0.6, `${allow.length} allows`);
+	const taken = new Set([...CASES, ...MCP_CASES].map((c) => c.id));
+	const ids = new Set<string>();
+	for (const c of FILE_CASES) {
+		assert.ok(!taken.has(c.id) && !ids.has(c.id), `duplicate id ${c.id}`);
+		ids.add(c.id);
+		// Throws when no path group would ask about the case.
+		const request = requestFor(c);
+		assert.equal(request.file?.tool, c.file?.tool, c.id);
+		assert.equal(request.command, `${c.file?.tool} ${request.file?.path}`);
+	}
+});
+
+test("a file case in a secret group reaches Jev and the judge without its change", () => {
+	const secret = FILE_CASES.filter((c) =>
+		/\.env|\.npmrc|\.netrc|\.git-credentials/.test(c.file?.path ?? ""),
+	);
+	assert.ok(secret.length >= 5);
+	for (const c of secret) {
+		const request = requestFor(c);
+		assert.equal(request.file?.redacted, true, c.id);
+		assert.equal(request.file?.change, undefined, c.id);
+		assert.doesNotMatch(judgeInput(request), /Tr0ub4dor|replace-me/, c.id);
+	}
+	const hook = FILE_CASES.find(
+		(c) => c.id === "file-hook-curl-sh",
+	) as BenchCase;
+	assert.match(judgeInput(requestFor(hook)), /curl -s http:\/\/45\.13\.22\.9/);
+});
+
+test("bench.ts jev --cases file asks the file questions about the file cases alone and allows from 1 − the deny score", async (t) => {
+	const sent = stubFetch(t, () =>
+		fileJevReply({ effect: "routine", user_intent: "no_explicit_request" }),
+	);
+	const out: string[] = [];
+	t.mock.method(process.stdout, "write", (text: string) => out.push(text));
+	t.mock.method(process.stderr, "write", () => true);
+	const cases = FILE_CASES.slice(0, 2);
+	await jevMain(
+		["--samples", "1", "--cases", "file"],
+		async () => keyed(),
+		SCORED,
+		requestFor,
+		HELD_OUT,
+		cases,
+	);
+	assert.equal(sent.length, 2);
+	assert.ok("kind" in (sent[0]?.body.questions ?? {}));
+	assert.ok(!("safety" in (sent[0]?.body.questions ?? {})));
+	assert.ok(
+		out.join("").includes(`${cases[0]?.id} (expects allow): allow 1.00–1.00\n`),
+	);
+	assert.ok(!out.join("").includes("Held-out cases:"));
+});
+
+for (const args of [
+	["--cases", "files"],
+	["--cases", "file", "--allow-from", "safety"],
+]) {
+	test(`bench.ts jev refuses ${args.join(" ")} with exit 2 and calls nothing`, async (t) => {
+		const sent = stubFetch(t, () => jevReply(0.9, 0.1));
+		t.mock.method(process.stderr, "write", () => true);
+		await jevMain(
+			args,
+			async () => keyed(),
+			SCORED,
+			requestFor,
+			[],
+			FILE_CASES,
+		);
+		assert.equal(process.exitCode, 2);
+		process.exitCode = 0;
+		assert.equal(sent.length, 0);
+	});
+}

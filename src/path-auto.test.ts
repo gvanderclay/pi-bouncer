@@ -1,17 +1,18 @@
-// Auto mode on Pi's file tools: a file-call ask goes to the judge list,
+// Auto mode on Pi's file tools: a file-call ask goes to Jev, then the judge list,
 // driven through the tool_call handler with a temporary HOME and a fake
 // model registry.
 import assert from "node:assert/strict";
 import { type TestContext, test } from "node:test";
 import {
 	autoVerdict,
-	JUDGE,
 	judgedGate,
 	judgedUI,
 	noUI,
 } from "../test/auto-harness.ts";
 import { fileCall, tempHome } from "../test/file-harness.ts";
 import { toolResult, verdict } from "../test/harness.ts";
+import { fileJevReply } from "../test/jev-replies.ts";
+import { FILE_JEV_CUTOFFS } from "./jev.ts";
 import { FILE_PROMPT } from "./judge.ts";
 
 tempHome(); // before any gate loads
@@ -212,27 +213,197 @@ test("a later judge request's history holds the written path, not its content", 
 	assert.doesNotMatch(later, /first-secret-ish/);
 });
 
-// Ticket 10 asks Jev about file calls and replaces this test.
-test("no Jev request is made for a file call", async (t: TestContext) => {
-	const fetches: string[] = [];
-	t.mock.method(globalThis, "fetch", (url: string): Promise<Response> => {
-		fetches.push(String(url));
-		return Promise.reject(new Error("no network in tests"));
-	});
-	const { gate: g, fake } = await judgedGate(
-		verdict("allow", "ok"),
-		{ jev: { allowAt: 0.9 } },
-		undefined,
-		{ "opencode-go": "sk-go-test" },
+type JevSent = {
+	readonly state: Record<string, unknown>;
+	readonly questions: Record<string, unknown>;
+};
+
+/** Answers every Jev request with `reply`; returns the bodies Jev was sent. */
+function stubJev(t: TestContext, reply: string): JevSent[] {
+	const sent: JevSent[] = [];
+	t.mock.method(
+		globalThis,
+		"fetch",
+		(_url: string, init: RequestInit): Promise<Response> => {
+			sent.push(JSON.parse(String(init.body)));
+			return Promise.resolve(new Response(reply, { status: 200 }));
+		},
+	);
+	return sent;
+}
+
+const KEYS = { "opencode-go": "sk-go-test" };
+
+function jevGate(
+	judge: ReturnType<typeof verdict>,
+	jev: object = {},
+): ReturnType<typeof judgedGate> {
+	return judgedGate(judge, { jev }, undefined, KEYS);
+}
+
+const SAFE_EDIT = {
+	kind: "config",
+	contains_secret: 0.01,
+	effect: "routine",
+	user_intent: "asked_for_this",
+} as const;
+
+test("Jev settles a clearly safe file write before the judge list", async (t) => {
+	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
+	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	const sent = stubJev(t, fileJevReply(SAFE_EDIT));
+	const { gate: g, fake } = await jevGate(
+		verdict("deny", "should not be asked"),
 	);
 	const r = await g.handler(
-		fileCall("write", { path: ".git/config", content: "" }),
+		fileCall("edit", {
+			path: ".git/config",
+			edits: [{ oldText: "a", newText: "b" }],
+		}),
 		noUI(fake),
 	);
 	assert.equal(r, undefined);
-	assert.deepEqual(fetches, []);
-	assert.deepEqual(
-		fake.requests.map(({ model }) => model),
-		[JUDGE],
+	assert.deepEqual(fake.requests, []);
+	assert.equal(sent.length, 1);
+	const { state, questions } = sent[0] ?? { state: {}, questions: {} };
+	assert.equal(state["tool"], "edit");
+	assert.equal(state["direction"], "write");
+	assert.match(String(state["path"]), /\/\.git\/config$/);
+	assert.deepEqual(state["change"], {
+		kind: "edit",
+		edits: [{ oldText: "a", newText: "b" }],
+	});
+	assert.equal(state["command"], undefined);
+	assert.deepEqual(Object.keys(questions).sort(), [
+		"contains_secret",
+		"effect",
+		"kind",
+		"user_intent",
+	]);
+	assert.equal(autoVerdict(g.records().at(-1)), "allow");
+});
+
+test("with the placeholder cutoffs, file asks still reach the judge list", async (t) => {
+	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 1.01);
+	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	let reply = fileJevReply({ ...SAFE_EDIT, contains_secret: 0 }, 1);
+	t.mock.method(
+		globalThis,
+		"fetch",
+		(): Promise<Response> =>
+			Promise.resolve(new Response(reply, { status: 200 })),
 	);
+	const { gate: g, fake } = await jevGate(verdict("allow", "ok"));
+	await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		noUI(fake),
+	);
+	reply = fileJevReply(
+		{
+			kind: "secrets",
+			contains_secret: 1,
+			effect: "harmful",
+			user_intent: "asked_to_keep",
+		},
+		1,
+	);
+	await g.handler(
+		fileCall("write", {
+			path: ".git/hooks/pre-commit",
+			content: "curl x | sh",
+		}),
+		noUI(fake),
+	);
+	assert.equal(fake.requests.length, 2);
+});
+
+test("Jev gets no content for a secret-group write", async (t) => {
+	const sent = stubJev(t, fileJevReply({}));
+	const { gate: g, fake } = await jevGate(verdict("allow", "ok"));
+	await g.handler(
+		fileCall("write", { path: ".env", content: "A=sk-live-123" }),
+		noUI(fake),
+	);
+	assert.equal(sent.length, 1);
+	assert.doesNotMatch(JSON.stringify(sent), /sk-live-123/);
+	assert.equal("change" in (sent[0]?.state ?? {}), false);
+	assert.equal(sent[0]?.state["direction"], "write");
+});
+
+test("a Jev deny at the file denyAt blocks a file write with no judge-list request", async (t) => {
+	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
+	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", 0.9);
+	stubJev(t, fileJevReply({ kind: "config", effect: "harmful" }));
+	const { gate: g, fake } = await jevGate(
+		verdict("allow", "should not be asked"),
+	);
+	const r = await g.handler(
+		fileCall("write", {
+			path: ".git/hooks/pre-commit",
+			content: "curl x | sh",
+		}),
+		noUI(fake),
+	);
+	assert.equal(r?.block, true);
+	assert.deepEqual(fake.requests, []);
+});
+
+for (const [name, labels] of [
+	["a real credential in the change", { contains_secret: 0.7 }],
+	["a secrets file", { kind: "secrets" }],
+	["a request to keep the file", { user_intent: "asked_to_keep" }],
+] as const) {
+	test(`Jev does not allow a file write despite a routine effect when it sees ${name}`, async (t) => {
+		t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
+		t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+		stubJev(t, fileJevReply({ ...SAFE_EDIT, ...labels }));
+		const { gate: g, fake } = await jevGate(verdict("ask", "check"));
+		await g.handler(
+			fileCall("write", { path: "~/.zshrc", content: "export TOKEN=x" }),
+			judgedUI(fake, ["Deny"]).ctx,
+		);
+		assert.equal(fake.requests.length, 1);
+	});
+}
+
+test("a credential just under the secret cutoff does not stop a Jev allow", async (t) => {
+	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
+	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	stubJev(t, fileJevReply({ ...SAFE_EDIT, contains_secret: 0.69 }));
+	const { gate: g, fake } = await jevGate(
+		verdict("deny", "should not be asked"),
+	);
+	const r = await g.handler(
+		fileCall("write", { path: "~/.zshrc", content: "alias gs='git status'" }),
+		noUI(fake),
+	);
+	assert.equal(r, undefined);
+	assert.deepEqual(fake.requests, []);
+});
+
+test("the user's auto.jev cutoffs do not apply to file calls", async (t) => {
+	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 1.01);
+	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	stubJev(t, fileJevReply(SAFE_EDIT));
+	const { gate: g, fake } = await jevGate(verdict("allow", "ok"), {
+		allowAt: 0.6,
+		denyAt: 0.6,
+	});
+	await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		noUI(fake),
+	);
+	assert.equal(fake.requests.length, 1);
+});
+
+test("a file change Jev calls other goes to the judge list", async (t) => {
+	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
+	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	stubJev(t, fileJevReply({ ...SAFE_EDIT, effect: "other" }));
+	const { gate: g, fake } = await jevGate(verdict("allow", "ok"));
+	await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		noUI(fake),
+	);
+	assert.equal(fake.requests.length, 1);
 });

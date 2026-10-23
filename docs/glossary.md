@@ -152,7 +152,9 @@ allows the call; a deny score at or above `denyAt`, unless `denyAt` is `null`,
 denies it in the ordinary hard-deny form with a reason that names no judge,
 and the deny counts toward auto mode's pause like a judge's; anything else,
 including both cutoffs reached, or a failed call, goes to the judge list. It
-is not an entry of the judge list and cannot turn auto mode on.
+is not an entry of the judge list and cannot turn auto mode on. A file call
+gets four questions of its own, a deny score combined the same way, and its
+own cutoffs in place of `auto.jev`'s.
 _Avoid_: classifier mode, reviewer, first judge
 
 **Auto-mode ruling**:

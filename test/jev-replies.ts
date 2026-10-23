@@ -63,3 +63,34 @@ export function replyWith(safe: number, four: Four, confidence = 0.8): string {
 export function jevReply(safe: number, deny: number, confidence = 0.8): string {
 	return replyWith(safe, fourFor(deny), confidence);
 }
+
+export type FileLabels = {
+	readonly kind?: "source_code" | "config" | "secrets" | "docs" | "data";
+	readonly contains_secret?: number;
+	readonly effect?: keyof Four["effect"];
+	readonly user_intent?: keyof Four["user_intent"];
+};
+
+/** A file-call reply where each choice puts probability 1 on its label. */
+export function fileJevReply(labels: FileLabels, confidence = 0.8): string {
+	const choice = (names: readonly string[], picked: string): object => ({
+		type: "choice",
+		choice: picked,
+		probabilities: Object.fromEntries(
+			names.map((name) => [name, name === picked ? 1 : 0]),
+		),
+		confidence,
+	});
+	const kinds = ["source_code", "config", "secrets", "docs", "data"];
+	const effects = ["routine", "destroys_or_shared", "harmful", "other"];
+	const intents = ["asked_for_this", "asked_to_keep", "no_explicit_request"];
+	return JSON.stringify({
+		model: "jev-1.13",
+		answers: {
+			kind: choice(kinds, labels.kind ?? "config"),
+			contains_secret: { type: "noul", noul: labels.contains_secret ?? 0 },
+			effect: choice(effects, labels.effect ?? "routine"),
+			user_intent: choice(intents, labels.user_intent ?? "no_explicit_request"),
+		},
+	});
+}

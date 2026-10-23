@@ -1,7 +1,7 @@
 // Usage (`run` and `jev` spend real quota; nothing else here calls a model):
 //   node bench.ts run [--agent-dir <dir>] [provider/id ...]   (none: the current judge list)
 //   node bench.ts diff [--agent-dir <dir>] provider/id ...    (current list vs proposed)
-//   node bench.ts jev [--agent-dir <dir>] [--samples N]
+//   node bench.ts jev [--agent-dir <dir>] [--samples N] [--cases bash|file]
 // The agent dir is `--agent-dir`, else `$PI_CODING_AGENT_DIR`, else `~/.pi/agent`.
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -9,6 +9,8 @@ import { parseArgs } from "node:util";
 import { parse } from "unbash";
 import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
 import { loadConfig } from "../../src/config.ts";
+import type { GitState } from "../../src/facts.ts";
+import type { FileChange, FileTool } from "../../src/file-call.ts";
 import type { HistoryEntry } from "../../src/history.ts";
 import {
 	JUDGE_PROMPT,
@@ -18,6 +20,7 @@ import {
 } from "../../src/judge.ts";
 import {
 	type JudgeAsk,
+	type JudgeFields,
 	type JudgeRequest,
 	judgeRequest,
 	type McpJudged,
@@ -26,6 +29,7 @@ import { mcpAsk } from "../../src/mcp-gate.ts";
 import { importPi } from "../../src/pi-package.ts";
 import { rankAuto, read } from "../../src/rank.ts";
 import { builtInPolicy } from "../../src/rules/built-in-policy.ts";
+import { FILE_CASES, fileFields } from "./file-cases.ts";
 import { historyCases } from "./history-cases.ts";
 import { MCP_CASES } from "./mcp-cases.ts";
 
@@ -43,6 +47,12 @@ export type BenchCase = {
 	readonly expected: readonly JudgeVerdict[];
 	/** An MCP call; `command` is then its JSON arguments */
 	readonly mcp?: McpJudged;
+	/** A write or edit call; `command` is then "<tool> <path>". */
+	readonly file?: {
+		readonly tool: FileTool;
+		readonly path: string;
+		readonly change: FileChange;
+	};
 };
 
 const HOME = "/home/dev";
@@ -199,10 +209,14 @@ export const JUDGE_CASES: readonly BenchCase[] = [...CASES, ...MCP_CASES];
 
 // A case the bouncer would not send to the judge is an error in the case set.
 export function requestFor(c: BenchCase): JudgeRequest {
-	const git =
+	const git: GitState =
 		c.branch === "-"
-			? { kind: "not-a-repo" as const }
-			: { kind: "repo" as const, branch: c.branch, dirty: false };
+			? { kind: "not-a-repo" }
+			: { kind: "repo", branch: c.branch, dirty: false };
+	if (c.file) {
+		const fields = fileFields(c, c.file);
+		return judgeRequest({ ...fields, cwd: c.cwd, git, ...context(c) });
+	}
 	let asks: readonly JudgeAsk[];
 	if (c.mcp) {
 		asks = [mcpAsk(c.mcp.tool, JSON.parse(c.command))];
@@ -222,12 +236,20 @@ export function requestFor(c: BenchCase): JudgeRequest {
 		cwd: c.cwd,
 		git,
 		...(c.mcp && { mcp: c.mcp }),
+		...context(c),
+	});
+}
+
+function context(
+	c: BenchCase,
+): Pick<JudgeFields, "earlierUserMessages" | "history" | "userMessage"> {
+	return {
 		...(c.earlierUserMessages && {
 			earlierUserMessages: c.earlierUserMessages,
 		}),
 		...(c.history && { history: c.history }),
 		...(c.userMessage !== undefined && { userMessage: c.userMessage }),
-	});
+	};
 }
 
 export type BenchResult = {
@@ -424,7 +446,14 @@ async function main(): Promise<void> {
 		const { HELDOUT3_CASES } = await import("./heldout-cases-3.ts");
 		const heldOut = [...HELDOUT_CASES, ...HELDOUT3_CASES];
 		const args = process.argv.slice(3);
-		return await jevMain(args, piRegistry, CASES, requestFor, heldOut);
+		return await jevMain(
+			args,
+			piRegistry,
+			CASES,
+			requestFor,
+			heldOut,
+			FILE_CASES,
+		);
 	}
 	const { values, positionals } = parseArgs({
 		allowPositionals: true,

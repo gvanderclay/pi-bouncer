@@ -219,18 +219,55 @@ export function judgeInput(request: JudgeRequest): string {
 	].join("\n");
 }
 
-export function jevState(request: JudgeRequest): Record<string, unknown> {
+function historyState(history: readonly HistoryEntry[]): object[] {
+	return history.map(({ tool, text, cwd, failed, background }) => ({
+		tool,
+		text,
+		cwd,
+		...(failed && { failed }),
+		...(background && { background }),
+	}));
+}
+
+// The fields every call's state shares.
+function contextState(request: JudgeRequest): Record<string, unknown> {
 	const earlier = request.earlierUserMessages ?? [];
 	const history = request.history ?? [];
+	return {
+		working_directory: request.cwd,
+		...(request.git && { git: request.git }),
+		...(earlier.length > 0 && { earlier_user_messages: earlier }),
+		...(history.length > 0 && { session_history: historyState(history) }),
+		...(request.userMessage && { user_message: request.userMessage }),
+	};
+}
+
+// A secret group's change was already left out of `file` (`src/file-gate.ts`).
+function fileState(
+	file: FileJudged,
+	request: JudgeRequest,
+): Record<string, unknown> {
+	return {
+		tool: file.tool,
+		direction: file.direction,
+		path: file.path,
+		...(file.change && !file.redacted && { change: file.change }),
+		...contextState(request),
+	};
+}
+
+export function jevState(request: JudgeRequest): Record<string, unknown> {
+	if (request.file) return fileState(request.file, request);
 	const remotes = request.remotes ?? [];
+	const { working_directory, git, ...rest } = contextState(request);
 	return {
 		flagged: request.asks.map(({ rule, summary, source }) => ({
 			rule,
 			summary,
 			source,
 		})),
-		working_directory: request.cwd,
-		...(request.git && { git: request.git }),
+		working_directory,
+		...(git !== undefined && { git }),
 		...(remotes.length > 0 && {
 			remotes: remotes.map(({ name, url, changed }) => ({
 				name,
@@ -238,19 +275,7 @@ export function jevState(request: JudgeRequest): Record<string, unknown> {
 				changed,
 			})),
 		}),
-		...(earlier.length > 0 && { earlier_user_messages: earlier }),
-		...(history.length > 0 && {
-			session_history: history.map(
-				({ tool, text, cwd, failed, background }) => ({
-					tool,
-					text,
-					cwd,
-					...(failed && { failed }),
-					...(background && { background }),
-				}),
-			),
-		}),
-		...(request.userMessage && { user_message: request.userMessage }),
+		...rest,
 		command: request.command,
 	};
 }
