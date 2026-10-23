@@ -1167,6 +1167,11 @@ test("closing tags inside an MCP description or its arguments are escaped", () =
 	assert.ok(input.includes("<\\/arguments>"));
 });
 
+// A control on the case data rather than on behaviour: an edit that loses
+// cases, repeats an id or leans the set all one way would leave the bench too
+// thin and too one-sided to compare judge and Jev cutoffs, and the ticket's
+// "at least 40 cases" would quietly stop being true. Only a deliberate edit
+// to the file cases fails it.
 test("the file cases are at least 40 file-call asks, about half of them allows, with fresh ids", () => {
 	assert.ok(FILE_CASES.length >= 40, `${FILE_CASES.length} file cases`);
 	const allow = FILE_CASES.filter((c) => c.expected.includes("allow"));
