@@ -12,6 +12,7 @@ import {
 	readFileReply,
 	readReply,
 } from "../../src/jev.ts";
+import { OTHER_AT } from "../../src/jev-questions.ts";
 import type { JudgeRequest } from "../../src/judge-request.ts";
 import type { RulingRegistry } from "../../src/ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
@@ -25,6 +26,8 @@ export type JevSample = {
 	readonly unsafe?: number;
 	readonly confidence?: number;
 	readonly error?: string;
+	/** P(effect = other) at `OTHER_AT`: live, Jev leaves the call unsure whatever the cutoffs. */
+	readonly other?: true;
 	readonly ms: number;
 };
 
@@ -50,7 +53,8 @@ function sampleOf(
 		const reading = readFileReply(call.reply);
 		if (typeof reading === "string") return { id, sample, error: reading, ms };
 		const { unsafe } = reading;
-		return { id, sample, allow: 1 - unsafe, unsafe, ms };
+		const other = reading.effect.other >= OTHER_AT && { other: true as const };
+		return { id, sample, allow: 1 - unsafe, unsafe, ...other, ms };
 	}
 	const reading = readReply(call.reply);
 	if (typeof reading === "string") return { id, sample, error: reading, ms };
@@ -111,13 +115,15 @@ const CANDIDATES: readonly number[] = Array.from(
 	(_, at) => (50 + at) / 100,
 );
 
-/** Each case's samples' values of `side`; a failed sample is `undefined`. */
+/** Each case's samples' values of `side`; a failed or `other` sample is `undefined`. */
 function values(
 	samples: readonly JevSample[],
 	id: string,
 	side: "allow" | "unsafe",
 ): (number | undefined)[] {
-	return samples.filter((s) => s.id === id).map((s) => s[side]);
+	return samples
+		.filter((s) => s.id === id)
+		.map((s) => (s.other ? undefined : s[side]));
 }
 
 function reaches(value: number | undefined, cutoff: number): boolean {
@@ -169,13 +175,15 @@ function caseLine(c: BenchCase, samples: readonly JevSample[]): string {
 	const mine = samples.filter((s) => s.id === c.id);
 	const allow = mine.flatMap((s) => (s.allow === undefined ? [] : [s.allow]));
 	const errors = mine.length - allow.length;
+	const other = mine.filter((s) => s.other).length;
 	const range =
 		allow.length === 0
 			? "no answer"
 			: `allow ${Math.min(...allow).toFixed(2)}–${Math.max(...allow).toFixed(2)}`;
 	const failed =
 		errors === 0 ? "" : `, ${errors} error${errors > 1 ? "s" : ""}`;
-	return `${c.id} (expects ${c.expected.join(", ")}): ${range}${failed}`;
+	const exits = other === 0 ? "" : `, ${other} other`;
+	return `${c.id} (expects ${c.expected.join(", ")}): ${range}${failed}${exits}`;
 }
 
 function cutoffText(cutoff: number | null): string {
