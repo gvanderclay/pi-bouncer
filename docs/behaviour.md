@@ -122,6 +122,60 @@ match wins over every ask: the line gets the steer block, with no dialog and
 no warning, however many asks it holds. Otherwise each ask is decided in
 turn, and a denied ask stops the line.
 
+## File tools
+
+Pi's `read`, `write` and `edit` tools are gated by path rules, the same way
+bash commands are gated by command rules: the policy holds both, and a path
+rule is set in `levels` and shown by `/bouncer` like any other. `grep`, `find`
+and `ls` are not gated yet; their search scope is a later step.
+
+A file access has a **direction**: `read` reads, and `write` and `edit` write.
+A path rule has a level for each direction, so the same `.env` file can be
+denied to read and asked about to write. The built-in **path groups** ship
+these levels, in evaluation order:
+
+| group | covers | read | write |
+| --- | --- | --- | --- |
+| `path-keys` | `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` (not `*.pub`), at any depth | deny | deny |
+| `path-ssh` | `~/.ssh/**` | deny | deny |
+| `path-gnupg` | `~/.gnupg/**` | deny | deny |
+| `path-aws` | `~/.aws/**` | deny | deny |
+| `path-gcloud` | `~/.config/gcloud/**` | deny | deny |
+| `path-azure` | `~/.azure/**` | deny | deny |
+| `path-kube` | `~/.kube/**` | deny | deny |
+| `path-docker` | `~/.docker/config.json` | deny | deny |
+| `path-pi-auth` | `<agent dir>/auth.json` | deny | deny |
+| `path-env` | `.env*`, except `.env.example`, `.env.sample` and `.env.template` | deny | ask |
+| `path-npmrc` | `.npmrc` | deny | ask |
+| `path-pypirc` | `.pypirc` | deny | ask |
+| `path-netrc` | `.netrc` | deny | ask |
+| `path-git-credentials` | `.git-credentials` | deny | ask |
+| `path-git` | `**/.git/**` | allow | ask |
+| `path-shell-rc` | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `~/.config/fish/config.fish` | allow | ask |
+| `path-system` | `/etc`, `/usr`, `/bin`, `/sbin`, `/opt`, `/System`, `/Library`, `/Applications`, `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap`, `/nix` and `/private/etc` | allow | ask |
+
+A pattern with no slash, such as `*.pem` or `.npmrc`, matches that name in
+any folder. `~` anchors at home and a leading `/` at the root. A leading
+`**/` matches in any folder on disk, so `path-git` catches a `.git` folder
+outside the session's working directory too. `path-system` has its own list
+of folders; it leaves out `/Users`, `/home`, `/var`, `/tmp` and
+`/private/var`, so ordinary work in the home folder and in a temporary
+folder never asks.
+
+A path is checked in every spelling: as the agent typed it, made absolute
+(`@` stripped, `~` expanded), and with symlinks resolved, plus the extra
+names Pi's `read` tries on macOS when the typed name does not exist. Among
+the path rules that match one spelling, the last in the effective policy
+decides; across the spellings of one path, the strictest result wins, so a
+symlink into `~/.ssh` is caught even when the link's own spelling is innocent.
+The agent dir of the running session is the one matched for `path-pi-auth`.
+
+A deny blocks the call and tells the model the rule, its summary and the
+path. An ask opens the dialog, and with no UI it is blocked with a reason
+saying no one could answer it. YOLO mode lets a path ask or deny through, as
+it does for bash. Session allows, `levels` and profiles work for path rules
+as they do for command rules.
+
 ## The dialog
 
 An ask names the rule and quotes the command, for example:
@@ -146,6 +200,23 @@ The choices are:
 Escape, or aborting the turn, denies. A line with several dangers asks once
 for each ("1 of N"). Without a UI (print, JSON or RPC mode with no dialogs),
 every ask denies.
+
+A file call's dialog names the tool and the path in place of the command
+line, and shows the change below it. When the typed path led somewhere else,
+such as through a symlink, the real target follows an arrow:
+
+```text
+Bouncer: a .git folder holds the repository's config, hooks and history (rule: path-git)
+write link/config → /work/real/.git/config
+new file
+core = true
+```
+
+An `edit` shows each piece of old and new text as `-` and `+` lines, and a
+`write` to an existing file shows the lines that change. The detail is cut to
+2,000 characters. For a file call, "Allow for this session" covers that exact
+real path in that direction and nothing else: allowing a write to
+`.git/config` does not allow a write to `.git/hooks/pre-commit`.
 
 ## Modes
 

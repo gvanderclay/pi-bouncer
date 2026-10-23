@@ -1,6 +1,7 @@
 // Every built-in entry in evaluation order, at its shipped level: the bash
 // rules, then the path groups.
 
+import { agentDir } from "../agent-dir.ts";
 import type { RuleName } from "../verdict.ts";
 import { bouncerEscape } from "./bouncer-escape.ts";
 import { findDelete, recursiveRm, rmRoot, trashRoot } from "./filesystem.ts";
@@ -47,7 +48,7 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: publish, level: "ask" },
 	{ kind: "rule", rule: ghDelete, level: "ask" },
 	{ kind: "rule", rule: bouncerEscape, level: "deny" },
-	...pathGroups,
+	...pathGroups(agentDir()),
 ];
 
 export const builtInEntries: ReadonlyMap<string, PolicyEntry> = new Map(

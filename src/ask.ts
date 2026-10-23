@@ -19,7 +19,7 @@ export type Ask = {
 	readonly rule: RuleName;
 	readonly summary: string;
 	readonly source: string;
-	/** Shown below the source, outside the session-allow key: an MCP call's arguments. */
+	/** Shown below the source, outside the session-allow key: an MCP call's arguments or a file call's diff. */
 	readonly detail?: string;
 };
 
@@ -53,11 +53,14 @@ function title(
 	index: number,
 	count: number,
 	note: string | undefined,
+	heading: string | undefined,
 ): string {
 	const counter = count > 1 ? ` — ${index + 1} of ${count}` : "";
 	const line = note === undefined ? "" : `\n${note}`;
 	const detail = ask.detail === undefined ? "" : `\n${ask.detail}`;
-	return `Bouncer: ${ask.summary} (rule: ${ask.rule})${counter}${line}\n${clip(ask.source)}${detail}`;
+	// A file call's heading names the tool, the typed path and the real one.
+	const source = clip(heading ?? ask.source);
+	return `Bouncer: ${ask.summary} (rule: ${ask.rule})${counter}${line}\n${source}${detail}`;
 }
 
 async function typedReason(
@@ -142,6 +145,8 @@ export type Asking = {
 	readonly signal?: AbortSignal;
 	readonly allowed: Set<string>;
 	readonly note?: string;
+	/** Replaces the source line: a file call's "<tool> <typed path> → <real path>". */
+	readonly title?: string;
 	readonly autoChoice?: string;
 };
 
@@ -214,7 +219,7 @@ export async function askUser(
 			continue;
 		}
 		const choice = await ui.select(
-			title(ask, index, count, asking.note),
+			title(ask, index, count, asking.note, asking.title),
 			choices(asking.autoChoice),
 			opts,
 		);

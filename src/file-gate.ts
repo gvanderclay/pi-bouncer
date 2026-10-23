@@ -4,6 +4,7 @@
 // deciding blocks the call.
 import { errorText } from "./error-text.ts";
 import { type FileAccess, type FileTool, readFileCall } from "./file-call.ts";
+import { fileDiff } from "./file-diff.ts";
 import {
 	autoDecided,
 	type Call,
@@ -21,6 +22,7 @@ export type FileCall = Call & {
 	readonly tool: FileTool;
 	readonly input: unknown;
 	readonly policy: Policy;
+	readonly agentDir: string;
 	/** Session allows for file calls; cleared at each session start. */
 	readonly allowed: Set<string>;
 };
@@ -55,13 +57,27 @@ function failed(access: FileAccess, error: unknown): Verdict {
 	};
 }
 
+// "<tool> <typed path> → <real path>", with the arrow only when a symlink or
+// an unusual spelling led somewhere else.
+function heading(access: FileAccess, paths: Spellings): string {
+	const shown =
+		paths.absolute === paths.real
+			? paths.typed
+			: `${paths.typed} → ${paths.real}`;
+	return `${access.tool} ${shown}`;
+}
+
 async function decidedFor(
 	access: FileAccess,
 	paths: Spellings,
 	call: FileCall,
 ): Promise<Decision> {
 	const { policy, allowed, mode } = call;
-	const where = { cwd: call.cwd, home: call.home };
+	const where = {
+		cwd: call.cwd,
+		home: call.home,
+		agentDir: call.agentDir,
+	};
 	// The session-allow key: one path, in one direction.
 	const command = `${access.direction} ${paths.real}`;
 	const ranking = rankFile(access, paths, policy, where, "normal");
@@ -78,10 +94,15 @@ async function decidedFor(
 	}
 	// Until file calls get judge requests, auto mode hands their asks to the
 	// dialog, or blocks them with no UI.
+	const detail = fileDiff(access, paths.real);
 	return decideToolAsk({
 		...call,
 		command,
-		asks: ranked.asks,
+		title: heading(access, paths),
+		asks:
+			detail === ""
+				? ranked.asks
+				: ranked.asks.map((ask) => ({ ...ask, detail })),
 		fallback: ranked.fallback,
 		judged: false,
 	});
@@ -93,9 +114,9 @@ export async function decideFile(call: FileCall): Promise<FileDecision> {
 		return { decision: blockedBy(given.verdict, call) };
 	}
 	const { access } = given;
-	// shortcut: only `read` is decided; the other file tools run unchecked.
-	// Upgrade when write, edit and the search tools get their path rules.
-	if (access.tool !== "read") return { decision: { kind: "allow" }, access };
+	// shortcut: `grep`, `find` and `ls` run unchecked; their search scope comes
+	// with ticket 04. Upgrade when the search tools get their path rules.
+	if (access.search) return { decision: { kind: "allow" }, access };
 	try {
 		const paths = spellings(access, call.cwd, call.home);
 		const decision = await decidedFor(access, paths, call);

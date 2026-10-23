@@ -1,7 +1,13 @@
 // Path rules on Pi's file tools, driven through the tool_call handler with a
 // temporary HOME.
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdirSync,
+	realpathSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileCall, tempHome } from "../test/file-harness.ts";
@@ -10,6 +16,7 @@ import {
 	fakeContext,
 	type LoadedGate,
 	loadGateSession,
+	scriptedUI,
 	tempProjectDir,
 	uiContext,
 } from "../test/harness.ts";
@@ -200,11 +207,20 @@ test("levels path-ssh off restores the old behaviour in one line", async () => {
 	const g = await gate({ levels: { "path-ssh": "off" } });
 	assert.equal(
 		await g.handler(
-			fileCall("read", { path: "~/.ssh/id_ed25519" }),
+			fileCall("read", { path: "~/.ssh/known_hosts" }),
 			fakeContext(project()),
 		),
 		undefined,
 	);
+});
+
+test("a key inside ~/.ssh is still denied with path-ssh off: path-keys covers it", async () => {
+	const g = await gate({ levels: { "path-ssh": "off" } });
+	const r = await g.handler(
+		fileCall("read", { path: "~/.ssh/id_ed25519" }),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: path-keys\)/);
 });
 
 test("levels path-ssh ask with no UI blocks the read", async () => {
@@ -217,16 +233,10 @@ test("levels path-ssh ask with no UI blocks the read", async () => {
 	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
 });
 
-test("the other file tools aren't decided yet", async () => {
+test("the search tools aren't decided yet", async () => {
 	const g = await gate();
-	const ctx = fakeContext(project());
-	const path = "~/.ssh/id_ed25519";
 	assert.equal(
-		await g.handler(fileCall("write", { path, content: "x" }), ctx),
-		undefined,
-	);
-	assert.equal(
-		await g.handler(fileCall("ls", { path: "~/.ssh" }), ctx),
+		await g.handler(fileCall("ls", { path: "~/.ssh" }), fakeContext(project())),
 		undefined,
 	);
 });
@@ -244,5 +254,249 @@ for (const input of [{}, { path: 42 }, { path: null }]) {
 		const g = await gate();
 		const r = await g.handler(fileCall("read", input), fakeContext(project()));
 		assert.equal(r?.block, true);
+	});
+}
+
+for (const [group, rel] of [
+	["path-aws", ".aws/credentials"],
+	["path-gnupg", ".gnupg/private-keys-v1.d/a.key"],
+	["path-kube", ".kube/config"],
+	["path-docker", ".docker/config.json"],
+	["path-gcloud", ".config/gcloud/credentials.db"],
+	["path-azure", ".azure/accessTokens.json"],
+] as const) {
+	test(`${group} denies reading ~/${rel}`, async () => {
+		const g = await gate();
+		const r = await g.handler(
+			fileCall("read", { path: `~/${rel}` }),
+			fakeContext(project()),
+		);
+		assert.match(r?.reason ?? "", new RegExp(`\\(rule: ${group}\\)`));
+	});
+}
+
+test("path-ssh denies writing a key too, not only reading it", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("write", { path: "~/.ssh/id_ed25519", content: "x" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("path-pi-auth denies reading Pi's auth.json in the agent dir", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("read", { path: join(g.agentDir, "auth.json") }),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: path-pi-auth\)/);
+});
+
+test("models.json in the agent dir stays readable", async () => {
+	const g = await gate();
+	assert.equal(
+		await g.handler(
+			fileCall("read", { path: join(g.agentDir, "models.json") }),
+			fakeContext(project()),
+		),
+		undefined,
+	);
+});
+
+for (const [file, rule] of [
+	["a/b/.env", "path-env"],
+	[".env.local", "path-env"],
+	["certs/server.pem", "path-keys"],
+	["deploy/id_rsa", "path-keys"],
+	[".npmrc", "path-npmrc"],
+	[".pypirc", "path-pypirc"],
+	[".netrc", "path-netrc"],
+	[".git-credentials", "path-git-credentials"],
+] as const) {
+	test(`${rule} denies reading ${file} at any depth`, async () => {
+		const g = await gate();
+		const r = await g.handler(
+			fileCall("read", { path: file }),
+			fakeContext(project()),
+		);
+		assert.match(r?.reason ?? "", new RegExp(`\\(rule: ${rule}\\)`));
+	});
+}
+
+for (const file of [
+	".env.example",
+	".env.sample",
+	".env.template",
+	"id_ed25519.pub",
+]) {
+	test(`${file} stays readable`, async () => {
+		const g = await gate();
+		assert.equal(
+			await g.handler(fileCall("read", { path: file }), fakeContext(project())),
+			undefined,
+		);
+	});
+}
+
+for (const file of [".git/config", "/etc/hosts", "~/.zshrc"]) {
+	test(`reading ${file} is allowed: its group guards writes only`, async () => {
+		const g = await gate();
+		assert.equal(
+			await g.handler(fileCall("read", { path: file }), fakeContext(project())),
+			undefined,
+		);
+	});
+}
+
+test("an edit of .git/config asks, and the dialog shows the diff", async () => {
+	const g = await gate();
+	const ui = scriptedUI(["Allow once"], project());
+	const call = fileCall("edit", {
+		path: ".git/config",
+		edits: [{ oldText: "bare = false", newText: "bare = true" }],
+	});
+	assert.equal(await g.handler(call, ui.ctx), undefined);
+	assert.ok(ui.dialogs[0]?.options?.includes("Allow for this session"));
+	const text = JSON.stringify(ui.dialogs[0]);
+	assert.match(text, /path-git/);
+	assert.match(text, /-bare = false/);
+	assert.match(text, /\+bare = true/);
+});
+
+test("a write to a new .env asks and shows it as a new file", async () => {
+	const g = await gate();
+	const ui = scriptedUI(["Allow once"], project());
+	await g.handler(
+		fileCall("write", { path: ".env", content: "A=1\n" }),
+		ui.ctx,
+	);
+	assert.ok(ui.dialogs[0]?.options?.includes("Allow for this session"));
+	assert.match(JSON.stringify(ui.dialogs[0]), /new file[\s\S]*A=1/);
+});
+
+test("the same .env is denied to read and only asked about to write", async () => {
+	const g = await gate();
+	const read = await g.handler(
+		fileCall("read", { path: ".env" }),
+		fakeContext(project()),
+	);
+	assert.match(read?.reason ?? "", /\(rule: path-env\)/);
+	const ui = scriptedUI(["Allow once"], project());
+	assert.equal(
+		await g.handler(
+			fileCall("write", { path: ".env", content: "A=1\n" }),
+			ui.ctx,
+		),
+		undefined,
+	);
+	assert.equal(ui.dialogs.length, 1);
+});
+
+test("a session allow covers the exact real path and direction only", async () => {
+	const dir = project();
+	const g = await gate();
+	const ui = scriptedUI(["Allow for this session", "Deny"], dir);
+	const w = (path: string): ReturnType<typeof fileCall> =>
+		fileCall("write", { path, content: "x" });
+	assert.equal(await g.handler(w(".git/config"), ui.ctx), undefined);
+	assert.equal(await g.handler(w(`${dir}/.git/config`), ui.ctx), undefined);
+	assert.equal(
+		(await g.handler(w(".git/hooks/pre-commit"), ui.ctx))?.block,
+		true,
+	);
+	assert.equal(ui.dialogs.length, 2);
+});
+
+test("with no UI a write ask is blocked, and says no one could answer", async () => {
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("write", { path: ".git/config", content: "x" }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /\(rule: path-git\)/);
+	assert.match(r?.reason ?? "", /no one can answer/);
+});
+
+test("the dialog names the real target when a symlink was followed", async () => {
+	const dir = realpathSync(project());
+	mkdirSync(join(dir, "real/.git"), { recursive: true });
+	symlinkSync(join(dir, "real/.git"), join(dir, "link"));
+	const g = await gate();
+	const ui = scriptedUI(["Deny"], dir);
+	await g.handler(
+		fileCall("write", { path: "link/config", content: "x" }),
+		ui.ctx,
+	);
+	assert.ok(
+		JSON.stringify(ui.dialogs[0]).includes(
+			`link/config → ${dir}/real/.git/config`,
+		),
+	);
+});
+
+test("path-git catches a nested .git folder but not .github or .gitignore", async () => {
+	const g = await gate();
+	const dir = project();
+	const ui = scriptedUI(["Allow once"], dir);
+	assert.equal(
+		await g.handler(
+			fileCall("write", { path: "sub/.git/config", content: "x" }),
+			ui.ctx,
+		),
+		undefined,
+	);
+	assert.equal(ui.dialogs.length, 1);
+	for (const path of [".gitignore", ".github/workflows/ci.yml"]) {
+		assert.equal(
+			await g.handler(
+				fileCall("write", { path, content: "x" }),
+				fakeContext(dir),
+			),
+			undefined,
+			path,
+		);
+	}
+});
+
+test("a write whose existing file can't be read still opens the dialog", async (t) => {
+	if (process.getuid?.() === 0) {
+		t.skip("root reads a 0-permission file");
+		return;
+	}
+	const dir = project();
+	mkdirSync(join(dir, ".git"));
+	const locked = join(dir, ".git/config");
+	writeFileSync(locked, "secret\n");
+	chmodSync(locked, 0o000);
+	t.after(() => chmodSync(locked, 0o600));
+	const g = await gate();
+	const ui = scriptedUI(["Deny"], dir);
+	const r = await g.handler(
+		fileCall("write", { path: ".git/config", content: "x" }),
+		ui.ctx,
+	);
+	assert.equal(r?.block, true);
+	assert.equal(ui.dialogs.length, 1);
+	assert.match(JSON.stringify(ui.dialogs[0]), /could not read/);
+});
+
+for (const path of [
+	"/tmp/pi-bouncer-path-system",
+	"/private/tmp/pi-bouncer-path-system",
+	`${HOME}/notes.txt`,
+	`${HOME}/.config/app/settings.json`,
+]) {
+	test(`a write to ${path} is allowed: path-system leaves it alone`, async () => {
+		const g = await gate();
+		assert.equal(
+			await g.handler(
+				fileCall("write", { path, content: "x" }),
+				fakeContext(project()),
+			),
+			undefined,
+		);
 	});
 }

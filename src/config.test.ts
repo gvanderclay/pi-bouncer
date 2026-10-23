@@ -42,7 +42,23 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["publish", "ask"],
 	["gh-delete", "ask"],
 	["bouncer-escape", "deny"],
+	["path-keys", "deny"],
 	["path-ssh", "deny"],
+	["path-gnupg", "deny"],
+	["path-aws", "deny"],
+	["path-gcloud", "deny"],
+	["path-azure", "deny"],
+	["path-kube", "deny"],
+	["path-docker", "deny"],
+	["path-pi-auth", "deny"],
+	["path-env", "deny"],
+	["path-npmrc", "deny"],
+	["path-pypirc", "deny"],
+	["path-netrc", "deny"],
+	["path-git-credentials", "deny"],
+	["path-git", "ask"],
+	["path-shell-rc", "ask"],
+	["path-system", "ask"],
 ];
 
 function rows(policy: Policy): (readonly [string, string])[] {

@@ -4,7 +4,7 @@
 import type { Direction, FileAccess } from "../file-call.ts";
 import { realOf, type Spellings } from "../path-spellings.ts";
 import type { Match, Ranking } from "../rank.ts";
-import { pathDenied } from "../verdict.ts";
+import { pathDenied, pathUnanswered } from "../verdict.ts";
 import { alwaysDenySet } from "./built-in-policy.ts";
 import type { PathPattern, PathWhere } from "./path-patterns.ts";
 import type { PathEntry, PathRule, Policy } from "./rule.ts";
@@ -56,8 +56,15 @@ function lastMatch(
 // Spellings are absolute or real, so the home and working directory are
 // tried both as given and resolved, or a symlinked home would miss its rules.
 function wheresOf(where: PathWhere): PathWhere[] {
-	const real = { cwd: realOf(where.cwd), home: realOf(where.home) };
-	const same = real.cwd === where.cwd && real.home === where.home;
+	const real = {
+		cwd: realOf(where.cwd),
+		home: realOf(where.home),
+		...(where.agentDir !== undefined && { agentDir: realOf(where.agentDir) }),
+	};
+	const same =
+		real.cwd === where.cwd &&
+		real.home === where.home &&
+		real.agentDir === where.agentDir;
 	return same ? [where] : [where, real];
 }
 
@@ -94,14 +101,16 @@ export function rankFile(
 	const decided = strictest(paths, direction, policy, wheresOf(where));
 	if (!decided || decided.level === "allow") return undefined;
 	const { rule } = decided.entry;
-	const source = paths.typed;
-	const matches: Match[] = [{ rule: rule.name, level: decided.level, source }];
-	const verdict = pathDenied(rule, direction, source);
+	const matches: Match[] = [
+		{ rule: rule.name, level: decided.level, source: paths.typed },
+	];
+	const verdict = pathDenied(rule, direction, paths.typed);
 	if (denies(decided, mode)) return { kind: "deny", verdict, matches };
+	// The ask names the real path: a session allow covers that and nothing else.
 	return {
 		kind: "ask",
-		asks: [{ rule: rule.name, summary: rule.summary, source }],
-		fallback: { ...verdict, level: "ask" },
+		asks: [{ rule: rule.name, summary: rule.summary, source: paths.real }],
+		fallback: pathUnanswered(rule, direction, paths.typed),
 		matches,
 	};
 }

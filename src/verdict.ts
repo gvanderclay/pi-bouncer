@@ -102,6 +102,20 @@ export function pathDenied(
 	};
 }
 
+/** A path rule's ask with no UI to answer it, as an MCP call's is. */
+export function pathUnanswered(
+	rule: { readonly name: RuleName; readonly summary: string },
+	direction: Direction,
+	path: string,
+): Verdict {
+	return {
+		level: "ask",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. The ${direction} of \`${truncate(path, REASON_LIMIT)}\` did not run: no one can answer the dialog here. Ask the user to do this or to change the bouncer's \`levels\`.`,
+		command: path,
+	};
+}
+
 /**
  * A steer rule's deny: it invites a retry with what `instead` names, so it
  * never says not to retry or to tell the user.

@@ -8,6 +8,30 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- The `write` and `edit` tools are now gated by the same path rules as `read`.
+  A path rule's read level and write level are separate, so a `.env` file is
+  denied to read and asked about to write. The dialog shows the rule, the
+  path, the real target when a symlink was followed, and a diff: the `-` and
+  `+` lines of an `edit`, a line diff for a `write` to an existing file, or
+  `new file` and its first lines. "Allow for this session" covers that exact
+  real path in that direction only, so allowing `.git/config` does not open
+  `.git/hooks`. With no UI the call is blocked, as an MCP ask is. YOLO mode
+  lets a path ask or deny through, as it does for bash.
+- New path groups, each with the one line in `levels` that turns it off:
+  `path-keys` (`*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, except `*.pub`):
+  reads and writes denied, `"levels": {"path-keys": "off"}`; `path-gnupg`,
+  `path-aws`, `path-gcloud`, `path-azure`, `path-kube`, `path-docker` and
+  `path-pi-auth` (Pi's `auth.json`): reads and writes denied, each turned off
+  by its own name, such as `"levels": {"path-gnupg": "off"}`; `path-env`,
+  `path-npmrc`, `path-pypirc`, `path-netrc` and `path-git-credentials`: reads
+  denied, writes asked, such as `"levels": {"path-env": "off"}`; and
+  `path-git`, `path-shell-rc` and `path-system`: reads allowed, writes asked,
+  such as `"levels": {"path-git": "off"}`. `path-keys` comes first in the
+  group order and `path-git`, `path-shell-rc` and `path-system` last, so
+  `~/.ssh/id_ed25519` is still decided by `path-ssh` and `.gnupg/**/*.key` by
+  `path-gnupg`, and a `.git` folder or a file in it by `path-git`.
+- The `grep`, `find` and `ls` tools are not gated yet; their search scope is
+  the next step.
 - The `read` tool is now gated: `path-ssh` denies reading `~/.ssh`.
   `"levels": {"path-ssh": "off"}` restores the old behaviour. The path is
   checked however it is spelled (`~`, `@`, relative, absolute, `file://`) and
@@ -15,6 +39,16 @@ follows [Semantic Versioning](https://semver.org/).
   lets the read through. A file tool call whose `path` is not a string, or is
   missing from `read`, `write` or `edit`, is blocked. `/bouncer rules`, `/bouncer` status and the session log record list
   `path-ssh`, so the tests pinning those lists changed deliberately.
+
+### Changed
+
+- `path-keys` now covers the key files inside `~/.ssh` too, so turning
+  `path-ssh` off no longer unblocks `~/.ssh/id_ed25519`; turn `path-keys` off
+  as well. The test that pinned `path-ssh` off restoring the old behaviour for
+  that path now uses `~/.ssh/known_hosts`, and a new test pins the
+  `path-keys` deny. The tests that count the `/bouncer rules` lines and list
+  the built-in levels changed deliberately, because the policy gained
+  seventeen entries.
 
 ## [0.6.1] - 2026-10-22
 

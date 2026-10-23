@@ -2,7 +2,12 @@
 // rule makes exceptions instead.
 import { posix } from "node:path";
 
-export type PathWhere = { readonly cwd: string; readonly home: string };
+export type PathWhere = {
+	readonly cwd: string;
+	readonly home: string;
+	/** The session's agent dir, for the patterns that live in it. */
+	readonly agentDir?: string;
+};
 
 export type PathPattern = {
 	readonly source: string;

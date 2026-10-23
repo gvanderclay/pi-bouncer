@@ -315,6 +315,7 @@ async function decideFileCall(
 		tool,
 		input: event.input,
 		policy: rt.session.config?.policy ?? builtInPolicy,
+		agentDir: rt.agentDir,
 		allowed: rt.fileAllowed,
 	});
 	const path = access && {

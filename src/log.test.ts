@@ -385,7 +385,23 @@ const BUILT_IN_LEVELS = {
 	publish: "ask",
 	"gh-delete": "ask",
 	"bouncer-escape": "deny",
+	"path-keys": "deny",
 	"path-ssh": "deny",
+	"path-gnupg": "deny",
+	"path-aws": "deny",
+	"path-gcloud": "deny",
+	"path-azure": "deny",
+	"path-kube": "deny",
+	"path-docker": "deny",
+	"path-pi-auth": "deny",
+	"path-env": "deny",
+	"path-npmrc": "deny",
+	"path-pypirc": "deny",
+	"path-netrc": "deny",
+	"path-git-credentials": "deny",
+	"path-git": "ask",
+	"path-shell-rc": "ask",
+	"path-system": "ask",
 } as const;
 
 test("with no config files, the session record lists built-in config", async () => {

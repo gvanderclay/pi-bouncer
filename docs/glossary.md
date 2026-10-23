@@ -185,7 +185,8 @@ _Avoid_: settings, policy file
 **Session allow**:
 A user's "Allow for this session" answer, remembered in memory for the exact
 command, working directory, rule and matched invocation until the next
-session start.
+session start. For a file call it covers that exact real path in that
+direction, and nothing else.
 _Avoid_: always allow, whitelist, trust
 
 **Bouncer log**:

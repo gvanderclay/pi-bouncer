@@ -22,6 +22,8 @@ import type { Verdict } from "./verdict.ts";
 export type ToolAsk = Call & {
 	/** What the dialog, the log and the session-allow key name: an MCP tool name, or a file call's "<direction> <real path>". */
 	readonly command: string;
+	/** The dialog's title line, when it says more than the ask's source does. */
+	readonly title?: string;
 	readonly asks: readonly Ask[];
 	/** The block when no one can answer, and the judge's fallback. */
 	readonly fallback: Verdict;
@@ -41,6 +43,7 @@ export async function decideToolAsk(call: ToolAsk): Promise<Decision> {
 		command,
 		cwd: call.cwd,
 		allowed,
+		...(call.title && { title: call.title }),
 		...(call.signal && { signal: call.signal }),
 		...(call.autoChoice && { autoChoice: call.autoChoice }),
 	};
