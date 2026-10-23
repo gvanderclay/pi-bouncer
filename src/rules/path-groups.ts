@@ -1,6 +1,6 @@
 // The built-in path groups, in evaluation order, each at its shipped levels:
-// the last match wins, so path-keys comes first and a home-anchored group
-// after it decides its own paths.
+// the last match wins, so the broad folder groups come first and the secret
+// groups after them, and a secret group decides its own paths.
 import { posix } from "node:path";
 import type { RuleName } from "../verdict.ts";
 import {
@@ -31,6 +31,55 @@ const ASK_WRITE: DirectionLevels = { read: "allow", write: "ask" };
 const AGENT_DIR = "<agent dir>/";
 
 const DEFS: readonly GroupDef[] = [
+	{
+		name: "path-system",
+		summary: "a system folder changes software for the whole machine",
+		patterns: [
+			"/etc/**",
+			"/usr/**",
+			"/bin/**",
+			"/sbin/**",
+			"/opt/**",
+			"/System/**",
+			"/Library/**",
+			"/Applications/**",
+			"/boot/**",
+			"/lib/**",
+			"/lib64/**",
+			"/srv/**",
+			"/dev/**",
+			"/proc/**",
+			"/sys/**",
+			"/snap/**",
+			"/nix/**",
+			"/private/etc/**",
+		],
+		levels: ASK_WRITE,
+		secret: false,
+	},
+	{
+		name: "path-git",
+		summary: "a .git folder holds the repository's config, hooks and history",
+		patterns: ["**/.git/**"],
+		levels: ASK_WRITE,
+		secret: false,
+	},
+	{
+		name: "path-shell-rc",
+		summary: "shell startup files run on every new shell",
+		patterns: [
+			".zshrc",
+			".zshenv",
+			".zprofile",
+			".bashrc",
+			".bash_profile",
+			".bash_login",
+			".profile",
+			"~/.config/fish/config.fish",
+		],
+		levels: ASK_WRITE,
+		secret: false,
+	},
 	{
 		name: "path-keys",
 		summary:
@@ -131,55 +180,6 @@ const DEFS: readonly GroupDef[] = [
 		patterns: [".git-credentials"],
 		levels: DENY_READ,
 		secret: true,
-	},
-	{
-		name: "path-git",
-		summary: "a .git folder holds the repository's config, hooks and history",
-		patterns: ["**/.git/**"],
-		levels: ASK_WRITE,
-		secret: false,
-	},
-	{
-		name: "path-shell-rc",
-		summary: "shell startup files run on every new shell",
-		patterns: [
-			".zshrc",
-			".zshenv",
-			".zprofile",
-			".bashrc",
-			".bash_profile",
-			".bash_login",
-			".profile",
-			"~/.config/fish/config.fish",
-		],
-		levels: ASK_WRITE,
-		secret: false,
-	},
-	{
-		name: "path-system",
-		summary: "a system folder changes software for the whole machine",
-		patterns: [
-			"/etc/**",
-			"/usr/**",
-			"/bin/**",
-			"/sbin/**",
-			"/opt/**",
-			"/System/**",
-			"/Library/**",
-			"/Applications/**",
-			"/boot/**",
-			"/lib/**",
-			"/lib64/**",
-			"/srv/**",
-			"/dev/**",
-			"/proc/**",
-			"/sys/**",
-			"/snap/**",
-			"/nix/**",
-			"/private/etc/**",
-		],
-		levels: ASK_WRITE,
-		secret: false,
 	},
 ];
 

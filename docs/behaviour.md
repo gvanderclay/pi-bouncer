@@ -132,10 +132,14 @@ and `ls` are not gated yet; their search scope is a later step.
 A file access has a **direction**: `read` reads, and `write` and `edit` write.
 A path rule has a level for each direction, so the same `.env` file can be
 denied to read and asked about to write. The built-in **path groups** ship
-these levels, in evaluation order:
+these levels, in evaluation order; the last one that matches decides, so they
+run from the broad folder groups to the narrow secret ones:
 
 | group | covers | read | write |
 | --- | --- | --- | --- |
+| `path-system` | `/etc`, `/usr`, `/bin`, `/sbin`, `/opt`, `/System`, `/Library`, `/Applications`, `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap`, `/nix` and `/private/etc` | allow | ask |
+| `path-git` | `**/.git/**` | allow | ask |
+| `path-shell-rc` | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `~/.config/fish/config.fish` | allow | ask |
 | `path-keys` | `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` (not `*.pub`), at any depth | deny | deny |
 | `path-ssh` | `~/.ssh/**` | deny | deny |
 | `path-gnupg` | `~/.gnupg/**` | deny | deny |
@@ -150,9 +154,6 @@ these levels, in evaluation order:
 | `path-pypirc` | `.pypirc` | deny | ask |
 | `path-netrc` | `.netrc` | deny | ask |
 | `path-git-credentials` | `.git-credentials` | deny | ask |
-| `path-git` | `**/.git/**` | allow | ask |
-| `path-shell-rc` | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `~/.config/fish/config.fish` | allow | ask |
-| `path-system` | `/etc`, `/usr`, `/bin`, `/sbin`, `/opt`, `/System`, `/Library`, `/Applications`, `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap`, `/nix` and `/private/etc` | allow | ask |
 
 A pattern with no slash, such as `*.pem` or `.npmrc`, matches that name in
 any folder. `~` anchors at home and a leading `/` at the root. A leading

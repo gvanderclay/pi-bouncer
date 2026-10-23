@@ -26,10 +26,13 @@ follows [Semantic Versioning](https://semver.org/).
   `path-npmrc`, `path-pypirc`, `path-netrc` and `path-git-credentials`: reads
   denied, writes asked, such as `"levels": {"path-env": "off"}`; and
   `path-git`, `path-shell-rc` and `path-system`: reads allowed, writes asked,
-  such as `"levels": {"path-git": "off"}`. `path-keys` comes first in the
-  group order and `path-git`, `path-shell-rc` and `path-system` last, so
+  such as `"levels": {"path-git": "off"}`. The groups run from broad to
+  narrow, and the last matching group decides, so a secret group overrides a
+  folder group: a key at `/etc/ssl/private/server.pem`, `/usr/local/x.key` or
+  `.git/id_rsa` is denied by `path-keys` rather than allowed by `path-system`
+  or `path-git`. The home-anchored stores come after `path-keys`, so
   `~/.ssh/id_ed25519` is still decided by `path-ssh` and `.gnupg/**/*.key` by
-  `path-gnupg`, and a `.git` folder or a file in it by `path-git`.
+  `path-gnupg`.
 - The `grep`, `find` and `ls` tools are not gated yet; their search scope is
   the next step.
 - The `read` tool is now gated: `path-ssh` denies reading `~/.ssh`.

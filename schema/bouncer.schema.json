@@ -260,6 +260,18 @@
 					"enum": ["ask", "deny", "off"],
 					"description": "starting pi with --yolo, or setting or clearing an agent variable (PI_BOUNCER_AGENT, PI_SUBAGENT_AGENT, PI_DADDY_DEFINITION), from bash sidesteps the user's rules. Built-in level: deny."
 				},
+				"path-system": {
+					"enum": ["ask", "deny", "off"],
+					"description": "path group: system folders such as /etc, /usr and /Library change software for the whole machine. Sets reads and writes of them by Pi's file tools: reads allow, writes ask. Built-in level: ask."
+				},
+				"path-git": {
+					"enum": ["ask", "deny", "off"],
+					"description": "path group: any .git folder holds the repository's config, hooks and history. Sets reads and writes of it by Pi's file tools: reads allow, writes ask. Built-in level: ask."
+				},
+				"path-shell-rc": {
+					"enum": ["ask", "deny", "off"],
+					"description": "path group: shell startup files (.zshrc, .bashrc, .profile and the like, and ~/.config/fish/config.fish) run on every new shell. Sets reads and writes of them by Pi's file tools: reads allow, writes ask. Built-in level: ask."
+				},
 				"path-keys": {
 					"enum": ["ask", "deny", "off"],
 					"description": "path group: private keys and certificates (*.pem, *.key, id_rsa*, id_ed25519*, except *.pub) anywhere on disk. Sets reads and writes of them by Pi's file tools. Built-in level: deny."
@@ -315,18 +327,6 @@
 				"path-git-credentials": {
 					"enum": ["ask", "deny", "off"],
 					"description": "path group: .git-credentials holds saved git logins. Sets reads and writes of it by Pi's file tools: reads deny, writes ask. Built-in level: deny."
-				},
-				"path-git": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: any .git folder holds the repository's config, hooks and history. Sets reads and writes of it by Pi's file tools: reads allow, writes ask. Built-in level: ask."
-				},
-				"path-shell-rc": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: shell startup files (.zshrc, .bashrc, .profile and the like, and ~/.config/fish/config.fish) run on every new shell. Sets reads and writes of them by Pi's file tools: reads allow, writes ask. Built-in level: ask."
-				},
-				"path-system": {
-					"enum": ["ask", "deny", "off"],
-					"description": "path group: system folders such as /etc, /usr and /Library change software for the whole machine. Sets reads and writes of them by Pi's file tools: reads allow, writes ask. Built-in level: ask."
 				}
 			}
 		},
@@ -370,6 +370,9 @@
 								"publish",
 								"gh-delete",
 								"bouncer-escape",
+								"path-system",
+								"path-git",
+								"path-shell-rc",
 								"path-keys",
 								"path-ssh",
 								"path-gnupg",
@@ -383,10 +386,7 @@
 								"path-npmrc",
 								"path-pypirc",
 								"path-netrc",
-								"path-git-credentials",
-								"path-git",
-								"path-shell-rc",
-								"path-system"
+								"path-git-credentials"
 							]
 						},
 						"description": "Shown in messages, dialogs and the log. Lowercase letters, digits and dashes; not a built-in rule's name."

@@ -500,3 +500,19 @@ for (const path of [
 		);
 	});
 }
+
+for (const file of [
+	"/etc/ssl/private/server.pem",
+	"/usr/local/x.key",
+	".git/id_rsa",
+]) {
+	test(`a key at ${file} is denied by path-keys, not allowed by its folder group`, async () => {
+		const g = await gate();
+		const r = await g.handler(
+			fileCall("read", { path: file }),
+			fakeContext(project()),
+		);
+		assert.equal(r?.block, true);
+		assert.match(r?.reason ?? "", /\(rule: path-keys\)/);
+	});
+}
