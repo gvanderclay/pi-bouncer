@@ -143,10 +143,20 @@ follows [Semantic Versioning](https://semver.org/).
   the built-in levels changed deliberately, because the policy gained
   seventeen entries.
 
-- A judge request now escapes `</content>`, `</old_text>` and `</new_text>`
-  as `</command>` and the other block's closing tags already were, so a
-  change to a file cannot end the block it sits in. The escaping runs over
-  every judge request, bash and MCP ones included.
+- A judge request now escapes `</content>`, `</old_text>` and `</new_text>`,
+  as it already escaped `</command>` and the closing tags of the other
+  blocks, so a change to a file cannot end the block it sits in. This runs
+  over every judge request, bash and MCP ones included.
+
+- The write dialog's diff says `(no line changes)` when the new content
+  equals the existing file or differs only by a trailing newline, where it
+  showed a blank diff. Over an existing binary file (one with a NUL byte) it
+  says `(the existing file is binary; no diff shown)` and lists the new
+  content's lines, where it diffed a garbled text decode.
+
+- The bash rows of the Jev bench's cutoff table no longer count a sample
+  whose P(effect = other) reaches 0.5: live, Jev leaves that call unsure at
+  any cutoff, as the file rows already did.
 
 - The path text the session history records for a `write` or `edit` now goes
   through the same resolution as the path the gate checks: Unicode spaces are

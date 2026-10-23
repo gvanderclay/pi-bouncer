@@ -1265,3 +1265,21 @@ test("a file sample Jev calls other at 0.5 or more is neither allowed nor denied
 	assert.equal(row?.wrongDenies, 0);
 	assert.match(jevReport(samples, cases), /: allow 1\.00–1\.00, 1 other\n/);
 });
+
+test("a bash sample Jev calls other at 0.5 or more is neither allowed nor denied at any cutoff, as live", async (t) => {
+	const four = fourFor(0);
+	stubFetch(t, () =>
+		replyWith(0.9, {
+			...four,
+			effect: { ...four.effect, routine: 0, other: 1 },
+		}),
+	);
+	const cases = TWO.slice(0, 1);
+	const samples = await runJevBench(cases, keyed(), requestFor, 1);
+	const row = cutoffTable(samples, cases).find((r) => r.cutoff === 0.9);
+	assert.equal(row?.allowed, 0);
+	assert.equal(row?.wrongAllows, 0);
+	assert.equal(row?.denied, 0);
+	assert.equal(row?.wrongDenies, 0);
+	assert.match(jevReport(samples, cases), /1 other\n/);
+});

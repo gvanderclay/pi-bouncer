@@ -43,10 +43,11 @@ function changed(oldText: string, newText: string): string[] {
 		endOld -= 1;
 		endNext -= 1;
 	}
-	return [
+	const diff = [
 		...old.slice(start, endOld).map((line) => `-${line}`),
 		...next.slice(start, endNext).map((line) => `+${line}`),
 	];
+	return diff.length > 0 ? diff : ["(no line changes)"];
 }
 
 function editDiff(edits: readonly FileEdit[]): string {
@@ -78,7 +79,14 @@ function readExisting(real: string): Existing {
 				note: `(the existing file is too large to show, over ${MAX_READ_BYTES} bytes)`,
 			};
 		}
-		return { kind: "text", text: readFileSync(real, "utf8") };
+		const bytes = readFileSync(real);
+		if (bytes.includes(0)) {
+			return {
+				kind: "note",
+				note: "(the existing file is binary; no diff shown)",
+			};
+		}
+		return { kind: "text", text: bytes.toString("utf8") };
 	} catch (error) {
 		if (missing(error)) return { kind: "missing" };
 		return {

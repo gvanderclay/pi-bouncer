@@ -75,3 +75,25 @@ test("a device that never ends is a note, not a read that hangs", () => {
 	assert.match(diff, /not a regular file/);
 	assert.match(diff, /\+x/);
 });
+
+test("a write that changes no line says so instead of showing a blank diff", () => {
+	const path = join(dir(), "same.txt");
+	writeFileSync(path, "a\nb\n");
+	assert.equal(fileDiff(write("a\nb\n"), path), "(no line changes)");
+	assert.equal(fileDiff(write("a\nb"), path), "(no line changes)");
+});
+
+test("a write over a binary file is a note, not a diff of garbled text", () => {
+	const path = join(dir(), "image.bin");
+	writeFileSync(path, Buffer.from([0x89, 0x50, 0x00, 0xff, 0x0a]));
+	const diff = fileDiff(write("x\n"), path);
+	assert.equal(diff, "(the existing file is binary; no diff shown)\n+x");
+});
+
+test("a write over a file past 1 MiB is a note, not a read of it", () => {
+	const path = join(dir(), "big.txt");
+	writeFileSync(path, Buffer.alloc(1024 * 1024 + 1, "a"));
+	const diff = fileDiff(write("x\n"), path);
+	assert.match(diff, /too large to show/);
+	assert.match(diff, /\n\+x$/);
+});

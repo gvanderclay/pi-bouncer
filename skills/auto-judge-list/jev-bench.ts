@@ -58,6 +58,7 @@ function sampleOf(
 	}
 	const reading = readReply(call.reply);
 	if (typeof reading === "string") return { id, sample, error: reading, ms };
+	const other = reading.effect.other >= OTHER_AT && { other: true as const };
 	return {
 		id,
 		sample,
@@ -65,6 +66,7 @@ function sampleOf(
 		safe: reading.safe,
 		unsafe: reading.unsafe,
 		confidence: reading.confidence,
+		...other,
 		ms,
 	};
 }
