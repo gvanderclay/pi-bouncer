@@ -142,6 +142,22 @@ follows [Semantic Versioning](https://semver.org/).
   the built-in levels changed deliberately, because the policy gained
   seventeen entries.
 
+- A judge request now escapes `</content>`, `</old_text>` and `</new_text>`
+  as `</command>` and the other block's closing tags already were, so a
+  change to a file cannot end the block it sits in. The escaping runs over
+  every judge request, bash and MCP ones included.
+
+- The path text the session history records for a `write` or `edit` now goes
+  through the same resolution as the path the gate checks: Unicode spaces are
+  normalised, and a `file://` URL becomes the path it names. The judge's
+  session history therefore shows a path spelled as Pi opened it.
+
+- A path group allowed in both directions lists under `Off:` in `/bouncer
+  status` and as `off` in the session record's rule levels, as a group set to
+  `off` does; `/bouncer rules` still shows its true read and write levels.
+  That is how the one level those two lists print reads until they show both
+  directions.
+
 ## [0.6.1] - 2026-10-22
 
 ### Changed
