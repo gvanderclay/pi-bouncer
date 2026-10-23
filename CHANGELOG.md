@@ -14,12 +14,14 @@ follows [Semantic Versioning](https://semver.org/).
   order with its level, so a later `allow` shows after the rule it carves out
   of, then what normal mode would do with and without a UI, and what YOLO and
   auto mode would do. It opens no dialog, calls no judge, logs nothing and
-  runs nothing, and the session's allows and mode are untouched. Because `read`, `write`, `grep`,
-  `find` and `ls` now name a file call, `explain -- <command>` replays a bash
-  command that starts with one of those words. The interactive form ranks
-  against the config the session started with, as the bash form does, so it
-  answers for the running bouncer; the `explain.ts` command-line tool loads
-  the files from disk and takes the same forms.
+  runs nothing, and the session's allows and mode are untouched. Because
+  `read`, `write`, `grep`, `find` and `ls` now name a file call, `explain --
+  <command>` replays a bash command that starts with one of those words, and
+  a tool word with no path after it, such as `explain ls` or `explain.ts ls`,
+  is still the bash command it was, as it is interactively. The interactive
+  form ranks against the config the session started with, as the bash form
+  does, so it answers for the running bouncer; the `explain.ts` command-line
+  tool loads the files from disk and takes the same forms.
 
 - `/bouncer rules` lists the path groups broad to narrow, each with its
   patterns, the patterns it leaves out, and both its effective read and write

@@ -57,8 +57,9 @@ for the model), or deny and stop the turn. `/bouncer` shows the mode, the
 config files, every rule's level and the log path, and
 `/bouncer explain <command>` shows what the bouncer would do with a command
 without running it. `/bouncer explain read <path>` does the same for a file
-call: `write`, `grep`, `find` and `ls` work too, and `explain -- <command>`
-keeps the bash meaning of those words. `/bouncer init` writes an empty config
+call: `write`, `grep`, `find` and `ls` work too, a tool word on its own stays
+the bash command it was, and `explain -- <command>` keeps the bash meaning of
+those words. `/bouncer init` writes an empty config
 file to `~/.pi/agent/bouncer.json`.
 
 A recursive `rm` of a folder the agent made earlier in the session, with
@@ -203,7 +204,7 @@ time limits, Jev's cutoffs and the dialog in full.
 | `/bouncer [status]` | shows the mode, config files and problems, project trust, rule levels, the log path and auto mode |
 | `/bouncer rules` | lists every rule with its level and what it catches, then each path group with its patterns and both levels, then the custom path rules |
 | `/bouncer explain <command>` | shows what the bouncer would do with a command, without running it |
-| `/bouncer explain <read\|write\|grep\|find\|ls> <path>` | shows what the bouncer would do with a file call: the spellings it checked, every path rule that matched, and each mode's answer; `explain -- <command>` keeps the bash meaning |
+| `/bouncer explain <read\|write\|grep\|find\|ls> <path>` | shows what the bouncer would do with a file call: the spellings it checked, every path rule that matched, and each mode's answer; a tool word on its own, or `explain -- <command>`, keeps the bash meaning |
 | `/bouncer init` | writes an empty user config with `$schema`, if none exists |
 | `/bouncer check` | re-reads both config files and lists their problems |
 | `/auto [on\|off\|status]` | toggles auto mode, or says why it cannot turn on |

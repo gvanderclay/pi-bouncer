@@ -11,8 +11,9 @@
 //   node explain.ts write .git/config
 //   node explain.ts grep ~
 //
-// A first word of `read`, `write`, `grep`, `find` or `ls` replays a file
-// call, and `--` before the command keeps the bash meaning of those words.
+// A first word of `read`, `write`, `grep`, `find` or `ls` with a path after
+// it replays a file call; a tool word on its own, or `--` before the command,
+// keeps the bash meaning.
 // Agent dir: `PI_CODING_AGENT_DIR` or `~/.pi/agent`; project: the current
 // directory, unless `--agent-dir` or `--cwd` say otherwise. Trust: `--trusted` or
 // `--untrusted`, else Pi's saved decision in the agent dir's `trust.json` (none
@@ -301,9 +302,11 @@ function parseCommand(): Given | undefined {
 	// `--` keeps a first word such as `read` a bash command.
 	const bash = tokens.some((token) => token.kind === "option-terminator");
 	const [first = "", second] = positionals;
-	const tool = bash ? undefined : explainedTool(first);
-	const wanted = tool ? 2 : 1;
-	if (bash ? positionals.length === 0 : positionals.length !== wanted) {
+	// A tool word with a path after it names a file call; a tool word on its
+	// own stays a bash command, as `/bouncer explain ls` does.
+	const tool =
+		bash || positionals.length !== 2 ? undefined : explainedTool(first);
+	if (bash ? positionals.length === 0 : positionals.length !== (tool ? 2 : 1)) {
 		return undefined;
 	}
 	// `--` joins the words back; a quoted command is one positional.

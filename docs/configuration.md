@@ -281,8 +281,8 @@ then every path rule that matched, in order and with its level, so a later
 with a UI and without one, and what YOLO and auto mode would do. `/bouncer
 explain write <path>` replays a write, and `explain grep|find|ls <path>`
 replays a search. `explain -- <command>` replays a bash command that starts
-with one of those words. The `explain.ts` command-line tool takes the same
-forms.
+with one of those words, and so does a tool word with no path after it, such
+as `explain ls`. The `explain.ts` command-line tool takes the same forms.
 
 ## `log`
 

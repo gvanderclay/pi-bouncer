@@ -730,8 +730,22 @@ test("explain.ts -- keeps the bash meaning of read", () => {
 	assert.match(result.stdout, /^no rule matched$/m);
 });
 
+test("explain.ts replays a tool word on its own as a bash command, as /bouncer explain does", () => {
+	const where = [
+		"--agent-dir",
+		tempAgentDir(),
+		"--cwd",
+		project(),
+		"--trusted",
+	];
+	const bare = runArgs([...where, "ls"]);
+	const forced = runArgs([...where, "--", "ls"]);
+	assert.equal(bare.status, 0, bare.stderr);
+	assert.equal(bare.stdout, forced.stdout);
+});
+
 test("explain.ts needs exactly one path after the tool", () => {
-	const result = runArgs(["read"]);
+	const result = runArgs(["read", "a", "b"]);
 	assert.equal(result.status, 2);
 	assert.match(result.stderr, /read\|write\|grep\|find\|ls/);
 });
