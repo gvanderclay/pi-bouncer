@@ -227,13 +227,9 @@ function fileExplain(
 ): string {
 	const project = { cwd: ctx.cwd, trusted: trusted(parts) };
 	const trust = { trusted: project.trusted, source: "this session" };
-	const explanation = explainFile(
-		tool,
-		path,
-		parts.agentDir,
-		project,
-		parts.session.config?.profile?.agent,
-	);
+	// The session's config, as the bash replay and the live gate use it.
+	const config = parts.session.config ?? loadConfig(parts.agentDir, project);
+	const explanation = explainFile(config, tool, path, parts.agentDir, project);
 	return fileAsText(explanation, trust);
 }
 

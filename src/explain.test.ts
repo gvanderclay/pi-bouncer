@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "unbash";
-import { tempHome } from "../test/file-harness.ts";
+import { fileCall, tempHome } from "../test/file-harness.ts";
 import {
+	fakeContext,
 	type LoadedGate,
 	loadGateSession,
 	PREFER_RG,
@@ -560,6 +561,23 @@ test("explain write shows an ask with and without a UI", async () => {
 	const out = await explainOut(g, "write .git/config");
 	assert.match(out, /with UI: ask \(path-git\)/);
 	assert.match(out, /without UI: deny \(path-git\)/);
+});
+
+test("explain of a file call replays the session's config, not the file on disk", async () => {
+	const g = await gate({ levels: { "path-git": "deny" } });
+	const cwd = project();
+	// A session keeps the policy it started with; writing the file does not
+	// change it until the next session start.
+	g.writeRouteConfig({ levels: { "path-git": "off" } });
+	const out = await explainOut(g, "write .git/config", cwd);
+	assert.match(out, /matches: path-git \(deny\)/);
+	assert.match(out, /with UI: deny \(path-git\)/);
+	const live = await g.handler(
+		fileCall("write", { path: ".git/config", content: "x" }),
+		fakeContext(cwd),
+	);
+	assert.equal(live?.block, true);
+	assert.match(live?.reason ?? "", /\(rule: path-git\)/);
 });
 
 test("explain lists every match in order so a carve-out is visible", async () => {

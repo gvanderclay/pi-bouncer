@@ -172,17 +172,18 @@ function autoWould(ranking: Ranking | undefined): FileAutoWould {
 }
 
 /**
- * A file access replayed under the live config, with no dialog, judge or
- * change: `read` reads, `write` writes, and `grep`, `find` and `ls` search.
+ * A file access ranked against `config`, with no dialog, judge or change:
+ * `read` reads, `write` writes, and `grep`, `find` and `ls` search. The
+ * caller picks the config: the session's, so the answer is what the live gate
+ * would do, or one loaded from disk.
  */
 export function explainFile(
+	config: GateConfig,
 	tool: FileTool,
 	path: string,
 	agentDir: string,
 	project: Project,
-	agent?: AgentSource,
 ): FileExplanation {
-	const config = loadConfig(agentDir, project, agent);
 	const given = readFileCall(tool, { path });
 	if (given.kind !== "ok") {
 		throw new Error(`the bouncer could not read the path ${path}`);
@@ -326,7 +327,8 @@ async function fileOutput(
 	tool: FileTool,
 	path: string,
 ): Promise<string> {
-	const explanation = explainFile(tool, path, route, project, agent);
+	const config = loadConfig(route, project, agent);
+	const explanation = explainFile(config, tool, path, route, project);
 	const record = {
 		...explanation,
 		config: configRecord(explanation.config),
