@@ -154,6 +154,20 @@ test("Allow for this session covers the tool whatever its arguments, not other t
 	assert.equal(result?.block, true);
 });
 
+test("an MCP session allow still covers the same tool with other arguments", async () => {
+	const gate = await session();
+	const ui = scriptedUI(["Allow for this session"]);
+	assert.equal(
+		await gate.handler(toolCall(ECHO, { text: "a" }), ui.ctx),
+		undefined,
+	);
+	assert.equal(
+		await gate.handler(toolCall(ECHO, { text: "b" }), ui.ctx),
+		undefined,
+	);
+	assert.equal(ui.dialogs.length, 1);
+});
+
 test("with no UI, an MCP call not on the allow list is blocked", async () => {
 	const gate = await session();
 	const result = await gate.handler(toolCall(ECHO, {}), fakeContext());
