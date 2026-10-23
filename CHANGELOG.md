@@ -6,6 +6,16 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- The `read` tool is now gated: `path-ssh` denies reading `~/.ssh`.
+  `"levels": {"path-ssh": "off"}` restores the old behaviour. The path is
+  checked however it is spelled (`~`, `@`, relative, absolute, `file://`) and
+  with symlinks resolved, so a link into `~/.ssh` is caught too. YOLO mode
+  lets the read through. A file tool call whose `path` is not a string, or is
+  missing from `read`, `write` or `edit`, is blocked. `/bouncer rules`, `/bouncer` status and the session log record list
+  `path-ssh`, so the tests pinning those lists changed deliberately.
+
 ## [0.6.1] - 2026-10-22
 
 ### Changed

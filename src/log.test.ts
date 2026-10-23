@@ -385,6 +385,7 @@ const BUILT_IN_LEVELS = {
 	publish: "ask",
 	"gh-delete": "ask",
 	"bouncer-escape": "deny",
+	"path-ssh": "deny",
 } as const;
 
 test("with no config files, the session record lists built-in config", async () => {

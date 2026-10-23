@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import type { Direction } from "./file-call.ts";
 
 export type VerdictLevel = "deny" | "ask";
 
@@ -84,6 +85,20 @@ export function ruleDenied(
 		rule: rule.name,
 		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. ${DO_NOT_RETRY}`,
 		command,
+	};
+}
+
+/** A path rule's deny, for a file call. */
+export function pathDenied(
+	rule: { readonly name: RuleName; readonly summary: string },
+	direction: Direction,
+	path: string,
+): Verdict {
+	return {
+		level: "deny",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. The ${direction} of \`${truncate(path, REASON_LIMIT)}\` did not run. Ask the user to do this or to change the bouncer's \`levels\`.`,
+		command: path,
 	};
 }
 

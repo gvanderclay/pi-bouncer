@@ -9,6 +9,9 @@ import {
 	trashRootFor,
 } from "./rules/filesystem.ts";
 import {
+	entryLevel,
+	type PathEntry,
+	type PathRule,
 	type Policy,
 	type PolicyEntry,
 	policyEntryName,
@@ -16,7 +19,10 @@ import {
 } from "./rules/rule.ts";
 import type { ConfigLevel, RuleName } from "./verdict.ts";
 
-type Effective = { readonly policy: Policy; readonly off: readonly Rule[] };
+type Effective = {
+	readonly policy: Policy;
+	readonly off: readonly (Rule | PathRule)[];
+};
 
 const NO_PROTECT: Protect = { home: [], paths: [] };
 
@@ -33,6 +39,14 @@ function configured(
 	return rule;
 }
 
+// A plain level sets both directions.
+function pathEntryAt(
+	entry: PathEntry,
+	level: "ask" | "deny" | undefined,
+): PathEntry {
+	return level ? { ...entry, levels: { read: level, write: level } } : entry;
+}
+
 // A rule set to "off" leaves the policy. Custom rules follow the built-ins,
 // and custom steer rules come last.
 export function effectivePolicy(
@@ -41,9 +55,15 @@ export function effectivePolicy(
 	custom: readonly CustomRule[],
 	trashCommand?: string,
 ): Effective {
-	const off: Rule[] = [];
+	const off: (Rule | PathRule)[] = [];
 	const policy: PolicyEntry[] = [];
 	for (const entry of builtInPolicy) {
+		if (entry.kind === "path") {
+			const level = levels[entry.rule.name];
+			if (level === "off") off.push(entry.rule);
+			else policy.push(pathEntryAt(entry, level));
+			continue;
+		}
 		const level =
 			entry.kind === "unreadable"
 				? entry.level
@@ -73,10 +93,11 @@ export function effectivePolicy(
 // Every rule's level: the policy's, or "off".
 export function ruleLevels(
 	policy: Policy,
-	off: readonly Rule[] = [],
+	off: readonly (Rule | PathRule)[] = [],
 ): Record<RuleName, ConfigLevel> {
 	const levels: Record<RuleName, ConfigLevel> = {};
-	for (const entry of policy) levels[policyEntryName(entry)] = entry.level;
+	for (const entry of policy)
+		levels[policyEntryName(entry)] = entryLevel(entry);
 	for (const rule of off) levels[rule.name] = "off";
 	return levels;
 }

@@ -17,6 +17,7 @@ import type { RmCheck } from "./agent-made-check.ts";
 import type { AskAnswer } from "./ask.ts";
 import type { ConfigRecord, GateConfig } from "./config.ts";
 import { errorText } from "./error-text.ts";
+import type { Direction } from "./file-call.ts";
 import type { AutoTrace, Decision, WithoutYolo } from "./gate.ts";
 import type { JudgeSent } from "./history.ts";
 import type { Match } from "./rank.ts";
@@ -59,10 +60,12 @@ export type SessionRecord = RecordHead<"session"> & {
 };
 
 export type CallRecord = RecordHead<"call"> & {
-	/** Bash's command, or for an MCP call its JSON arguments, cut to 200 characters. */
+	/** Bash's command, an MCP call's JSON arguments, or a file call's "<tool> <typed path>", cut to 200 characters. */
 	readonly command: string;
-	/** The tool called, set only when it is not bash (an MCP tool). */
+	/** The tool called, set only when it is not bash (an MCP or file tool). */
 	readonly tool?: string;
+	/** A file call's path: as typed, and its real path once symlinks are resolved. */
+	readonly path?: FilePath;
 	/** The tool call (a codemode script, say) that ran this bash call through `ctx.executeTool()`. */
 	readonly parentToolCallId?: string;
 	readonly ui: boolean;
@@ -78,6 +81,13 @@ export type CallRecord = RecordHead<"call"> & {
 	readonly withoutAuto?: WithoutYolo;
 	/** Why a recursive rm was not exempt, when the exemption check failed. */
 	readonly agentMade?: readonly RmCheck[];
+};
+
+export type FilePath = {
+	readonly direction: Direction;
+	readonly typed: string;
+	/** Absent when the call was blocked before its path was resolved. */
+	readonly real?: string;
 };
 
 export type ModeRecord = RecordHead<"yolo" | "auto"> & {
@@ -137,6 +147,7 @@ export function callRecord(
 	profile: GateConfig["profile"],
 	parentToolCallId?: string,
 	tool?: string,
+	path?: FilePath,
 ): CallRecord | undefined {
 	const { trace } = decision;
 	if (!trace) return undefined;
@@ -148,6 +159,7 @@ export function callRecord(
 		...recordHead("call", ctx),
 		command,
 		...(tool && { tool }),
+		...(path && { path }),
 		...(parentToolCallId && { parentToolCallId }),
 		ui: trace.ui,
 		...who,

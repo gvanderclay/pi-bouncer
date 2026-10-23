@@ -259,6 +259,10 @@
 				"bouncer-escape": {
 					"enum": ["ask", "deny", "off"],
 					"description": "starting pi with --yolo, or setting or clearing an agent variable (PI_BOUNCER_AGENT, PI_SUBAGENT_AGENT, PI_DADDY_DEFINITION), from bash sidesteps the user's rules. Built-in level: deny."
+				},
+				"path-ssh": {
+					"enum": ["ask", "deny", "off"],
+					"description": "path group: ~/.ssh holds SSH keys and their settings. Sets reads and writes of ~/.ssh by Pi's file tools. Built-in level: deny."
 				}
 			}
 		},
@@ -301,7 +305,8 @@
 								"remote-script",
 								"publish",
 								"gh-delete",
-								"bouncer-escape"
+								"bouncer-escape",
+								"path-ssh"
 							]
 						},
 						"description": "Shown in messages, dialogs and the log. Lowercase letters, digits and dashes; not a built-in rule's name."

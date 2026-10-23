@@ -40,6 +40,30 @@ plus arguments that must all appear in order, with a rule level, or with an
 `instead` text that makes it a steer rule.
 _Avoid_: user rule, pattern, extra rule
 
+**Path rule**:
+A rule that recognises the paths of Pi's file tool calls (`read`, `write`,
+`edit`, `grep`, `find`, `ls`) by gitignore-style globs, never a bash
+command. It has a level per direction. Among the path rules that match one
+spelling of a path, the last in the effective policy decides; across the
+spellings of a path (as typed, made absolute, symlinks resolved), the
+strictest result wins.
+_Avoid_: file rule, path pattern, protected path
+
+**Path group**:
+A built-in path rule, named with a `path-` prefix, such as `path-ssh`. A
+plain level in `levels` sets both directions.
+_Avoid_: path preset, secret list
+
+**File access**:
+What one file tool call does: the tool, its direction, the path as the agent
+typed it, and for `write` and `edit` the change.
+_Avoid_: file operation, file event
+
+**Direction**:
+Whether a file access reads (`read`, `grep`, `find`, `ls`) or writes
+(`write`, `edit`). A path rule has a level for each.
+_Avoid_: access mode, permission
+
 **Built-in policy**:
 Every built-in rule and unreadable-command deny, in evaluation
 order, each at the rule level the bouncer ships with.

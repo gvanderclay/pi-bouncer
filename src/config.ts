@@ -36,7 +36,7 @@ import {
 import { mergeProtect, validProtect } from "./protect.ts";
 import { type CustomRule, projectRules, validRules } from "./rules/custom.ts";
 import type { Protect } from "./rules/filesystem.ts";
-import type { Policy, Rule } from "./rules/rule.ts";
+import type { PathRule, Policy, Rule } from "./rules/rule.ts";
 import type { ConfigLevel, RuleName } from "./verdict.ts";
 
 export type LogLimits = {
@@ -53,7 +53,7 @@ export type { StartMode };
 export type GateConfig = {
 	readonly policy: Policy;
 	/** Rules a config turned off, built-in and custom; absent when none. */
-	readonly off?: readonly Rule[];
+	readonly off?: readonly (Rule | PathRule)[];
 	/** What both files add to rm-root's protected paths; absent when none. */
 	readonly protect?: Protect;
 	readonly projectTrusted: boolean;

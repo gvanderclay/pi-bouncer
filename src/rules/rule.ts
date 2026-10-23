@@ -1,7 +1,8 @@
 import type { AgentMade } from "../agent-made.ts";
 import type { RmChecks } from "../agent-made-check.ts";
 import type { Invocation } from "../scan/walk.ts";
-import type { RuleName, VerdictLevel } from "../verdict.ts";
+import type { ConfigLevel, RuleName, VerdictLevel } from "../verdict.ts";
+import type { PathPattern } from "./path-patterns.ts";
 
 export type Where = {
 	readonly cwd: string;
@@ -39,11 +40,53 @@ export type SteerEntry = {
 	readonly level: "deny";
 };
 
-export type PolicyEntry = UnreadableDeny | RuleEntry | SteerEntry;
+export type PathLevel = "allow" | "ask" | "deny" | "off";
+
+export type DirectionLevels = {
+	readonly read: PathLevel;
+	readonly write: PathLevel;
+};
+
+// A path rule only recognises paths of file tool calls, never a bash invocation.
+export type PathRule = {
+	readonly name: RuleName;
+	readonly summary: string;
+	readonly patterns: readonly PathPattern[];
+	/** Paths the rule leaves out, such as .env.example. */
+	readonly except?: readonly PathPattern[];
+};
+
+export type PathEntry = {
+	readonly kind: "path";
+	readonly rule: PathRule;
+	readonly levels: DirectionLevels;
+	/** Set on a custom path steer rule. */
+	readonly instead?: string;
+};
+
+export type PolicyEntry = UnreadableDeny | RuleEntry | SteerEntry | PathEntry;
 
 // In evaluation order.
 export type Policy = readonly PolicyEntry[];
 
 export function policyEntryName(entry: PolicyEntry): RuleName {
 	return entry.kind === "unreadable" ? entry.name : entry.rule.name;
+}
+
+const STRICTNESS: Readonly<Record<PathLevel, number>> = {
+	off: 0,
+	allow: 0,
+	ask: 1,
+	deny: 2,
+};
+
+// One level for an entry, as `/bouncer` and the session record list them: a
+// path entry shows its stricter direction.
+// shortcut: a path entry allowed in both directions shows as "off". Upgrade
+// when `/bouncer` and the session record show both directions.
+export function entryLevel(entry: PolicyEntry): ConfigLevel {
+	if (entry.kind !== "path") return entry.level;
+	const { read, write } = entry.levels;
+	const level = STRICTNESS[read] >= STRICTNESS[write] ? read : write;
+	return level === "allow" ? "off" : level;
 }

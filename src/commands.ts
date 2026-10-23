@@ -20,7 +20,13 @@ import type { ModeHolder } from "./mode.ts";
 import type { SessionState } from "./mode-switch.ts";
 import { ruleLevels } from "./policy.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
-import { type Policy, policyEntryName, type Rule } from "./rules/rule.ts";
+import {
+	entryLevel,
+	type PathRule,
+	type Policy,
+	policyEntryName,
+	type Rule,
+} from "./rules/rule.ts";
 
 export const SCHEMA_URL =
 	"https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json";
@@ -45,7 +51,7 @@ function policyOf(parts: BouncerParts): Policy {
 	return parts.session.config?.policy ?? builtInPolicy;
 }
 
-function offOf(parts: BouncerParts): readonly Rule[] {
+function offOf(parts: BouncerParts): readonly (Rule | PathRule)[] {
 	return parts.session.config?.off ?? [];
 }
 
@@ -128,7 +134,7 @@ function rules(parts: BouncerParts): string {
 		const summary =
 			entry.kind === "unreadable" ? UNREADABLE[name] : entry.rule.summary;
 		const steer = entry.kind === "steer" ? `; ${entry.instead}` : "";
-		return `${name} (${entry.level}): ${summary}${steer}`;
+		return `${name} (${entryLevel(entry)}): ${summary}${steer}`;
 	});
 	const off = offOf(parts).map((rule) => `${rule.name} (off): ${rule.summary}`);
 	return [...active, ...off].join("\n");

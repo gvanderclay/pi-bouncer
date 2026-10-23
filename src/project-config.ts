@@ -3,6 +3,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
+import { entryLevel } from "./rules/rule.ts";
 import type { ConfigLevel, RuleName } from "./verdict.ts";
 
 export type ConfigFile = {
@@ -59,7 +60,8 @@ export function projectLevels(
 		RuleName,
 		ConfigLevel,
 	][]) {
-		const routeLevel = routeLevels[rule] ?? builtInEntries.get(rule)?.level;
+		const entry = builtInEntries.get(rule);
+		const routeLevel = routeLevels[rule] ?? (entry && entryLevel(entry));
 		const why = refusal(rule, level, routeLevel, trusted);
 		if (why) refusals.push(why);
 		else kept[rule] = level;

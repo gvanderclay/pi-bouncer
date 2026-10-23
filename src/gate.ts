@@ -180,7 +180,7 @@ function switches(asked: Asked): Pick<Decision, "yoloOn" | "autoOn"> {
 	};
 }
 
-async function decided(
+export async function decided(
 	ranking: Ranking | undefined,
 	command: string,
 	call: Call,
@@ -210,7 +210,7 @@ function withoutYolo(
 	return allSessionAllowed(ranking.asks, asking) ? "allowed" : "dialog";
 }
 
-function yoloDecided(
+export function yoloDecided(
 	yoloRanking: Ranking | undefined,
 	ranking: Ranking | undefined,
 	command: string,
