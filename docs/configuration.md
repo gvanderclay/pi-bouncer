@@ -120,8 +120,11 @@ so a session running a checkout cannot write the checkout's source unless
 `path-bouncer` is `ask`.
 
 A project file may only raise a direction: an untrusted project's `"allow"`,
-or a level looser than the one that direction would otherwise have, is a
-problem and that direction keeps its level. A trusted project may set any
+or an entry that would leave any direction looser than the level the session
+already had, is a problem and the whole entry is refused, so the group keeps
+the levels it had. A direction the project leaves out is checked too, since
+the entry replaces the session's and an omitted direction falls back to the
+group's built-in level. A trusted project may set any
 level, except on `path-bouncer`, which no project file may loosen. A
 profile's `levels` take path groups the same way, with the same checks when
 the profile is in a project file, and its object replaces the whole entry for

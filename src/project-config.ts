@@ -4,7 +4,6 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { alwaysDenySet, builtInEntries } from "./rules/built-in-policy.ts";
 import {
-	type DirectionLevels,
 	directionLevels,
 	entryLevel,
 	namedLevels,
@@ -67,66 +66,48 @@ function refusal(
 	return undefined;
 }
 
-// A project group's level, direction by direction: the always-deny set takes
-// only deny, and an untrusted project may only raise a direction. Whatever is
-// refused is left out, so the group keeps the level it had.
-function pathKept(
-	rule: RuleName,
-	given: PathLevels,
-	route: DirectionLevels,
-	trusted: boolean,
-	refusals: string[],
-): PathLevels {
-	const kept: { read?: PathLevel; write?: PathLevel } = {};
-	for (const direction of DIRECTIONS) {
-		const level = given[direction];
-		if (level === undefined) continue;
-		if (alwaysDenySet.has(rule) && level !== "deny") {
-			refusals.push(
-				`levels: "${rule}" is in the always-deny set; a project config cannot loosen it`,
-			);
-		} else if (
-			!trusted &&
-			(level === "allow" || RANK[level] < RANK[route[direction]])
-		) {
-			refusals.push(
-				`levels: an untrusted project may not lower "${rule}" ${direction}`,
-			);
-		} else kept[direction] = level;
-	}
-	return kept;
-}
-
-export type ProjectFile = {
-	readonly file: ConfigFile;
-	readonly levels: Levels;
-};
-
-// A project's level for one path group, as kept after its refusals: a plain
-// level stays plain when both directions it named are kept.
-function keptPath(
+// A project's path group level, judged by the whole entry it puts in place:
+// the entry replaces the one the session had, so a direction the project omits
+// falls back to the group's built-in level, and that must not be a loosening
+// either. A refused entry is dropped whole, so the group keeps the level it had.
+function pathAccepted(
 	rule: RuleName,
 	entry: PathEntry,
 	level: ConfigLevel | PathLevels,
 	routeLevels: Levels,
 	trusted: boolean,
 	refusals: string[],
-): ConfigLevel | PathLevels | undefined {
-	const accepted = pathKept(
-		rule,
-		namedLevels(entry.rule, level),
-		directionLevels(entry, routeLevels[rule]),
-		trusted,
-		refusals,
+): boolean {
+	const before = directionLevels(entry, routeLevels[rule]);
+	const after = directionLevels(entry, level);
+	// path-bouncer guards writes: a project may raise its write level to deny,
+	// but never set anything else.
+	if (alwaysDenySet.has(rule) && after.write !== "deny") {
+		refusals.push(
+			`levels: "${rule}" is in the always-deny set; a project config cannot loosen it`,
+		);
+		return false;
+	}
+	if (trusted) return true;
+	const named = namedLevels(entry.rule, level);
+	const lowered = DIRECTIONS.filter(
+		(direction) =>
+			named[direction] === "allow" ||
+			RANK[after[direction]] < RANK[before[direction]],
 	);
-	const directions = DIRECTIONS.filter(
-		(direction) => accepted[direction] !== undefined,
-	).length;
-	if (directions === 0) return undefined;
-	return typeof level === "string" && directions === DIRECTIONS.length
-		? level
-		: accepted;
+	refusals.push(
+		...lowered.map(
+			(direction) =>
+				`levels: an untrusted project may not lower "${rule}" ${direction}`,
+		),
+	);
+	return lowered.length === 0;
 }
+
+export type ProjectFile = {
+	readonly file: ConfigFile;
+	readonly levels: Levels;
+};
 
 export function projectLevels(
 	project: ProjectFile,
@@ -141,8 +122,9 @@ export function projectLevels(
 	][]) {
 		const entry = builtInEntries.get(rule);
 		if (entry?.kind === "path") {
-			const at = keptPath(rule, entry, level, routeLevels, trusted, refusals);
-			if (at !== undefined) kept[rule] = at;
+			if (pathAccepted(rule, entry, level, routeLevels, trusted, refusals)) {
+				kept[rule] = level;
+			}
 			continue;
 		}
 		const given = routeLevels[rule];

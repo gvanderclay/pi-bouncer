@@ -15,9 +15,11 @@ follows [Semantic Versioning](https://semver.org/).
   `"path-ssh": {"read": "deny", "write": "ask"}` asks for writes while
   denying reads. A group leaves the policy only when both directions are
   `off`. A project file may only raise each direction, and an untrusted one
-  may not set `"allow"`; a trusted project may set any level. `path-bouncer`
-  takes only a write level, `"ask"` or `"deny"`. Every existing config keeps
-  its behaviour: a plain level means both directions.
+  may not set `"allow"`; an entry that would leave a direction looser than the
+  session's level, including by omitting it, is refused whole, so the group
+  keeps its levels. A trusted project may set any level. `path-bouncer` takes
+  only a write level, `"ask"` or `"deny"`. Every existing config keeps its
+  behaviour: a plain level means both directions.
 
 - `path-bouncer` joins the always-deny set: the `write` and `edit` tools can
   no longer change the bouncer's user config (`<agent dir>/bouncer.json`), a

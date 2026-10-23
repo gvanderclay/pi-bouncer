@@ -232,29 +232,111 @@ test("a trusted project may lower one direction", async () => {
 	assert.equal(ui.dialogs.length, 1);
 });
 
-test("an untrusted project may raise one direction and is refused the other", async () => {
+test("an untrusted project may raise a direction", async () => {
 	const dir = project();
-	writeProjectConfig(dir, {
-		levels: { "path-env": { read: "ask", write: "deny" } },
-	});
+	writeProjectConfig(dir, { levels: { "path-env": { write: "deny" } } });
 	const g = await loadGateSession();
 	const { ctx, notices } = uiContext(dir, false);
 	await g.startSession("startup", ctx);
-	assert.match(
-		messages(notices),
-		/an untrusted project may not lower "path-env" read/,
-	);
+	assert.equal(notices.length, 0, messages(notices));
 	const denied = await g.handler(
 		fileCall("write", { path: ".env", content: "A=1" }),
 		scriptedUI([], dir).ctx,
 	);
 	assert.match(denied?.reason ?? "", /\(rule: path-env\)/);
 	assert.doesNotMatch(denied?.reason ?? "", /no one can answer/);
+});
+
+test("an untrusted project can't lower a direction by leaving it out", async () => {
+	const dir = project();
+	writeProjectConfig(dir, { levels: { "path-git": { write: "deny" } } });
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: { levels: { "path-git": "deny" } },
+	});
+	const { ctx, notices } = uiContext(dir, false);
+	await g.startSession("startup", ctx);
+	assert.match(
+		messages(notices),
+		/an untrusted project may not lower "path-git" read/,
+	);
 	const read = await g.handler(
-		fileCall("read", { path: ".env" }),
+		fileCall("read", { path: ".git/config" }),
 		scriptedUI([], dir).ctx,
 	);
 	assert.equal(read?.block, true);
+	assert.match(read?.reason ?? "", /\(rule: path-git\)/);
+});
+
+test("an untrusted project naming a lower direction keeps the whole entry", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		levels: { "path-git": { read: "allow", write: "deny" } },
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: { levels: { "path-git": "deny" } },
+	});
+	const { ctx, notices } = uiContext(dir, false);
+	await g.startSession("startup", ctx);
+	assert.match(
+		messages(notices),
+		/an untrusted project may not lower "path-git" read/,
+	);
+	const read = await g.handler(
+		fileCall("read", { path: ".git/config" }),
+		scriptedUI([], dir).ctx,
+	);
+	assert.equal(read?.block, true);
+	assert.match(read?.reason ?? "", /\(rule: path-git\)/);
+});
+
+test("an untrusted project's profile can't lower a user profile's direction", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		profiles: { reader: { levels: { "path-git": { write: "deny" } } } },
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: {
+			profiles: { reader: { levels: { "path-git": "deny" } } },
+			agents: { scout: "reader" },
+		},
+		env: { PI_BOUNCER_AGENT: "scout" },
+	});
+	const { ctx, notices } = uiContext(dir, false);
+	await g.startSession("startup", ctx);
+	assert.match(
+		messages(notices),
+		/an untrusted project may not lower "path-git" read/,
+	);
+	const read = await g.handler(
+		fileCall("read", { path: ".git/config" }),
+		scriptedUI([], dir).ctx,
+	);
+	assert.equal(read?.block, true);
+	assert.match(read?.reason ?? "", /\(rule: path-git\)/);
+});
+
+test("a profile in an untrusted project can't lower a direction by leaving it out", async () => {
+	const dir = project();
+	writeProjectConfig(dir, {
+		profiles: { reader: { levels: { "path-git": { write: "deny" } } } },
+		agents: { scout: "reader" },
+	});
+	const g = await loadGateSession(undefined, undefined, {
+		userConfig: { levels: { "path-git": "deny" } },
+		env: { PI_BOUNCER_AGENT: "scout" },
+	});
+	const { ctx, notices } = uiContext(dir, false);
+	await g.startSession("startup", ctx);
+	assert.match(
+		messages(notices),
+		/an untrusted project may not lower "path-git" read/,
+	);
+	const read = await g.handler(
+		fileCall("read", { path: ".git/config" }),
+		scriptedUI([], dir).ctx,
+	);
+	assert.equal(read?.block, true);
+	assert.match(read?.reason ?? "", /\(rule: path-git\)/);
 });
 
 test("an untrusted project may not set allow, even where the default is allow", async () => {
