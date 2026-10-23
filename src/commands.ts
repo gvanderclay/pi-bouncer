@@ -13,17 +13,21 @@ import {
 	routeConfigFile,
 } from "./config.ts";
 import { errorText } from "./error-text.ts";
-import { asText } from "./explain.ts";
+import { asText, explainedTool, explainFile, fileAsText } from "./explain.ts";
+import type { FileTool } from "./file-call.ts";
 import { inspect, type ParseFn } from "./gate.ts";
 import { logFile } from "./log.ts";
 import type { ModeHolder } from "./mode.ts";
 import type { SessionState } from "./mode-switch.ts";
 import { ruleLevels } from "./policy.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
+import { pathGroups } from "./rules/path-groups.ts";
 import {
+	type DirectionLevels,
 	entryLevel,
 	type PathRule,
 	type Policy,
+	type PolicyEntry,
 	policyEntryName,
 	type Rule,
 } from "./rules/rule.ts";
@@ -31,7 +35,11 @@ import {
 export const SCHEMA_URL =
 	"https://raw.githubusercontent.com/gvanderclay/pi-bouncer/main/schema/bouncer.schema.json";
 
-const USAGE = "Usage: /bouncer [status|rules|explain <command>|init|check]";
+const USAGE = [
+	"Usage: /bouncer [status|rules|explain|init|check]",
+	"  explain <command> replays a bash command; explain -- <command> replays one that starts with read, write, grep, find or ls",
+	"  explain <read|write|grep|find|ls> <path> replays a file call",
+].join("\n");
 
 export type BouncerParts = {
 	readonly holder: ModeHolder;
@@ -128,23 +136,121 @@ function status(parts: BouncerParts): string {
 	].join("\n");
 }
 
+function bashLine(entry: PolicyEntry): string {
+	const name = policyEntryName(entry);
+	const summary =
+		entry.kind === "unreadable" ? UNREADABLE[name] : entry.rule.summary;
+	const steer = entry.kind === "steer" ? `; ${entry.instead}` : "";
+	return `${name} (${entryLevel(entry)}): ${summary}${steer}`;
+}
+
+function isPathRule(rule: Rule | PathRule): rule is PathRule {
+	return "patterns" in rule;
+}
+
+// `<name> (read <level>, write <level>): <summary>; matches <globs>; …`
+function pathLine(
+	name: string,
+	rule: PathRule,
+	levels: DirectionLevels,
+	notes: readonly string[] = [],
+): string {
+	const { patterns, except = [] } = rule;
+	const listed = [
+		`matches ${patterns.map(({ source }) => source).join(", ")}`,
+		...(except.length > 0
+			? [`leaves out ${except.map(({ source }) => source).join(", ")}`]
+			: []),
+		...notes,
+	];
+	const at = `read ${levels.read}, write ${levels.write}`;
+	return `- ${name} (${at}): ${rule.summary}; ${listed.join("; ")}`;
+}
+
+function pathNotes(entry: PolicyEntry): string[] {
+	if (entry.kind !== "path") return [];
+	return [
+		...(entry.raiseOnly ? ["raise only (an untrusted project's rule)"] : []),
+		...(entry.instead !== undefined ? [`instead: ${entry.instead}`] : []),
+	];
+}
+
+// The bash rules first, then the built-in path groups broad to narrow, then
+// the custom path rules, which come after them in the policy. A group turned
+// off keeps its place in the order.
 function rules(parts: BouncerParts): string {
-	const active = policyOf(parts).map((entry) => {
-		const name = policyEntryName(entry);
-		const summary =
-			entry.kind === "unreadable" ? UNREADABLE[name] : entry.rule.summary;
-		const steer = entry.kind === "steer" ? `; ${entry.instead}` : "";
-		return `${name} (${entryLevel(entry)}): ${summary}${steer}`;
+	const policy = policyOf(parts);
+	const off = offOf(parts);
+	const groups = pathGroups().map(({ rule }) => rule.name);
+	const paths = policy.filter(
+		(entry): entry is PolicyEntry & { kind: "path" } => entry.kind === "path",
+	);
+	const offPaths = off.filter(isPathRule);
+	const bash = [
+		...policy.filter((entry) => entry.kind !== "path").map(bashLine),
+		...off
+			.filter((rule): rule is Rule => !isPathRule(rule))
+			.map((rule) => `${rule.name} (off): ${rule.summary}`),
+	];
+	const groupLines = groups.flatMap((name) => {
+		const entry = paths.find(({ rule }) => rule.name === name);
+		if (entry) return [pathLine(name, entry.rule, entry.levels)];
+		const rule = offPaths.find((candidate) => candidate.name === name);
+		return rule ? [pathLine(name, rule, { read: "off", write: "off" })] : [];
 	});
-	const off = offOf(parts).map((rule) => `${rule.name} (off): ${rule.summary}`);
-	return [...active, ...off].join("\n");
+	const custom = (name: string): boolean => !groups.includes(name);
+	const customLines = [
+		...paths
+			.filter(({ rule }) => custom(rule.name))
+			.map((entry) =>
+				pathLine(entry.rule.name, entry.rule, entry.levels, pathNotes(entry)),
+			),
+		...offPaths
+			.filter(({ name }) => custom(name))
+			.map((rule) => pathLine(rule.name, rule, { read: "off", write: "off" })),
+	];
+	return [
+		...bash,
+		"Path groups (the last match wins; path-bouncer is checked first for writes):",
+		...groupLines,
+		...(customLines.length > 0
+			? ["Custom path rules (after the built-in groups):", ...customLines]
+			: []),
+	].join("\n");
+}
+
+function fileExplain(
+	parts: BouncerParts,
+	tool: FileTool,
+	path: string,
+	ctx: ExtensionContext,
+): string {
+	const project = { cwd: ctx.cwd, trusted: trusted(parts) };
+	const trust = { trusted: project.trusted, source: "this session" };
+	const explanation = explainFile(
+		tool,
+		path,
+		parts.agentDir,
+		project,
+		parts.session.config?.profile?.agent,
+	);
+	return fileAsText(explanation, trust);
 }
 
 function explainCommand(
 	parts: BouncerParts,
-	command: string,
+	text: string,
 	ctx: ExtensionContext,
 ): string {
+	// `--` keeps a first word such as `read` a bash command.
+	const forced = text.startsWith("-- ");
+	const command = forced ? text.slice(3) : text;
+	const [first = ""] = command.split(/\s+/);
+	const tool = forced ? undefined : explainedTool(first);
+	if (tool !== undefined) {
+		const path = command.slice(first.length).trim();
+		if (path !== "") return fileExplain(parts, tool, path, ctx);
+	}
 	const project = { cwd: ctx.cwd, trusted: trusted(parts) };
 	const config = parts.session.config ?? loadConfig(parts.agentDir, project);
 	const where = { cwd: ctx.cwd, home: homedir() };

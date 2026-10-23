@@ -8,6 +8,24 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `/bouncer explain` replays a file call: `explain read <path>`,
+  `explain write <path>` and `explain grep|find|ls <path>` (a search) print
+  every spelling of the path it checked, every path rule that matched in
+  order with its level, so a later `allow` shows after the rule it carves out
+  of, then what normal mode would do with and without a UI, and what YOLO and
+  auto mode would do. It opens no dialog, calls no judge, logs nothing and
+  runs nothing, and the session's allows and mode are untouched. Because `read`, `write`, `grep`,
+  `find` and `ls` now name a file call, `explain -- <command>` replays a bash
+  command that starts with one of those words. The `explain.ts` command-line
+  tool takes the same forms.
+
+- `/bouncer rules` lists the path groups broad to narrow, each with its
+  patterns, the patterns it leaves out, and both its effective read and write
+  levels, then the custom path rules. A group set to `off` keeps its place
+  and shows both directions off. Before this a group showed one level, the
+  stricter of its two directions; its summary and the bash rules around it
+  are listed as before.
+
 - In auto mode, a file call a path rule asks about goes to the judge list,
   as bash and MCP asks do: a judge allow runs it with no dialog, a deny blocks
   it with the judge's reason and counts toward the pause, and a hand-off or

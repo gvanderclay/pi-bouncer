@@ -61,7 +61,8 @@ removes the rule. The always-deny set (`rm-root`, `disk-format`, `dd-device`,
 `power`, `privilege`, `path-bouncer`) accepts `ask` or `deny` but never `off`,
 and YOLO and auto mode deny it whatever its level. The unreadable-command
 denies (`parser-unavailable`, `unparseable`, `inline-too-deep`) cannot be set.
-`/bouncer rules` lists every rule name.
+`/bouncer rules` lists every rule name, and each path group with its
+patterns and both levels.
 
 ```json
 { "levels": { "git-push-force": "deny", "opaque-exec": "off" } }
@@ -132,8 +133,10 @@ group's built-in level. A trusted project may set any
 level, except on `path-bouncer`, which no project file may loosen. A
 profile's `levels` take path groups the same way, with the same checks when
 the profile is in a project file, and its object replaces the whole entry for
-that group. `/bouncer rules` shows one level per group: the stricter of its
-two directions.
+that group. `/bouncer rules` lists each group broad to narrow with its
+patterns, the patterns it leaves out, and its effective read and write
+levels, then the custom path rules; a group set to `off` keeps its place and
+shows both directions off.
 
 ## `protect`
 
@@ -270,6 +273,16 @@ which is checked before every other path rule, and a search (`grep`, `find`,
 `ls`) of a folder that holds a protected path, which the strictest rule
 inside it decides. A path rule written through a symlinked folder also
 matches the same files by their real path.
+
+`/bouncer explain read <path>` replays a file call under the config in force,
+with no dialog and no judge: it prints every spelling of the path it checked,
+then every path rule that matched, in order and with its level, so a later
+`allow` shows after the rule it carves out of, then what normal mode would do
+with a UI and without one, and what YOLO and auto mode would do. `/bouncer
+explain write <path>` replays a write, and `explain grep|find|ls <path>`
+replays a search. `explain -- <command>` replays a bash command that starts
+with one of those words. The `explain.ts` command-line tool takes the same
+forms.
 
 ## `log`
 

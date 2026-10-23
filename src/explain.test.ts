@@ -1,20 +1,26 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "unbash";
+import { tempHome } from "../test/file-harness.ts";
 import {
+	type LoadedGate,
+	loadGateSession,
 	PREFER_RG,
 	projectConfigPath,
 	tempAgentDir,
 	tempProjectDir,
+	uiContext,
 	writeConfig,
 	writeProjectConfig,
 } from "../test/harness.ts";
 import { explain } from "./explain.ts";
 import type { Inspection, ParseFn } from "./gate.ts";
+
+const HOME = tempHome(); // before any gate loads
 
 const RM_X = { rule: "recursive-rm", level: "ask", source: "rm -rf x" };
 
@@ -513,4 +519,201 @@ test("explain.ts --agent is trimmed, and a blank one means no agent", () => {
 	const json = JSON.parse(blank.stdout);
 	assert.deepEqual(json.withUI, { kind: "ask" });
 	assert.equal(json.config.profile, undefined);
+});
+
+// File calls: `/bouncer explain read|write|grep|find|ls <path>` and the
+// command-line tool's same forms.
+
+async function gate(userConfig: object = {}): Promise<LoadedGate> {
+	const g = await loadGateSession(undefined, undefined, { userConfig });
+	await g.startSession("startup");
+	return g;
+}
+
+function project(): string {
+	const dir = tempProjectDir();
+	mkdirSync(dir, { recursive: true });
+	return dir;
+}
+
+async function explainOut(
+	g: LoadedGate,
+	args: string,
+	cwd = project(),
+): Promise<string> {
+	const ui = uiContext(cwd);
+	await g.runCommand("bouncer", `explain ${args}`, ui.ctx);
+	return ui.notices.map((n) => n.message).join("\n");
+}
+
+test("explain read shows the deciding group and every spelling", async () => {
+	const g = await gate();
+	const out = await explainOut(g, "read ~/.ssh/id_ed25519");
+	// Broad to narrow: path-keys matches the name too, and path-ssh decides.
+	assert.match(out, /^matches: path-keys \(deny\), path-ssh \(deny\)$/m);
+	assert.match(out, new RegExp(`spellings: .*${HOME}/\\.ssh/id_ed25519`));
+	assert.match(out, /YOLO: allow/);
+});
+
+test("explain write shows an ask with and without a UI", async () => {
+	const g = await gate();
+	const out = await explainOut(g, "write .git/config");
+	assert.match(out, /with UI: ask \(path-git\)/);
+	assert.match(out, /without UI: deny \(path-git\)/);
+});
+
+test("explain lists every match in order so a carve-out is visible", async () => {
+	const g = await gate({
+		rules: [
+			{
+				name: "hooks",
+				paths: ["**/.git/hooks/**"],
+				level: { write: "allow" },
+				summary: "hooks",
+			},
+		],
+	});
+	const out = await explainOut(g, "write .git/hooks/pre-commit");
+	assert.match(out, /matches: path-git \(ask\), hooks \(allow\)/);
+	assert.match(out, /with UI: allow/);
+});
+
+test("explain of a bash command is unchanged", async () => {
+	const g = await gate();
+	const out = await explainOut(g, "rm -rf x");
+	assert.match(out, /recursive-rm/);
+});
+
+test("explain grep replays a search, so the folder it searches is checked", async () => {
+	const g = await gate();
+	const read = await explainOut(g, `read ${HOME}`);
+	assert.match(read, /matches: none/);
+	const grep = await explainOut(g, "grep ~");
+	assert.match(grep, /matches: .*path-ssh \(deny\)/);
+	assert.match(grep, /YOLO: allow/);
+});
+
+test("explain of a path that doesn't exist still prints its spellings", async () => {
+	const g = await gate();
+	const out = await explainOut(g, "read ~/.ssh/new/id_rsa");
+	assert.match(out, new RegExp(`spellings: .*${HOME}/\\.ssh/new/id_rsa`));
+	assert.match(out, /^matches: .*path-ssh \(deny\)$/m);
+});
+
+test("explain write of the bouncer's own config is denied in every mode", async () => {
+	const g = await gate();
+	const out = await explainOut(g, `write ${join(g.agentDir, "bouncer.json")}`);
+	assert.match(out, /matches: path-bouncer \(deny\)/);
+	assert.match(out, /YOLO: deny \(path-bouncer\)/);
+	assert.match(out, /auto: deny \(path-bouncer\)/);
+});
+
+test("explain opens no dialog, logs nothing and leaves the mode alone", async () => {
+	const g = await gate();
+	await explainOut(g, "write .git/config");
+	assert.equal(g.mode.mode, "off");
+	assert.deepEqual(
+		g.records().filter((record) => record.type === "call"),
+		[],
+	);
+});
+
+test("explain -- keeps the bash meaning of read", async () => {
+	const g = await gate();
+	const bash = await explainOut(g, "-- read x");
+	assert.match(bash, /no rule matched/);
+	const file = await explainOut(g, "read x");
+	assert.match(file, /^read x$/m);
+	assert.match(file, /^spellings: .*\/x$/m);
+});
+
+test("bouncer rules lists path groups with both levels", async () => {
+	const g = await gate();
+	const ui = uiContext();
+	await g.runCommand("bouncer", "rules", ui.ctx);
+	const out = ui.notices.map((n) => n.message).join("\n");
+	assert.match(out, /path-env \(read deny, write ask\): .*matches \.env\*/);
+	assert.match(out, /path-system \(read allow, write ask\)/);
+});
+
+test("bouncer rules lists custom path rules after the built-in groups", async () => {
+	const g = await gate({
+		rules: [
+			{
+				name: "hooks",
+				paths: ["**/.git/hooks/**"],
+				level: { write: "allow" },
+				summary: "hooks",
+			},
+		],
+	});
+	const ui = uiContext();
+	await g.runCommand("bouncer", "rules", ui.ctx);
+	const out = ui.notices.map((n) => n.message).join("\n");
+	assert.match(out, /Custom path rules \(after the built-in groups\):/);
+	assert.match(
+		out,
+		/hooks \(read off, write allow\): hooks; matches \*\*\/\.git\/hooks\/\*\*/,
+	);
+});
+
+test("explain.ts replays a file call when the first word is a tool", () => {
+	const where = [
+		"--agent-dir",
+		tempAgentDir(),
+		"--cwd",
+		project(),
+		"--trusted",
+	];
+	const read = runArgs([...where, "read", "~/.ssh/id_ed25519"]);
+	assert.equal(read.status, 0, read.stderr);
+	const lines = read.stdout.split("\n");
+	assert.equal(lines[0], "read ~/.ssh/id_ed25519");
+	assert.ok(lines.includes("matches: path-keys (deny), path-ssh (deny)"));
+	assert.ok(lines.includes("with UI: deny (path-ssh)"));
+	assert.match(
+		read.stdout,
+		new RegExp(`^spellings: .*${HOME}/\\.ssh/id_ed25519$`, "m"),
+	);
+});
+
+test("explain.ts --json returns the file explanation", () => {
+	const where = [
+		"--agent-dir",
+		tempAgentDir(),
+		"--cwd",
+		project(),
+		"--trusted",
+	];
+	const result = runArgs([...where, "--json", "write", ".git/config"]);
+	assert.equal(result.status, 0, result.stderr);
+	const json = JSON.parse(result.stdout);
+	assert.equal(json.tool, "write");
+	assert.equal(json.direction, "write");
+	assert.deepEqual(json.matches, [
+		{ rule: "path-git", level: "ask", source: ".git/config" },
+	]);
+	assert.deepEqual(json.withUI, { kind: "ask", rule: "path-git" });
+	assert.deepEqual(json.trust, { trusted: true, source: "--trusted" });
+});
+
+test("explain.ts -- keeps the bash meaning of read", () => {
+	const result = runArgs([
+		"--agent-dir",
+		tempAgentDir(),
+		"--cwd",
+		project(),
+		"--trusted",
+		"--",
+		"read",
+		"x",
+	]);
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stdout, /^no rule matched$/m);
+});
+
+test("explain.ts needs exactly one path after the tool", () => {
+	const result = runArgs(["read"]);
+	assert.equal(result.status, 2);
+	assert.match(result.stderr, /read\|write\|grep\|find\|ls/);
 });

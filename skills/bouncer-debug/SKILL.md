@@ -413,6 +413,9 @@ holds it.
    running bouncer's memory, and it reads the config as it is now, not as the
    session saw it.
 
+   A file call replays the same way: `explain read <path>`, `explain
+   write <path>`, or `explain grep|find|ls <path>` for a search.
+
 ## More recipes
 
 ```bash

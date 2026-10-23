@@ -8,11 +8,22 @@
 import type { Direction, FileAccess } from "../file-call.ts";
 import { realOf, type Spellings } from "../path-spellings.ts";
 import type { Match, Ranking } from "../rank.ts";
-import { pathDenied, pathSteerDenied, pathUnanswered } from "../verdict.ts";
+import {
+	pathDenied,
+	pathSteerDenied,
+	pathUnanswered,
+	type RuleName,
+} from "../verdict.ts";
 import { alwaysDenySet } from "./built-in-policy.ts";
 import { pathGroups } from "./path-groups.ts";
 import type { PathPattern, PathWhere } from "./path-patterns.ts";
-import { BOUNCER, type PathEntry, type PathRule, type Policy } from "./rule.ts";
+import {
+	BOUNCER,
+	type PathEntry,
+	type PathLevel,
+	type PathRule,
+	type Policy,
+} from "./rule.ts";
 
 export type FileMode = "normal" | "yolo" | "auto";
 
@@ -249,6 +260,46 @@ export function touchesSecret(paths: Spellings, where: PathWhere): boolean {
 	return SECRET_GROUPS.some(({ rule }) =>
 		paths.all.some((path) => covers(rule, path, wheres)),
 	);
+}
+
+/**
+ * A path entry that matched, at the level it matched with: an `allow` too, so
+ * a carve-out shows after the rule it carves out of.
+ */
+export type PathMatch = {
+	readonly rule: RuleName;
+	readonly level: Exclude<PathLevel, "off">;
+	readonly source: string;
+};
+
+/**
+ * Every path entry that matched, in policy order, so a later `allow` shows
+ * after the rule it carves out of. Only `/bouncer explain` reads this list;
+ * `rankFile` still decides.
+ */
+export function fileMatches(
+	access: FileAccess,
+	paths: Spellings,
+	policy: Policy,
+	where: PathWhere,
+): PathMatch[] {
+	const { direction } = access;
+	const wheres = wheresOf(where);
+	const matches: PathMatch[] = [];
+	for (const entry of policy) {
+		if (entry.kind !== "path") continue;
+		const level = entry.levels[direction];
+		if (level === "off") continue;
+		const covered = paths.all.some((path) => covers(entry.rule, path, wheres));
+		const found =
+			covered ||
+			(access.search &&
+				paths.all.some((path) => scoped(entry.rule, path, wheres)));
+		if (found) {
+			matches.push({ rule: entry.rule.name, level, source: paths.typed });
+		}
+	}
+	return matches;
 }
 
 export function rankFile(
