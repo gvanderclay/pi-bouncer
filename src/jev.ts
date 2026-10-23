@@ -273,13 +273,13 @@ export function classify(call: JevCall, cutoffs: JevCutoffs): JevAnswer {
 /**
  * Jev's cutoffs for file calls, used in place of `auto.jev`'s; the allow score
  * is 1 − the file deny score. Read at each call, so a test can set them.
- * Until a bench run measures them, `allowAt` above 1 and no `denyAt` leave
- * every file call to the judge list.
+ * Evidence and the chosen margin: docs/design-notes.md,
+ * "Jev cutoffs for file calls".
  */
 export const FILE_JEV_CUTOFFS: {
 	readonly allowAt: number;
 	readonly denyAt: number | null;
-} = { allowAt: 1.01, denyAt: null };
+} = { allowAt: 1.01, denyAt: 0.99 };
 
 export type FileJevReading = FileDenyAnswers & { readonly unsafe: number };
 

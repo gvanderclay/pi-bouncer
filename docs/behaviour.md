@@ -413,9 +413,12 @@ is combined as for bash: harmful, asked to keep, a secrets file, or a
 credential at 0.7 or more cap routine and asked for. The allow score is
 always 1 minus that deny score. File calls use their own built-in cutoffs,
 not `auto.jev`'s `allowAt`, `denyAt` or `allowFrom`, which apply to bash
-alone. Until a bench run measures those cutoffs they are set so that Jev
-never allows or denies a file call: every file ask still reaches the judge
-list, with Jev's answers in the log record.
+alone. The file cutoffs are `allowAt: 1.01` and `denyAt: 0.99`: Jev never
+allows a file call, denies at or above a 0.99 deny score, and leaves the rest
+to the judge list. The `other` and failure safeguards above still apply.
+The user-run bench evidence and its limits are in `design-notes.md`,
+"Jev cutoffs for file calls". Jev's answers stay in the log record;
+removing `auto.jev` skips Jev for file calls and bash alike.
 
 ## The log
 

@@ -283,6 +283,68 @@ test("Jev settles a clearly safe file write before the judge list", async (t) =>
 	assert.equal(autoVerdict(g.records().at(-1)), "allow");
 });
 
+test("the default file cutoffs never allow even a 1.00 allow score", async (t) => {
+	const sent = stubJev(
+		t,
+		fileJevReply({ ...SAFE_EDIT, contains_secret: 0 }, 1),
+	);
+	const { gate: g, fake } = await jevGate(
+		verdict("deny", "judge still decides"),
+	);
+	const r = await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		noUI(fake),
+	);
+	assert.equal(r?.block, true);
+	assert.match(r?.reason ?? "", /judge still decides/);
+	assert.equal(fake.requests.length, 1);
+	assert.equal(sent.length, 1);
+});
+
+test("the default file cutoffs leave a deny score just below 0.99 to the judge list", async (t) => {
+	const reply = JSON.parse(fileJevReply(SAFE_EDIT));
+	reply.answers.effect.probabilities = {
+		routine: 0.011,
+		destroys_or_shared: 0,
+		harmful: 0.989,
+		other: 0,
+	};
+	const sent = stubJev(t, JSON.stringify(reply));
+	const { gate: g, fake } = await jevGate(
+		verdict("allow", "judge still decides"),
+	);
+	const r = await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		noUI(fake),
+	);
+	assert.equal(r, undefined);
+	assert.equal(fake.requests.length, 1);
+	assert.equal(sent.length, 1);
+	assert.equal(autoVerdict(g.records().at(-1)), "allow");
+});
+
+test("the default file cutoffs deny at exactly 0.99 without asking the judge list", async (t) => {
+	const reply = JSON.parse(fileJevReply(SAFE_EDIT));
+	reply.answers.effect.probabilities = {
+		routine: 0.01,
+		destroys_or_shared: 0,
+		harmful: 0.99,
+		other: 0,
+	};
+	const sent = stubJev(t, JSON.stringify(reply));
+	const { gate: g, fake } = await jevGate(
+		verdict("allow", "should not be asked"),
+	);
+	const r = await g.handler(
+		fileCall("write", { path: ".git/config", content: "" }),
+		noUI(fake),
+	);
+	assert.equal(r?.block, true);
+	assert.deepEqual(fake.requests, []);
+	assert.equal(sent.length, 1);
+	assert.equal(autoVerdict(g.records().at(-1)), "deny");
+});
+
 test("with the placeholder cutoffs, file asks still reach the judge list", async (t) => {
 	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 1.01);
 	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);

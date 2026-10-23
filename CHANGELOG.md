@@ -45,10 +45,13 @@ follows [Semantic Versioning](https://semver.org/).
   whether the change holds a real credential, its effect and what the user
   asked for) and its own cutoffs, which replace `auto.jev`'s `allowAt`,
   `denyAt` and `allowFrom` for file calls. A secret group's change is kept
-  from Jev as from the judge. The shipped file cutoffs let Jev neither allow
-  nor deny, so every file ask still reaches the judge list until a bench run
-  measures them; the Jev call and its answers are logged. Before this, Jev
-  was never asked about a file call; removing `auto.jev` keeps it that way
+  from Jev as from the judge. The shipped file cutoffs are `allowAt: 1.01`
+  (never allow) and `denyAt: 0.99`: Jev denies at or above 0.99 and leaves
+  everything else to the judge list, with the existing `other` and failure
+  safeguards unchanged. These replace the initial no-decision placeholder;
+  bash cutoffs are unchanged. The user-run bench evidence and its limits
+  are in `docs/design-notes.md`; the Jev call and its answers are logged.
+  Before this, Jev was never asked about a file call; removing `auto.jev` keeps it that way
   (and turns Jev off for bash too). `bench.ts jev --cases file` runs 43
   file-call cases.
 
