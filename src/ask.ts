@@ -19,8 +19,12 @@ export type Ask = {
 	readonly rule: RuleName;
 	readonly summary: string;
 	readonly source: string;
-	/** Shown below the source, outside the session-allow key: an MCP call's arguments or a file call's diff. */
-	readonly detail?: string;
+	/**
+	 * Shown below the source, outside the session-allow key: an MCP call's
+	 * arguments or a file call's diff. A function is called only when the
+	 * dialog opens, so a diff is read only then.
+	 */
+	readonly detail?: string | (() => string | undefined);
 };
 
 const ALLOW_ONCE = "Allow once";
@@ -57,7 +61,8 @@ function title(
 ): string {
 	const counter = count > 1 ? ` — ${index + 1} of ${count}` : "";
 	const line = note === undefined ? "" : `\n${note}`;
-	const detail = ask.detail === undefined ? "" : `\n${ask.detail}`;
+	const shown = typeof ask.detail === "function" ? ask.detail() : ask.detail;
+	const detail = shown === undefined ? "" : `\n${shown}`;
 	// A file call's heading names the tool, the typed path and the real one.
 	const source = clip(heading ?? ask.source);
 	return `Bouncer: ${ask.summary} (rule: ${ask.rule})${counter}${line}\n${source}${detail}`;

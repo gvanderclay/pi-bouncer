@@ -4,8 +4,11 @@ import assert from "node:assert/strict";
 import {
 	chmodSync,
 	mkdirSync,
+	readFileSync,
 	realpathSync,
+	statSync,
 	symlinkSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -622,4 +625,74 @@ test("a write to a device opens the dialog instead of reading it for a diff", as
 	assert.equal(r?.block, true);
 	assert.equal(ui.dialogs.length, 1);
 	assert.match(JSON.stringify(ui.dialogs[0]), /not a regular file/);
+});
+
+// The only sign of a read that a test can see is the access time, so a file
+// system that does not keep one skips these.
+const OLD = new Date("2020-01-01T00:00:00Z");
+
+function stamp(path: string): void {
+	utimesSync(path, OLD, new Date());
+}
+
+function keptAtime(
+	t: { skip: (reason: string) => void },
+	path: string,
+): boolean {
+	stamp(path);
+	readFileSync(path);
+	const moved = statSync(path).atimeMs !== OLD.getTime();
+	stamp(path);
+	if (!moved) t.skip("this file system does not update a file's access time");
+	return moved;
+}
+
+test("a dialog's diff reads the existing file, and a session allow does not", async (t) => {
+	const dir = project();
+	mkdirSync(join(dir, ".git"));
+	const path = join(dir, ".git/config");
+	writeFileSync(path, "old\n");
+	if (!keptAtime(t, path)) return;
+	const g = await gate();
+	const first = scriptedUI(["Allow for this session"], dir);
+	await g.handler(
+		fileCall("write", { path: ".git/config", content: "new\n" }),
+		first.ctx,
+	);
+	assert.equal(first.dialogs.length, 1);
+	assert.match(JSON.stringify(first.dialogs[0]), /-old\\n\+new/);
+	stamp(path);
+	const second = scriptedUI([], dir);
+	assert.equal(
+		await g.handler(
+			fileCall("write", { path: ".git/config", content: "newer\n" }),
+			second.ctx,
+		),
+		undefined,
+	);
+	assert.equal(second.dialogs.length, 0, "the session allow covered the write");
+	assert.equal(
+		statSync(path).atimeMs,
+		OLD.getTime(),
+		"a session-allowed write read the file for a diff",
+	);
+});
+
+test("a write with no UI is blocked without reading the file for a diff", async (t) => {
+	const dir = project();
+	mkdirSync(join(dir, ".git"));
+	const path = join(dir, ".git/config");
+	writeFileSync(path, "old\n");
+	if (!keptAtime(t, path)) return;
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("write", { path: ".git/config", content: "new\n" }),
+		fakeContext(dir),
+	);
+	assert.equal(r?.block, true);
+	assert.equal(
+		statSync(path).atimeMs,
+		OLD.getTime(),
+		"a write nobody can answer read the file for a diff",
+	);
 });

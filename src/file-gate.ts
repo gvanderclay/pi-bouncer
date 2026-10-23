@@ -97,16 +97,14 @@ async function decidedFor(
 			? autoDecided(ranked, ranking, command, call, allowed)
 			: decided(ranked, command, call, allowed);
 	}
-	const detail = fileDiff(access, paths.real);
+	const detail = (): string | undefined =>
+		fileDiff(access, paths.real) || undefined;
 	return decideToolAsk({
 		...call,
 		...judgedBy(access, paths, call, where),
 		command,
 		title: heading(access, paths),
-		asks:
-			detail === ""
-				? ranked.asks
-				: ranked.asks.map((ask) => ({ ...ask, detail })),
+		asks: ranked.asks.map((ask) => ({ ...ask, detail })),
 		fallback: ranked.fallback,
 		judged: call.judgeFile !== undefined,
 	});

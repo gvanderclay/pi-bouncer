@@ -96,10 +96,11 @@ follows [Semantic Versioning](https://semver.org/).
   `+` lines of an `edit`, a line diff for a `write` to an existing file, or
   `new file` and its first lines. "Allow for this session" covers that exact
   real path in that direction only, so allowing `.git/config` does not open
-  `.git/hooks`. A diff never reads a path that is not a regular file, or a
-  file over 1 MiB; the dialog shows a note there instead, so a write to
-  `/dev/zero` or a FIFO cannot hang the bouncer. With no UI the call is
-  blocked, as an MCP ask is. YOLO mode lets a path ask or deny through, as it
+  `.git/hooks`. The diff is read only when the dialog opens, so a session
+  allow, a judge and YOLO mode never read the file. It never reads a path
+  that is not a regular file, or a file over 1 MiB; the dialog shows a note
+  there instead, so a write to `/dev/zero` or a FIFO cannot hang the bouncer.
+  With no UI the call is blocked, as an MCP ask is. YOLO mode lets a path ask or deny through, as it
   does for bash.
 - New path groups, each with the one line in `levels` that turns it off:
   `path-keys` (`*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, except `*.pub`):
