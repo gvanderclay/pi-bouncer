@@ -14,6 +14,9 @@ export type PathPattern = {
 
 const WILDCARD = /[*?]/;
 
+// Every pattern regex is compiled with the dot-all flag ("s"): a file name may
+// hold a newline, and `**` must cross it like any other character.
+
 function escaped(text: string): string {
 	return text.replace(/[\\^$.|+()[\]{}*?]/g, "\\$&");
 }
@@ -63,7 +66,7 @@ export function compilePattern(source: string): PathPattern | undefined {
 	// A leading `**/` matches in every folder on disk, as gitignore's does in
 	// every folder below the file.
 	if (source.startsWith("**/")) {
-		const whole = new RegExp(`^/${globBody(source)}$`);
+		const whole = new RegExp(`^/${globBody(source)}$`, "s");
 		return {
 			source,
 			anchor: "any",
@@ -71,7 +74,7 @@ export function compilePattern(source: string): PathPattern | undefined {
 		};
 	}
 	if (!source.includes("/")) {
-		const name = new RegExp(`^${globBody(source)}$`);
+		const name = new RegExp(`^${globBody(source)}$`, "s");
 		return {
 			source,
 			anchor: "any",
@@ -100,7 +103,7 @@ export function compilePattern(source: string): PathPattern | undefined {
 		test: (path: string, where: PathWhere): boolean => {
 			const dir = anchorDir(anchor, where);
 			const prefix = dir.endsWith("/") ? dir : `${dir}/`;
-			return new RegExp(`^${escaped(prefix)}${bodyRe}$`).test(path);
+			return new RegExp(`^${escaped(prefix)}${bodyRe}$`, "s").test(path);
 		},
 	};
 }

@@ -1,7 +1,7 @@
 // Path rules on Pi's file tools, driven through the tool_call handler with a
 // temporary HOME.
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileCall, tempHome } from "../test/file-harness.ts";
@@ -74,6 +74,17 @@ for (const spelled of [
 		assert.equal(r?.block, true);
 	});
 }
+
+test("a file under ~/.ssh with a newline in its name is still denied", async () => {
+	const name = "key\nprivate";
+	writeFileSync(join(HOME, ".ssh", name), "not a real key\n");
+	const g = await gate();
+	const r = await g.handler(
+		fileCall("read", { path: join(HOME, ".ssh", name) }),
+		fakeContext(project()),
+	);
+	assert.equal(r?.block, true);
+});
 
 test("a key that doesn't exist yet under ~/.ssh is still denied", async () => {
 	const g = await gate();

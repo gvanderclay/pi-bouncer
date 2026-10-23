@@ -27,6 +27,13 @@ const cases: [string, string, boolean][] = [
 	["**/.git/**", "/elsewhere/repo/.gitx/config", false],
 	["id_rsa*", "/h/backup/id_rsa.old", true],
 	["a.b", "/p/aXb", false],
+	// A file name may hold a newline; every wildcard but `/` must cross it.
+	["~/.ssh/**", "/h/.ssh/key\nprivate", true],
+	["**/.git/**", "/r\n/.git/config", true],
+	["docs/**", "/p/docs/a\n/b.md", true],
+	["*.pem", "/a/k\ney.pem", true],
+	["id_rsa?x", "/h/id_rsa\nx", true],
+	["docs/*", "/p/docs/a\nb", true],
 ];
 for (const [pattern, path, want] of cases) {
 	test(`${pattern} ${want ? "matches" : "doesn't match"} ${path}`, () => {
