@@ -18,9 +18,8 @@ follows [Semantic Versioning](https://semver.org/).
   `**/.git/hooks/**` lets hooks through `path-git`. `path-bouncer` still
   wins over every rule. An untrusted project may add only `ask` or `deny`
   path rules, and they are raise-only: they can make a path stricter but never
-  lower a deny before them. A rule name starting with `path-`, which used to
-  be allowed for a bash rule, is now a problem: the prefix is kept for path
-  groups. A root-anchored path pattern (built-in or custom) whose leading
+  lower a deny before them. A path rule's name may not start with `path-`,
+  which is kept for path groups. A root-anchored path pattern (built-in or custom) whose leading
   folders are a symlink now also matches the real path below it.
 
 - Path groups in `levels` take a level per direction. A plain level sets both,

@@ -184,8 +184,8 @@ the user config may set it.
 `paths` (a path rule, see [Path rules](#path-rules)), never both. Each one
 has:
 
-- `name`: lowercase, not the name of a built-in rule, and not starting with
-  `path-`, which is kept for path groups.
+- `name`: lowercase, and not the name of a built-in rule. A path rule's name
+  may not start with `path-`, which is kept for path groups.
 - `command`: a program name, or a list of them. `/usr/bin/kubectl` matches
   `kubectl`.
 - `args` (optional): arguments that must all follow the command, in order,

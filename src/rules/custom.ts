@@ -195,7 +195,7 @@ function entryProblem(entry: unknown, at: number): string {
 	if (typeof name !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
 		return `${here}: "name" must be lowercase letters, digits and dashes`;
 	}
-	if (name.startsWith("path-")) {
+	if (paths !== undefined && name.startsWith("path-")) {
 		return `rules: "${name}": names starting with "path-" are kept for built-in path groups`;
 	}
 	if (builtInEntries.has(name) || name === "always-ask") {

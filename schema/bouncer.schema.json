@@ -431,13 +431,18 @@
 					},
 					{
 						"required": ["paths"],
-						"properties": { "paths": true, "command": false, "args": false }
+						"properties": {
+							"name": { "type": "string", "pattern": "^(?!path-)" },
+							"paths": true,
+							"command": false,
+							"args": false
+						}
 					}
 				],
 				"properties": {
 					"name": {
 						"type": "string",
-						"pattern": "^(?!path-)[a-z0-9][a-z0-9-]*$",
+						"pattern": "^[a-z0-9][a-z0-9-]*$",
 						"not": {
 							"enum": [
 								"always-ask",
@@ -487,7 +492,7 @@
 								"path-git-credentials"
 							]
 						},
-						"description": "Shown in messages, dialogs and the log. Lowercase letters, digits and dashes; not a built-in rule's name, and not starting with path-."
+						"description": "Shown in messages, dialogs and the log. Lowercase letters, digits and dashes; not a built-in rule's name; a path rule's name does not start with path-."
 					},
 					"command": {
 						"description": "A program name, or a list of them. /usr/bin/grep matches grep.",

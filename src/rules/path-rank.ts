@@ -77,7 +77,8 @@ function holds(parent: string, child: string): boolean {
 
 // The pattern is anchored, so its fixed leading folders say where it sits: a
 // search of the folder above them reaches it. Patterns that match at any
-// depth are left out, or every project search would fire on `.env`.
+// depth are left out, or every project search would fire on `.env`. A pattern
+// from `/` is also placed at its real folder, as `rootMatch` does.
 function scoped(
 	rule: PathRule,
 	path: string,
@@ -86,7 +87,11 @@ function scoped(
 	return rule.patterns.some((pattern) => {
 		const { base } = pattern;
 		if (base === undefined) return false;
-		return wheres.some((where) => holds(path, base(where)));
+		return wheres.some((where) => {
+			const at = base(where);
+			if (holds(path, at)) return true;
+			return pattern.anchor === "root" && holds(path, realOf(at));
+		});
 	});
 }
 

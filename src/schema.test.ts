@@ -118,6 +118,7 @@ const VALID: readonly unknown[] = [
 			},
 		},
 	},
+	{ rules: [{ name: "path-deploy", command: "kubectl", summary: "s" }] },
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
 	{ trustAgentMade: false },

@@ -8,6 +8,7 @@ import { test } from "node:test";
 import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { fileCall, tempHome } from "../test/file-harness.ts";
 import {
+	bashCall,
 	fakeContext,
 	type LoadedGate,
 	loadGateSession,
@@ -732,4 +733,47 @@ test("an untrusted project's profile path rule can't lower path-ssh", async () =
 	);
 	assert.equal(ui.dialogs.length, 0);
 	assert.match(r?.reason ?? "", /\(rule: path-ssh\)/);
+});
+
+test("a search of the real folder reaches a rule written through a symlink", async () => {
+	const dir = project();
+	mkdirSync(join(dir, "real", "protected"), { recursive: true });
+	symlinkSync(join(dir, "real"), join(dir, "link"));
+	const g = await gate({
+		rules: [
+			{
+				name: "linked",
+				paths: [`${dir}/link/protected/**`],
+				level: "deny",
+				summary: "x",
+			},
+		],
+	});
+	const r = await g.handler(
+		fileCall("grep", { pattern: "x", path: join(dir, "real") }),
+		fakeContext(dir),
+	);
+	assert.match(r?.reason ?? "", /\(rule: linked\)/);
+});
+
+test("a bash rule named path-… still loads and denies", async () => {
+	const g = await gate({
+		rules: [
+			{
+				name: "path-deploy",
+				command: "kubectl",
+				args: ["delete"],
+				level: "deny",
+				summary: "cluster deletion",
+			},
+		],
+	});
+	const ui = uiContext();
+	await g.runCommand("bouncer", "check", ui.ctx);
+	assert.match(messages(ui.notices), /No config problems/);
+	const r = await g.handler(
+		bashCall("kubectl delete pod x"),
+		fakeContext(project()),
+	);
+	assert.match(r?.reason ?? "", /\(rule: path-deploy\)/);
 });
