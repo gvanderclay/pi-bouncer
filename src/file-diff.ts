@@ -62,7 +62,16 @@ type Existing =
 // A file that can't be read for the diff still opens the dialog, with a note.
 function readExisting(real: string): Existing {
 	try {
-		if (statSync(real).size > MAX_READ_BYTES) {
+		const stat = statSync(real);
+		// A device or a FIFO has a size of 0 and never reaches EOF, so reading
+		// it would hang the gate or fill memory.
+		if (!stat.isFile()) {
+			return {
+				kind: "note",
+				note: "(the existing path is not a regular file)",
+			};
+		}
+		if (stat.size > MAX_READ_BYTES) {
 			return {
 				kind: "note",
 				note: `(the existing file is too large to show, over ${MAX_READ_BYTES} bytes)`,

@@ -69,3 +69,9 @@ test("the detail is cut to 2,000 characters", () => {
 test("a read has no detail", () => {
 	assert.equal(fileDiff(access(undefined, "read"), "/nowhere"), "");
 });
+
+test("a device that never ends is a note, not a read that hangs", () => {
+	const diff = fileDiff(write("x\n"), "/dev/zero");
+	assert.match(diff, /not a regular file/);
+	assert.match(diff, /\+x/);
+});

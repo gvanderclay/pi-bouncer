@@ -516,3 +516,15 @@ for (const file of [
 		assert.match(r?.reason ?? "", /\(rule: path-keys\)/);
 	});
 }
+
+test("a write to a device opens the dialog instead of reading it for a diff", async () => {
+	const g = await gate();
+	const ui = scriptedUI(["Deny"], project());
+	const r = await g.handler(
+		fileCall("write", { path: "/dev/zero", content: "x\n" }),
+		ui.ctx,
+	);
+	assert.equal(r?.block, true);
+	assert.equal(ui.dialogs.length, 1);
+	assert.match(JSON.stringify(ui.dialogs[0]), /not a regular file/);
+});

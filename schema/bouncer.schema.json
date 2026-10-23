@@ -262,71 +262,71 @@
 				},
 				"path-system": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: system folders such as /etc, /usr and /Library change software for the whole machine. Sets reads and writes of them by Pi's file tools: reads allow, writes ask. Built-in level: ask."
+					"description": "path group: system folders such as /etc, /usr and /Library change software for the whole machine. Sets both directions of Pi's file tools. Built-in levels: read allow, write ask."
 				},
 				"path-git": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: any .git folder holds the repository's config, hooks and history. Sets reads and writes of it by Pi's file tools: reads allow, writes ask. Built-in level: ask."
+					"description": "path group: any .git folder holds the repository's config, hooks and history. Sets both directions of Pi's file tools. Built-in levels: read allow, write ask."
 				},
 				"path-shell-rc": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: shell startup files (.zshrc, .bashrc, .profile and the like, and ~/.config/fish/config.fish) run on every new shell. Sets reads and writes of them by Pi's file tools: reads allow, writes ask. Built-in level: ask."
+					"description": "path group: shell startup files (.zshrc, .bashrc, .profile and the like, and ~/.config/fish/config.fish) run on every new shell. Sets both directions of Pi's file tools. Built-in levels: read allow, write ask."
 				},
 				"path-keys": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: private keys and certificates (*.pem, *.key, id_rsa*, id_ed25519*, except *.pub) anywhere on disk. Sets reads and writes of them by Pi's file tools. Built-in level: deny."
+					"description": "path group: private keys and certificates (*.pem, *.key, id_rsa*, id_ed25519*, except *.pub) anywhere on disk. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-ssh": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.ssh holds SSH keys and their settings. Sets reads and writes of ~/.ssh by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.ssh holds SSH keys and their settings. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-gnupg": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.gnupg holds GPG keys and its trust database. Sets reads and writes of it by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.gnupg holds GPG keys and its trust database. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-aws": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.aws holds AWS credentials and settings. Sets reads and writes of it by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.aws holds AWS credentials and settings. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-gcloud": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.config/gcloud holds Google Cloud credentials. Sets reads and writes of it by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.config/gcloud holds Google Cloud credentials. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-azure": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.azure holds Azure credentials. Sets reads and writes of it by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.azure holds Azure credentials. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-kube": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.kube holds Kubernetes cluster credentials. Sets reads and writes of it by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.kube holds Kubernetes cluster credentials. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-docker": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: ~/.docker/config.json holds registry logins. Sets reads and writes of that file by Pi's file tools. Built-in level: deny."
+					"description": "path group: ~/.docker/config.json holds registry logins. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-pi-auth": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: Pi's auth.json in the agent dir holds the credentials Pi uses for you. Sets reads and writes of that file by Pi's file tools. Built-in level: deny."
+					"description": "path group: Pi's auth.json in the agent dir holds the credentials Pi uses for you. Sets both directions of Pi's file tools. Built-in levels: read deny, write deny."
 				},
 				"path-env": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: .env files hold a project's secrets, except .env.example, .env.sample and .env.template. Sets reads and writes of them by Pi's file tools: reads deny, writes ask. Built-in level: deny."
+					"description": "path group: .env files hold a project's secrets, except .env.example, .env.sample and .env.template. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
 				},
 				"path-npmrc": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: .npmrc holds registry tokens. Sets reads and writes of it by Pi's file tools: reads deny, writes ask. Built-in level: deny."
+					"description": "path group: .npmrc holds registry tokens. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
 				},
 				"path-pypirc": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: .pypirc holds package registry tokens. Sets reads and writes of it by Pi's file tools: reads deny, writes ask. Built-in level: deny."
+					"description": "path group: .pypirc holds package registry tokens. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
 				},
 				"path-netrc": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: .netrc holds server logins. Sets reads and writes of it by Pi's file tools: reads deny, writes ask. Built-in level: deny."
+					"description": "path group: .netrc holds server logins. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
 				},
 				"path-git-credentials": {
 					"enum": ["ask", "deny", "off"],
-					"description": "path group: .git-credentials holds saved git logins. Sets reads and writes of it by Pi's file tools: reads deny, writes ask. Built-in level: deny."
+					"description": "path group: .git-credentials holds saved git logins. Sets both directions of Pi's file tools. Built-in levels: read deny, write ask."
 				}
 			}
 		},
