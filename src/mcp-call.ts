@@ -52,8 +52,7 @@ export function mcpCallIn(
 			? cut(found.description, DESCRIPTION_CHARS)
 			: undefined;
 		judge = judgeFor(args, ctx, rt.holder, rt.session, onSent, {
-			tool: toolName,
-			...(description && { description }),
+			mcp: { tool: toolName, ...(description && { description }) },
 		});
 	}
 	const paused = judging && rt.session.pause.paused;

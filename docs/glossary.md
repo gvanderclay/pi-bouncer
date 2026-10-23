@@ -117,7 +117,7 @@ _Avoid_: permission mode, level
 
 **Auto mode**:
 The bouncer mode in which a judge rules on every ask that no session allow
-covers; MCP calls not on `mcp.allow` are judged too. Rule-level denies, the always-deny set, the unreadable-command denies
+covers; MCP calls not on `mcp.allow` and file accesses a path rule asks about are judged too. Rule-level denies, the always-deny set, the unreadable-command denies
 and the steer rules stay denied. It is turned on by `/auto`, the "🤖 Auto
 mode" dialog choice or `pi --auto`, only when an entry of the judge list
 resolves, and has YOLO mode's lifetime.
@@ -126,11 +126,12 @@ _Avoid_: auto-approve, classifier mode
 **Judge**:
 The model that rules on an auto-mode call: it answers allow, deny with a
 reason, or hand to the user. It sees the command, or for an MCP call the tool name, description and
-arguments, the uncovered asks, a few
+arguments, or for a file access its tool, direction, real path and change
+(left out when a secret path group matches), the uncovered asks, a few
 facts, the user's latest message and up to 10 earlier ones, and the session
 history: the bouncer's own record of the bash commands the agent ran, the
 paths it wrote or edited and the MCP tools it called this session. It never
-sees tool output, file contents or the agent's own messages.
+sees tool output, the contents of files read or the agent's own messages.
 _Avoid_: reviewer, classifier
 
 **Judge list**:

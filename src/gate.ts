@@ -109,6 +109,10 @@ export type Call = {
 	readonly redecide?: () => Promise<Decision> | undefined;
 	readonly ui?: AskUI;
 	readonly signal?: AbortSignal;
+	/** The dialog's title line, when it says more than the ask's source does. */
+	readonly title?: string;
+	/** Set when the judge reads a file call's change: the too-large note names it. */
+	readonly judgesChange?: true;
 };
 
 export type Gate = {
@@ -163,11 +167,12 @@ function unanswered(
 }
 
 function askingFor(command: string, call: Call, allowed: Set<string>): Asking {
-	const { cwd, signal, autoChoice } = call;
+	const { cwd, signal, autoChoice, title } = call;
 	return {
 		command,
 		cwd,
 		allowed,
+		...(title && { title }),
 		...(signal && { signal }),
 		...(autoChoice && { autoChoice }),
 	};
@@ -247,12 +252,15 @@ const NO_JUDGE = "Auto: no judge available";
 function tooLargeNote(
 	tried: readonly JudgeFailure[],
 	open: readonly Ask[],
+	call: Call,
 ): string | undefined {
 	const chars = tried[0]?.chars;
 	if (chars === undefined || tried.some((entry) => entry.chars === undefined)) {
 		return undefined;
 	}
-	const what = open.some((ask) => ask.rule === "mcp") ? "arguments" : "command";
+	let what = "command";
+	if (open.some((ask) => ask.rule === "mcp")) what = "arguments";
+	else if (call.judgesChange) what = "change";
 	return `Auto: ${what} too large for the judge (${chars} characters)`;
 }
 
@@ -318,7 +326,7 @@ export async function autoDecided(
 	}
 	const note =
 		result.kind === "none"
-			? (tooLargeNote(result.tried, open) ?? NO_JUDGE)
+			? (tooLargeNote(result.tried, open, call) ?? NO_JUDGE)
 			: `Judge: ${result.reason}`;
 	return dialogDecided(autoRanking, command, call, allowed, judged, note);
 }

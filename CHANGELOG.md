@@ -8,6 +8,17 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- In auto mode, a file call a path rule asks about goes to the judge list,
+  as bash and MCP asks do: a judge allow runs it with no dialog, a deny blocks
+  it with the judge's reason and counts toward the pause, and a hand-off or
+  no answer opens the dialog. The judge sees the tool, the direction, the
+  real path and, for `write` and `edit`, the change. When the path is in any
+  secret group, such as `path-env`, the change is left out and the request
+  says it was redacted. A change too large for every judge model opens the
+  dialog with `Auto: change too large for the judge (<n> characters)`. Jev is
+  not asked about file calls. Before this, a file ask in auto mode opened the
+  dialog, or was blocked with no UI.
+
 - Custom path rules: a `rules` entry with `paths` (gitignore-style globs) in
   place of `command` decides Pi's file tools. Its `level` is `"allow"`,
   `"ask"`, `"deny"` or `"off"`, or a `{read, write}` object, and `instead`

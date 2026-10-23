@@ -25,6 +25,7 @@ import { configRecord, type GateConfig, loadConfig } from "./config.ts";
 import { readRemotes } from "./facts.ts";
 import { type FileTool, isFileTool } from "./file-call.ts";
 import { decideFile } from "./file-gate.ts";
+import { fileCallIn } from "./file-wiring.ts";
 import { type Call, createGate, type Decision, type ParseFn } from "./gate.ts";
 import {
 	absolutePath,
@@ -306,29 +307,27 @@ async function decideFileCall(
 	tool: FileTool,
 	ctx: ExtensionContext,
 ): Promise<ToolCallEventResult | undefined> {
-	const { mode } = rt.holder;
-	const { paused } = rt.session.pause;
-	const autoChoice = autoChoiceFor(mode, paused, rt.session, ctx);
-	const { decision, access, paths } = await decideFile({
-		...callFrom(ctx, mode, undefined),
-		...(autoChoice && { autoChoice }),
-		tool,
-		input: event.input,
-		policy: rt.session.config?.policy ?? builtInPolicy,
-		agentDir: rt.agentDir,
-		allowed: rt.fileAllowed,
-	});
+	let sent: JudgeSent | undefined;
+	const onSent = (counts: JudgeSent): void => {
+		sent = counts;
+	};
+	const { decision, access, paths } = await decideFile(
+		fileCallIn(rt, event, tool, ctx, onSent),
+	);
 	const path = access && {
 		direction: access.direction,
 		typed: access.path,
 		...(paths && { real: paths.real }),
 	};
 	const command = clip(access ? `${tool} ${access.path}` : tool);
-	return settle(rt, event, ctx, decision, {
-		command,
-		tool,
-		...(path && { path }),
-	});
+	return settle(
+		rt,
+		event,
+		ctx,
+		decision,
+		{ command, tool, ...(path && { path }) },
+		sent,
+	);
 }
 
 // Logs a decision, applies its dialog's mode switch, returns the tool_call result.

@@ -195,7 +195,8 @@ and `path-bouncer`.
 
 A deny blocks the call and tells the model the rule, its summary and the
 path. An ask opens the dialog, and with no UI it is blocked with a reason
-saying no one could answer it. YOLO mode lets a path ask or deny through, as
+saying no one could answer it. In auto mode the judge list decides an ask
+first (see "Auto mode"). YOLO mode lets a path ask or deny through, as
 it does for bash, except a `path-bouncer` write. Session allows, `levels` and profiles work for path rules
 as they do for command rules.
 
@@ -301,12 +302,17 @@ on when no judge-list entry resolves.
 A judge-list entry whose context window cannot fit the request is skipped
 without being sent anything; the estimate is the system prompt plus the
 input, at four characters per token, plus the 2,000-token reply cap and a
-4,096-token margin. When no entry fits, the dialog says the command, or an
-MCP call's arguments, are too large for the judge instead of "no judge
-available".
+4,096-token margin. When no entry fits, the dialog says the command, an
+MCP call's arguments, or a file call's change are too large for the judge
+instead of "no judge available".
 
 An MCP call not on `mcp.allow` is judged like an ask, without Jev, unless
 `mcp.judge` is `false`; its judge denies share the pause with bash.
+
+A file call that a path rule asks about is judged the same way, without Jev,
+and its judge denies share the pause too. A judge allow runs that one call; it
+never adds a session allow. A `path-bouncer` write is denied before any judge
+is asked, as is any path rule set to `deny`.
 
 Some lines are decided before any judge is asked: rule-level denies, the
 always-deny set, unparseable commands and steer rules are denied, and
@@ -325,8 +331,9 @@ allow a call. A steer block never counts toward the pause.
 The judge sees the command, the flagged rules, the working directory, the
 git branch and remotes, your last message in full, up to 10 earlier messages
 of yours (each cut to 1,000 characters, 4,000 in all), the session history,
-and the `auto.environment` facts. It never sees tool output, file contents,
-edit text or the agent's own messages. Literal closing tags inside any of
+and the `auto.environment` facts. It never sees tool output, the contents of
+files the agent reads, or the agent's own messages; a write or edit's own
+change is the one exception, below. Literal closing tags inside any of
 these are escaped. All of this is sent to the providers of the models in the
 judge list.
 
@@ -334,6 +341,17 @@ For an MCP call the judge sees the tool name, the server's description of the
 tool (cut to 2,000 characters), the whole arguments as JSON and the same
 context in place of the command. The description and arguments go to the
 providers of the judge-list models.
+
+For a file call the judge sees, in place of the command, the tool, the
+direction, the real path after symlinks, and the change: the whole content of
+a `write`, or each old and new text of an `edit`. A `read`, `grep`, `find` or
+`ls` has no change. When the path is in any secret group (`path-keys`,
+`path-ssh`, `path-gnupg`, `path-aws`, `path-gcloud`, `path-azure`,
+`path-kube`, `path-docker`, `path-pi-auth`, `path-env`, `path-npmrc`,
+`path-pypirc`, `path-netrc` or `path-git-credentials`), whichever group
+decided the call and whatever their levels, the change is left out and the
+judge is told it was redacted, so a write to `.env` or to `.git/.env` sends
+no content. The change goes to the providers of the judge-list models.
 
 The session history is the bouncer's own record of what the agent ran: every
 bash command Pi executed, with its working directory, the absolute path

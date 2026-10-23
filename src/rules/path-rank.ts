@@ -10,6 +10,7 @@ import { realOf, type Spellings } from "../path-spellings.ts";
 import type { Match, Ranking } from "../rank.ts";
 import { pathDenied, pathSteerDenied, pathUnanswered } from "../verdict.ts";
 import { alwaysDenySet } from "./built-in-policy.ts";
+import { pathGroups } from "./path-groups.ts";
 import type { PathPattern, PathWhere } from "./path-patterns.ts";
 import { BOUNCER, type PathEntry, type PathRule, type Policy } from "./rule.ts";
 
@@ -234,6 +235,20 @@ function walked(
 	return access.search
 		? stricter(direct, inScope(paths, direction, policy, wheres))
 		: direct;
+}
+
+const SECRET_GROUPS = pathGroups().filter((group) => group.secret);
+
+/**
+ * Whether any spelling is in a secret group, whichever group decided and
+ * whatever the groups' levels: a group the user turned off still names a
+ * file that holds secrets.
+ */
+export function touchesSecret(paths: Spellings, where: PathWhere): boolean {
+	const wheres = wheresOf(where);
+	return SECRET_GROUPS.some(({ rule }) =>
+		paths.all.some((path) => covers(rule, path, wheres)),
+	);
 }
 
 export function rankFile(

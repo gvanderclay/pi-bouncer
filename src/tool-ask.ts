@@ -1,5 +1,5 @@
-// A tool call with no shell string to rule on (an MCP call today, a file call
-// later) once its own allow-list check has passed: in auto mode the judge
+// A tool call with no shell string to rule on (an MCP call or a file call)
+// once its own allow-list check has passed: in auto mode the judge
 // rules unless the call says not to be judged, otherwise a session allow or
 // the dialog decides, and with no UI the call is blocked.
 import {
@@ -22,8 +22,6 @@ import type { Verdict } from "./verdict.ts";
 export type ToolAsk = Call & {
 	/** What the dialog, the log and the session-allow key name: an MCP tool name, or a file call's "<direction> <real path>". */
 	readonly command: string;
-	/** The dialog's title line, when it says more than the ask's source does. */
-	readonly title?: string;
 	readonly asks: readonly Ask[];
 	/** The block when no one can answer, and the judge's fallback. */
 	readonly fallback: Verdict;
