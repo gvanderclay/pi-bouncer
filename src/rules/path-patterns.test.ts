@@ -21,6 +21,10 @@ const cases: [string, string, boolean][] = [
 	["/etc/**", "/etcx/hosts", false],
 	["**/.git/**", "/p/a/.git/hooks/pre-commit", true],
 	["**/.git/**", "/p/a/.github/x", false],
+	["**/.git/**", "/elsewhere/repo/.git/config", true],
+	["**/.git/**", "/p/.git/config", true],
+	["**/.git/**", "/.git/config", true],
+	["**/.git/**", "/elsewhere/repo/.gitx/config", false],
 	["id_rsa*", "/h/backup/id_rsa.old", true],
 	["a.b", "/p/aXb", false],
 ];
@@ -40,4 +44,5 @@ test("an anchored pattern's base is its folders before the first wildcard", () =
 	assert.equal(compilePattern("/etc/**")?.base?.(W), "/etc");
 	assert.equal(compilePattern("docs/*/x")?.base?.(W), "/p/docs");
 	assert.equal(compilePattern("*.pem")?.base, undefined);
+	assert.equal(compilePattern("**/.git/**")?.base, undefined);
 });

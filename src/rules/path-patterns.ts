@@ -60,6 +60,16 @@ function anchorDir(anchor: "home" | "root" | "cwd", where: PathWhere): string {
 
 export function compilePattern(source: string): PathPattern | undefined {
 	if (source === "" || source.includes("!")) return undefined;
+	// A leading `**/` matches in every folder on disk, as gitignore's does in
+	// every folder below the file.
+	if (source.startsWith("**/")) {
+		const whole = new RegExp(`^/${globBody(source)}$`);
+		return {
+			source,
+			anchor: "any",
+			test: (path: string): boolean => whole.test(path),
+		};
+	}
 	if (!source.includes("/")) {
 		const name = new RegExp(`^${globBody(source)}$`);
 		return {
