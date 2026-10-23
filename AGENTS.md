@@ -62,4 +62,7 @@ that fixes its findings is `docs/refactor-plan.md`.
   one config line away, named in `CHANGELOG.md`.
 - The bouncer gates the shell it is developed in. Try unpushed changes with
   `pi -e <this checkout>`, and keep each merged step green: a broken rule can
-  deny every bash call for anyone following `main`.
+  deny every bash call for anyone following `main`. Such a session cannot
+  write the checkout's own source with `write` or `edit`, because
+  `path-bouncer` denies writes to the bouncer's code: develop from a session
+  loading another copy of the checkout, or set `"path-bouncer": "ask"`.
