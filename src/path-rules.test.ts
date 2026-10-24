@@ -600,7 +600,7 @@ for (const path of [
 }
 
 for (const file of [
-	"/etc/ssl/private/server.pem",
+	"/etc/pi-bouncer-test-server.pem",
 	"/usr/local/x.key",
 	".git/id_rsa",
 ]) {
