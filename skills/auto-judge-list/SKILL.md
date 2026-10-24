@@ -155,6 +155,12 @@ calls at the default 3 samples. Tell the user the count and wait for their go-ah
 node <skill dir>/../../dist/skills/auto-judge-list/bench.js jev --agent-dir "$AGENT_DIR" [--samples N] [--model provider/id] [--allow-from deny-score|safety]
 ```
 
+With `--cases file` it asks about the 43 file-call cases in `file-cases.ts`
+instead (129 calls at 3 samples), with Jev's file questions; they have no
+held-out set, and their allow score is always 1 − the deny score, so
+`--allow-from safety` is refused. The cutoffs it recommends are for
+`FILE_JEV_CUTOFFS` in `src/jev.ts`, not for `auto.jev`.
+
 It asks Jev about every bench and held-out case `N` times (default 3) through the
 bouncer's own Jev client (through Pi), with the same fields the judge sees and
 Pi's opencode-go key, or, with `--model` (pass the user config's

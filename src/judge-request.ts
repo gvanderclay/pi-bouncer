@@ -1,5 +1,6 @@
 // Jev sees what the judge sees: both are rendered from the one request built here.
 import type { GitState, RemoteFact } from "./facts.ts";
+import type { Direction, FileChange, FileTool } from "./file-call.ts";
 import { type HistoryEntry, newestWithin } from "./history.ts";
 
 const EARLIER_CHARS = 4_000;
@@ -21,7 +22,20 @@ export type McpJudged = {
 	readonly description?: string;
 };
 
-// Never tool output, file contents, the agent's own messages or AGENTS.md.
+/** The file call a request is about. */
+export type FileJudged = {
+	readonly tool: FileTool;
+	readonly direction: Direction;
+	/** The real path. */
+	readonly path: string;
+	readonly change?: FileChange;
+	/** true when a secret group matched: the change was left out. */
+	readonly redacted?: true;
+};
+
+// Never tool output, file contents read, the agent's own messages or
+// AGENTS.md. A write or edit's own change is sent, unless a secret group
+// matched its path.
 export type JudgeFields = {
 	readonly command: string;
 	readonly asks: readonly JudgeAsk[];
@@ -34,6 +48,8 @@ export type JudgeFields = {
 	readonly environment?: readonly string[];
 	/** Set for an MCP call; `command` is then its JSON arguments. */
 	readonly mcp?: McpJudged;
+	/** Set for a file call; `command` is then "<tool> <real path>". */
+	readonly file?: FileJudged;
 };
 
 // The type keeps a hand-made request out of the renderers.
@@ -49,6 +65,7 @@ export function judgeRequest(fields: JudgeFields): JudgeRequest {
 		cwd: fields.cwd,
 		...(fields.git && { git: fields.git }),
 		...(fields.mcp && { mcp: fields.mcp }),
+		...(fields.file && { file: fields.file }),
 		...(fields.remotes && { remotes: fields.remotes }),
 		...(fields.environment && { environment: fields.environment }),
 		...(earlier.length > 0 && { earlierUserMessages: earlier }),
@@ -78,7 +95,7 @@ function remoteLines(remotes: readonly RemoteFact[] | undefined): string[] {
 
 // Any block's closing tag, in any case: none may end a block early.
 const CLOSING_TAG =
-	/<\/(command|user_message|earlier_user_messages|session_history|tool_description|arguments)\b/gi;
+	/<\/(command|user_message|earlier_user_messages|session_history|tool_description|arguments|content|old_text|new_text)\b/gi;
 
 function escaped(text: string): string {
 	return text.replace(CLOSING_TAG, "<\\/$1");
@@ -141,6 +158,46 @@ function mcpLines(mcp: McpJudged, args: string): string[] {
 	];
 }
 
+function changeLines(file: FileJudged): string[] {
+	if (file.redacted) {
+		return ["Change: redacted (the path is in a group that holds secrets)"];
+	}
+	const { change } = file;
+	if (!change) return [];
+	if (change.kind === "write")
+		return block("content", [escaped(change.content)]);
+	return change.edits.flatMap(({ oldText, newText }) => [
+		...block("old_text", [escaped(oldText)]),
+		...block("new_text", [escaped(newText)]),
+	]);
+}
+
+function fileLines(file: FileJudged): string[] {
+	return [
+		`File tool: ${file.tool}`,
+		`Direction: ${file.direction}`,
+		`Path: ${escaped(file.path)}`,
+		...changeLines(file),
+	];
+}
+
+function callLines(request: JudgeRequest): string[] {
+	if (request.mcp) return mcpLines(request.mcp, request.command);
+	if (request.file) return fileLines(request.file);
+	return ["<command>", escaped(request.command), "</command>"];
+}
+
+/** What a size skip reports: a file call's change, else the command. */
+export function judgedChars(request: JudgeRequest): number {
+	const change = request.file?.change;
+	if (!change) return request.command.length;
+	if (change.kind === "write") return change.content.length;
+	return change.edits.reduce(
+		(sum, { oldText, newText }) => sum + oldText.length + newText.length,
+		0,
+	);
+}
+
 export function judgeInput(request: JudgeRequest): string {
 	const flagged = request.asks.map(
 		({ rule, summary, source }) => `- ${rule} (${summary}): ${source}`,
@@ -158,24 +215,59 @@ export function judgeInput(request: JudgeRequest): string {
 		),
 		...block("session_history", historyLines(request.history, request.cwd)),
 		...block("user_message", said ? [escaped(said)] : []),
-		...(request.mcp
-			? mcpLines(request.mcp, request.command)
-			: ["<command>", escaped(request.command), "</command>"]),
+		...callLines(request),
 	].join("\n");
 }
 
-export function jevState(request: JudgeRequest): Record<string, unknown> {
+function historyState(history: readonly HistoryEntry[]): object[] {
+	return history.map(({ tool, text, cwd, failed, background }) => ({
+		tool,
+		text,
+		cwd,
+		...(failed && { failed }),
+		...(background && { background }),
+	}));
+}
+
+// The fields every call's state shares.
+function contextState(request: JudgeRequest): Record<string, unknown> {
 	const earlier = request.earlierUserMessages ?? [];
 	const history = request.history ?? [];
+	return {
+		working_directory: request.cwd,
+		...(request.git && { git: request.git }),
+		...(earlier.length > 0 && { earlier_user_messages: earlier }),
+		...(history.length > 0 && { session_history: historyState(history) }),
+		...(request.userMessage && { user_message: request.userMessage }),
+	};
+}
+
+// A secret group's change was already left out of `file` (`src/file-gate.ts`).
+function fileState(
+	file: FileJudged,
+	request: JudgeRequest,
+): Record<string, unknown> {
+	return {
+		tool: file.tool,
+		direction: file.direction,
+		path: file.path,
+		...(file.change && !file.redacted && { change: file.change }),
+		...contextState(request),
+	};
+}
+
+export function jevState(request: JudgeRequest): Record<string, unknown> {
+	if (request.file) return fileState(request.file, request);
 	const remotes = request.remotes ?? [];
+	const { working_directory, git, ...rest } = contextState(request);
 	return {
 		flagged: request.asks.map(({ rule, summary, source }) => ({
 			rule,
 			summary,
 			source,
 		})),
-		working_directory: request.cwd,
-		...(request.git && { git: request.git }),
+		working_directory,
+		...(git !== undefined && { git }),
 		...(remotes.length > 0 && {
 			remotes: remotes.map(({ name, url, changed }) => ({
 				name,
@@ -183,19 +275,7 @@ export function jevState(request: JudgeRequest): Record<string, unknown> {
 				changed,
 			})),
 		}),
-		...(earlier.length > 0 && { earlier_user_messages: earlier }),
-		...(history.length > 0 && {
-			session_history: history.map(
-				({ tool, text, cwd, failed, background }) => ({
-					tool,
-					text,
-					cwd,
-					...(failed && { failed }),
-					...(background && { background }),
-				}),
-			),
-		}),
-		...(request.userMessage && { user_message: request.userMessage }),
+		...rest,
 		command: request.command,
 	};
 }

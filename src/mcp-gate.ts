@@ -1,25 +1,12 @@
 // MCP tool calls (`mcp__<server>__<tool>`) have no shell string to rule on:
-// an allow-listed tool runs; in auto mode the judge rules on other MCP calls,
-// otherwise they ask. Tool annotations (readOnlyHint and the rest) are the
-// server's unverified claims: they never allow a call and are never shown to
-// the judge.
-import {
-	type Ask,
-	type Asking,
-	allSessionAllowed,
-	askUser,
-	yoloAnswers,
-} from "./ask.ts";
-import {
-	autoDecided,
-	type Call,
-	type Decision,
-	type Trace,
-	type WithoutYolo,
-} from "./gate.ts";
+// an allow-listed tool runs, and every other one goes through `decideToolAsk`.
+// Tool annotations (readOnlyHint and the rest) are the server's unverified
+// claims: they never allow a call and are never shown to the judge.
+import type { Ask } from "./ask.ts";
+import type { Call, Decision } from "./gate.ts";
 import { isObject } from "./json.ts";
-import type { Ranking } from "./rank.ts";
-import { clip } from "./verdict.ts";
+import { decideToolAsk } from "./tool-ask.ts";
+import { clip, type Verdict } from "./verdict.ts";
 
 const MCP_RULE = "mcp";
 
@@ -119,9 +106,14 @@ export function mcpArgs(input: unknown): string {
 	return clip(mcpJson(input));
 }
 
-/** The block when no one can answer the dialog. */
-function unansweredMcp(toolName: string): string {
-	return `Blocked by the user's bouncer (rule: ${MCP_RULE}): the MCP tool \`${toolName}\` is not on the user's allow list (mcp.allow), and no one can answer the dialog. None of the call ran. Do not retry it through another tool. Tell the user what was blocked and why, and let them decide.`;
+/** The block when no one can answer the dialog, and the judge's fallback. */
+function unansweredMcp(toolName: string): Verdict {
+	return {
+		level: "deny",
+		rule: MCP_RULE,
+		reason: `Blocked by the user's bouncer (rule: ${MCP_RULE}): the MCP tool \`${toolName}\` is not on the user's allow list (mcp.allow), and no one can answer the dialog. None of the call ran. Do not retry it through another tool. Tell the user what was blocked and why, and let them decide.`,
+		command: toolName,
+	};
 }
 
 /** The ask's `source` is the tool name, so a session allow covers the tool whatever its arguments. */
@@ -135,56 +127,13 @@ export function mcpAsk(toolName: string, input: unknown): Ask {
 }
 
 export async function decideMcp(call: McpCall): Promise<Decision> {
-	const { toolName, mode, ui } = call;
+	const { toolName } = call;
 	if (mcpAllowed(toolName, call.allow)) return { kind: "allow" };
-	const ask = mcpAsk(toolName, call.input);
-	if (mode === "auto" && call.judge) {
-		const ranking: Ranking = {
-			kind: "ask",
-			asks: [ask],
-			fallback: {
-				level: "deny",
-				rule: MCP_RULE,
-				reason: unansweredMcp(toolName),
-				command: toolName,
-			},
-			matches: [],
-		};
-		return autoDecided(ranking, ranking, toolName, call, call.allowed);
-	}
-	const asking: Asking = {
+	return decideToolAsk({
+		...call,
 		command: toolName,
-		cwd: call.cwd,
-		allowed: call.allowed,
-		...(call.signal && { signal: call.signal }),
-		...(call.autoChoice && { autoChoice: call.autoChoice }),
-	};
-	let without: WithoutYolo = "blocked";
-	if (ui) without = allSessionAllowed([ask], asking) ? "allowed" : "dialog";
-	const trace: Trace = {
-		matches: [],
-		ui: ui !== undefined,
-		asks: [],
-		...(mode === "yolo" && { yolo: { withoutYolo: without } }),
-		// With mcp.judge false, auto mode asks no judge about an MCP call: it
-		// opens the dialog.
-		...(mode === "auto" && { withoutAuto: without }),
-	};
-	if (mode === "yolo") {
-		return {
-			kind: "allow",
-			trace: { ...trace, asks: yoloAnswers([ask], asking) },
-		};
-	}
-	if (!ui) {
-		const reason = unansweredMcp(toolName);
-		return { kind: "block", reason, stop: false, trace };
-	}
-	const asked = await askUser([ask], ui, asking);
-	return {
-		...asked.outcome,
-		trace: { ...trace, asks: asked.answers },
-		...(asked.yoloOn && { yoloOn: true }),
-		...(asked.autoOn && { autoOn: true }),
-	};
+		asks: [mcpAsk(toolName, call.input)],
+		fallback: unansweredMcp(toolName),
+		judged: call.judge !== undefined,
+	});
 }

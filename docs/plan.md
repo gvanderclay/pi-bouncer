@@ -72,8 +72,10 @@ Out of scope:
   change in the dotfiles repository.
 - New rule families, such as detecting more kinds of dangerous commands.
   This plan only makes the rules that exist configurable and extensible.
-- Gating `!` commands, `powershell`, or Pi's built-in `write`/`edit` tools.
-  These stay ungated, and the README says so.
+- Gating `!` commands or `powershell`; these stay ungated. Pi's built-in
+  `write` and `edit` tools were left ungated by this plan too, but
+  `.scratch/file-tool-paths/spec.md` later gated them, and `read`, `grep`,
+  `find` and `ls` with them, through path rules. The README says so.
 
 ---
 

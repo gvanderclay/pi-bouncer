@@ -17,10 +17,15 @@ Because the project file sits under `.pi/extensions`, Pi asks you to trust a
 project that ships one. The bouncer reads that trust once per session start,
 so `/trust` applies after a restart or `/reload`. What a project file may do:
 
-- An untrusted project may only make things stricter: raise a level, add
-  `protect` paths, and add ask or deny custom rules. It may not lower a level
-  or add a steer rule, because steer text is sent to the model.
-- A trusted project may also lower levels and turn rules off.
+- An untrusted project may only make things stricter: raise a level (each
+  direction of a path group separately), add `protect` paths, and add ask or
+  deny custom rules. It may not lower a level, set a path direction to
+  `"allow"`, add a path rule that allows, or add a steer rule, because steer
+  text is sent to the model. Its path rules are raise-only: they never take
+  part in last-match-wins, so its `ask` rule cannot turn an earlier deny into
+  an ask; it only makes the result stricter.
+- A trusted project may also lower levels, turn rules off, and add path
+  rules that allow; its path rules follow the user's in last-match-wins.
 - No project file, trusted or not, may loosen the always-deny set, or set
   `log`, `auto`, `mcp` or `startMode`; only the user config can. The one exception
   is a profile's `mode`: a trusted project's profile may set `"off"` or
@@ -53,14 +58,85 @@ in your editor. `/bouncer init` writes it for you.
 
 `levels` maps a built-in rule name to `"ask"`, `"deny"` or `"off"`. `off`
 removes the rule. The always-deny set (`rm-root`, `disk-format`, `dd-device`,
-`power`, `privilege`) accepts `ask` or `deny` but never `off`, and YOLO and
-auto mode deny it whatever its level. The unreadable-command denies
-(`parser-unavailable`, `unparseable`, `inline-too-deep`) cannot be set.
-`/bouncer rules` lists every rule name.
+`power`, `privilege`, `path-bouncer`) accepts `ask` or `deny` but never `off`,
+and YOLO and auto mode deny it whatever its level. The unreadable-command
+denies (`parser-unavailable`, `unparseable`, `inline-too-deep`) cannot be set.
+`/bouncer rules` lists every rule name, and each path group with its
+patterns and both levels.
 
 ```json
 { "levels": { "git-push-force": "deny", "opaque-exec": "off" } }
 ```
+
+### Path groups
+
+The `path-` rules are path groups. They decide Pi's file tools (`read`,
+`write`, `edit`, `grep`, `find` and `ls`) by the path a call touches, with
+one level for reading and searching and another for writing and editing.
+Both take `"allow"`, `"ask"`, `"deny"` or `"off"`.
+
+A plain level sets both directions. An object sets the directions it names
+and leaves the other at the group's built-in level, so `{ "read": "allow" }`
+on `path-env` allows reading a `.env` and still asks before writing one. The
+empty object, an unknown key and an unknown group name are all problems, and
+the group keeps its built-in levels.
+
+```json
+{
+  "levels": {
+    "path-git": "ask",
+    "path-env": { "read": "allow" },
+    "path-ssh": { "read": "deny", "write": "ask" }
+  }
+}
+```
+
+`path-git` as `"ask"` makes a read of `.git/config` ask, because a plain
+level sets both directions. `path-ssh`'s `"read": "deny"` keeps `~/.ssh`
+closed while `"write": "ask"` lets the dialog decide a write.
+
+| Group | Matches | Built-in read | Built-in write |
+| --- | --- | --- | --- |
+| `path-bouncer` | `<agent dir>/bouncer.json`, any `.pi/extensions/bouncer/config.json`, the folder the bouncer was loaded from, `<agent dir>/settings.json`, any `.pi/settings.json` | allow | deny |
+| `path-system` | `/etc`, `/usr`, `/bin`, `/sbin`, `/opt`, `/System`, `/Library`, `/Applications`, `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap`, `/nix`, `/private/etc` and everything in them | allow | ask |
+| `path-git` | any `.git` folder | allow | ask |
+| `path-shell-rc` | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `~/.config/fish/config.fish` | allow | ask |
+| `path-keys` | `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` anywhere on disk, except `*.pub` | deny | deny |
+| `path-ssh` | `~/.ssh` | deny | deny |
+| `path-gnupg` | `~/.gnupg` | deny | deny |
+| `path-aws` | `~/.aws` | deny | deny |
+| `path-gcloud` | `~/.config/gcloud` | deny | deny |
+| `path-azure` | `~/.azure` | deny | deny |
+| `path-kube` | `~/.kube` | deny | deny |
+| `path-docker` | `~/.docker/config.json` | deny | deny |
+| `path-pi-auth` | `<agent dir>/auth.json` | deny | deny |
+| `path-env` | `.env*` at any depth, except `.env.example`, `.env.sample` and `.env.template` | deny | ask |
+| `path-npmrc` | `.npmrc` at any depth | deny | ask |
+| `path-pypirc` | `.pypirc` at any depth | deny | ask |
+| `path-netrc` | `.netrc` at any depth | deny | ask |
+| `path-git-credentials` | `.git-credentials` at any depth | deny | ask |
+
+The groups run broad to narrow and the last match wins, so
+`~/.ssh/id_ed25519` is decided by `path-ssh` rather than by `path-keys`.
+`path-bouncer` is checked first, outside that order, and only for writes: it
+takes `ask` or `deny` for writing, never `off`, and has no read level, since
+reads stay allowed. Under `pi -e <checkout>` its code folder is that checkout,
+so a session running a checkout cannot write the checkout's source unless
+`path-bouncer` is `ask`.
+
+A project file may only raise a direction: an untrusted project's `"allow"`,
+or an entry that would leave any direction looser than the level the session
+already had, is a problem and the whole entry is refused, so the group keeps
+the levels it had. A direction the project leaves out is checked too, since
+the entry replaces the session's and an omitted direction falls back to the
+group's built-in level. A trusted project may set any
+level, except on `path-bouncer`, which no project file may loosen. A
+profile's `levels` take path groups the same way, with the same checks when
+the profile is in a project file, and its object replaces the whole entry for
+that group. `/bouncer rules` lists each group broad to narrow with its
+patterns, the patterns it leaves out, and its effective read and write
+levels, then the custom path rules; a group set to `off` keeps its place and
+shows both directions off.
 
 ## `protect`
 
@@ -107,9 +183,12 @@ the user config may set it.
 
 ## `rules`
 
-`rules` is a list of custom rules. Each one has:
+`rules` is a list of custom rules. A rule has `command` (a bash rule) or
+`paths` (a path rule, see [Path rules](#path-rules)), never both. Each one
+has:
 
-- `name`: lowercase, and not the name of a built-in rule.
+- `name`: lowercase, and not the name of a built-in rule. A path rule's name
+  may not start with `path-`, which is kept for path groups.
 - `command`: a program name, or a list of them. `/usr/bin/kubectl` matches
   `kubectl`.
 - `args` (optional): arguments that must all follow the command, in order,
@@ -140,6 +219,70 @@ wrappers, in chains, inside `sh -c`, and in the commands `find -exec` and
 an ask or deny custom rule, and auto mode sends its asks to the judge.
 [`examples/prefer-rg.json`](../examples/prefer-rg.json) is a steer rule that
 sends the model from `grep` to `rg`.
+
+### Path rules
+
+A rule with `paths` in place of `command` decides Pi's file tools, as the
+[path groups](#path-groups) do. `paths` is a list of gitignore-style globs:
+`*` and `?` within one folder name, `**` across folders, and no `!`. A
+pattern starting with `/` is absolute, one starting with `~/` is in your home
+folder, one with no `/` is a file name at any depth (`**` alone matches every
+path), and any other is relative to the working directory. A pattern that
+does not compile is a problem, and the rule is dropped.
+
+`level` takes `"allow"`, `"ask"` (the default), `"deny"` or `"off"`, or an
+object with `read` and/or `write`; a direction the object leaves out is off,
+so the rule never decides it. With `instead` the rule is a steer: its level
+is `"deny"` or `"off"`, and a match denies in every mode with that text.
+`args` is for bash rules only.
+
+The built-in groups come first, then the user config's path rules, then the
+project file's, then the profile's, each file in list order, and the last
+rule that matches decides. So a later rule makes an exception to an earlier
+one. A delegate that may write only to its docs folder:
+
+```json
+{
+  "profiles": {
+    "docs": {
+      "rules": [
+        {
+          "name": "no-writes",
+          "paths": ["**"],
+          "level": { "write": "deny" },
+          "summary": "this agent writes only to docs"
+        },
+        {
+          "name": "docs-only",
+          "paths": ["/home/me/project/docs/**"],
+          "level": { "write": "allow" },
+          "summary": "the docs folder"
+        }
+      ]
+    }
+  },
+  "agents": { "writer": "docs" }
+}
+```
+
+An `allow` overrides the built-in groups inside its folder too: a rule
+allowing `**/.git/hooks/**` lets a hook be written without the `path-git`
+ask, and an `allow` for `~/**` would open `~/.ssh`. Add a later rule to
+restore a group inside it. Two things no rule overrides: `path-bouncer`,
+which is checked before every other path rule, and a search (`grep`, `find`,
+`ls`) of a folder that holds a path a path rule matches, which the strictest
+rule inside it decides. A path rule written through a symlinked folder also
+matches the same files by their real path.
+
+`/bouncer explain read <path>` replays a file call under the config in force,
+with no dialog and no judge: it prints every spelling of the path it checked,
+then every path rule that matched, in order and with its level, so a later
+`allow` shows after the rule it carves out of, then what normal mode would do
+with a UI and without one, and what YOLO and auto mode would do. `/bouncer
+explain write <path>` replays a write, and `explain grep|find|ls <path>`
+replays a search. `explain -- <command>` replays a bash command that starts
+with one of those words, and so does a tool word with no path after it, such
+as `explain ls`. The `explain.ts` command-line tool takes the same forms.
 
 ## `log`
 
@@ -198,12 +341,13 @@ dashes. `"yolo"` is not accepted as a `mode`.
 
 How a profile applies:
 
-- `levels` replace the normal level rule by rule. A profile in the user
-  config may loosen as well as tighten, but the always-deny set can be `ask`
-  and never `off`, and YOLO and auto mode deny it whatever its level.
+- `levels` replace the normal level rule by rule, including a path group's
+  directions: an object replaces the whole entry for that group. A profile in
+  the user config may loosen as well as tighten, but the always-deny set can be
+  `ask` and never `off`, and YOLO and auto mode deny it whatever its level.
 - A `rules` entry named like a normal custom rule replaces it in place, so a
   profile can change its level or turn it off. Any other entry is added after
-  the normal custom rules. Steer rules still go last.
+  the normal custom rules. Bash steer rules still go last.
 - `protect` adds to the normal paths.
 - `mode` replaces `startMode`, but only when the session has no `--auto` or
   `--yolo`. A session whose parent runs in YOLO or auto mode gets that flag
@@ -217,9 +361,10 @@ How a profile applies:
 
 A project file may define profiles too, and its definition of a name is laid
 over the user config's. An untrusted project can only tighten: its levels may
-only be raised, it may not add steer rules, and its `mode` may be only
-`"off"`. A trusted project may also lower levels and set `"off"` or
-`"auto"`. Every problem in either file is reported at session start and by
+only be raised, direction by direction, it may not set a path direction to
+`"allow"` or add a path rule that allows, its path rules are raise-only, it
+may not add steer rules, and its `mode` may be only `"off"`. A
+trusted project may also lower levels and set `"off"` or `"auto"`. Every problem in either file is reported at session start and by
 `/bouncer check`, whether or not the session uses the profile.
 
 A profile is **broken** when neither file defines it or the user config's

@@ -1,4 +1,5 @@
-import { dirname } from "node:path";
+import type { Direction } from "./file-call.ts";
+import { PACKAGE_DIR } from "./package-dir.ts";
 
 export type VerdictLevel = "deny" | "ask";
 
@@ -40,9 +41,6 @@ function truncate(text: string, limit: number): string {
 export function clip(command: string): string {
 	return truncate(command, REASON_LIMIT);
 }
-
-// The package root, one level above this file in src/.
-const PACKAGE_DIR = dirname(import.meta.dirname);
 
 export function parserUnavailable(command: string): Verdict {
 	return {
@@ -87,6 +85,34 @@ export function ruleDenied(
 	};
 }
 
+/** A path rule's deny, for a file call. */
+export function pathDenied(
+	rule: { readonly name: RuleName; readonly summary: string },
+	direction: Direction,
+	path: string,
+): Verdict {
+	return {
+		level: "deny",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. The ${direction} of \`${truncate(path, REASON_LIMIT)}\` did not run. Ask the user to do this or to change the bouncer's \`levels\`.`,
+		command: path,
+	};
+}
+
+/** A path rule's ask with no UI to answer it, as an MCP call's is. */
+export function pathUnanswered(
+	rule: { readonly name: RuleName; readonly summary: string },
+	direction: Direction,
+	path: string,
+): Verdict {
+	return {
+		level: "ask",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. The ${direction} of \`${truncate(path, REASON_LIMIT)}\` did not run: no one can answer the dialog here. Ask the user to do this or to change the bouncer's \`levels\`.`,
+		command: path,
+	};
+}
+
 /**
  * A steer rule's deny: it invites a retry with what `instead` names, so it
  * never says not to retry or to tell the user.
@@ -101,6 +127,21 @@ export function steerDenied(
 		rule: rule.name,
 		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. Command: \`${truncate(command, REASON_LIMIT)}\`. None of the command ran. ${instead}`,
 		command,
+	};
+}
+
+/** A path steer rule's deny: like `steerDenied`, for a file call. */
+export function pathSteerDenied(
+	rule: { readonly name: RuleName; readonly summary: string },
+	instead: string,
+	direction: Direction,
+	path: string,
+): Verdict {
+	return {
+		level: "deny",
+		rule: rule.name,
+		reason: `${PREFIX} (rule: ${rule.name}): ${rule.summary}. The ${direction} of \`${truncate(path, REASON_LIMIT)}\` did not run. ${instead}`,
+		command: path,
 	};
 }
 

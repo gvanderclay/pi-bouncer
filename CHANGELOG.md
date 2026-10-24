@@ -6,6 +6,172 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `/bouncer explain` replays a file call: `explain read <path>`,
+  `explain write <path>` and `explain grep|find|ls <path>` (a search) print
+  every spelling of the path it checked, every path rule that matched in
+  order with its level, so a later `allow` shows after the rule it carves out
+  of, then what normal mode would do with and without a UI, and what YOLO and
+  auto mode would do. It opens no dialog, calls no judge, logs nothing and
+  runs nothing, and the session's allows and mode are untouched. Because
+  `read`, `write`, `grep`, `find` and `ls` now name a file call, `explain --
+  <command>` replays a bash command that starts with one of those words, and
+  a tool word with no path after it, such as `explain ls` or `explain.ts ls`,
+  is still the bash command it was, as it is interactively. The interactive
+  form ranks against the config the session started with, as the bash form
+  does, so it answers for the running bouncer; the `explain.ts` command-line
+  tool loads the files from disk and takes the same forms.
+
+- `/bouncer rules` lists the path groups broad to narrow, each with its
+  patterns, the patterns it leaves out, and both its effective read and write
+  levels, then the custom path rules. A group set to `off` keeps its place
+  and shows both directions off. Before this a group showed one level, the
+  stricter of its two directions; its summary and the bash rules around it
+  are listed as before.
+
+- In auto mode, a file call a path rule asks about goes to the judge list,
+  as bash and MCP asks do: a judge allow runs it with no dialog, a deny blocks
+  it with the judge's reason and counts toward the pause, and a hand-off or
+  no answer opens the dialog. The judge sees the tool, the direction, the
+  real path and, for `write` and `edit`, the change. When the path is in any
+  secret group, such as `path-env`, the change is left out and the request
+  says it was redacted. A change too large for every judge model opens the
+  dialog with `Auto: change too large for the judge (<n> characters)`. Before this, a file ask in auto mode opened the
+  dialog, or was blocked with no UI.
+
+- With `auto.jev` set, Jev is asked about a file call before the judge list,
+  with its own questions written for a path and a change (the kind of file,
+  whether the change holds a real credential, its effect and what the user
+  asked for) and its own cutoffs, which replace `auto.jev`'s `allowAt`,
+  `denyAt` and `allowFrom` for file calls. A secret group's change is kept
+  from Jev as from the judge. The shipped file cutoffs are `allowAt: 1.01`
+  (never allow) and `denyAt: 0.99`: Jev denies at or above 0.99 and leaves
+  everything else to the judge list, with the existing `other` and failure
+  safeguards unchanged. These replace the initial no-decision placeholder;
+  bash cutoffs are unchanged. The user-run bench evidence and its limits
+  are in `docs/design-notes.md`; the Jev call and its answers are logged.
+  Before this, Jev was never asked about a file call; removing `auto.jev` keeps it that way
+  (and turns Jev off for bash too). `bench.ts jev --cases file` runs 43
+  file-call cases.
+
+- Custom path rules: a `rules` entry with `paths` (gitignore-style globs) in
+  place of `command` decides Pi's file tools. Its `level` is `"allow"`,
+  `"ask"`, `"deny"` or `"off"`, or a `{read, write}` object, and `instead`
+  makes it a path steer that denies in every mode with that text. Path rules
+  run after the built-in groups (user config, then project, then profile) and
+  the last match wins, so `"level": {"write": "deny"}` on `**` followed by an
+  `allow` for one folder confines a delegate's writes, and an `allow` for
+  `**/.git/hooks/**` lets hooks through `path-git`. `path-bouncer` still
+  wins over every rule. An untrusted project may add only `ask` or `deny`
+  path rules, and they are raise-only: they can make a path stricter but never
+  lower a deny before them. A path rule's name may not start with `path-`,
+  which is kept for path groups. A root-anchored path pattern (built-in or custom) whose leading
+  folders are a symlink now also matches the real path below it.
+
+- Path groups in `levels` take a level per direction. A plain level sets both,
+  as before, and an object sets `read` and/or `write` and leaves the other
+  direction at the group's built-in level: `"path-env": {"read": "allow"}`
+  allows reading a `.env` and still asks before writing one, and
+  `"path-ssh": {"read": "deny", "write": "ask"}` asks for writes while
+  denying reads. A group leaves the policy only when both directions are
+  `off`. A project file may only raise each direction, and an untrusted one
+  may not set `"allow"`; an entry that would leave a direction looser than the
+  session's level, including by omitting it, is refused whole, so the group
+  keeps its levels. A trusted project may set any level. `path-bouncer` takes
+  only a write level, `"ask"` or `"deny"`. Every existing config keeps its
+  behaviour: a plain level means both directions.
+
+- `path-bouncer` joins the always-deny set: the `write` and `edit` tools can
+  no longer change the bouncer's user config (`<agent dir>/bouncer.json`), a
+  project's `.pi/extensions/bouncer/config.json`, the folder the bouncer was
+  loaded from, or Pi's `settings.json` (`<agent dir>/settings.json` and any
+  `.pi/settings.json`). It is checked before every other path rule, denies in
+  YOLO and auto mode without asking a judge, and cannot be `off`; reads stay
+  allowed. `"levels": {"path-bouncer": "ask"}` brings back a dialog in normal
+  mode. Under `pi -e <checkout>` the checkout is the bouncer's folder, so a
+  session running a checkout cannot write its source while at `deny`.
+
+- The `write` and `edit` tools are now gated by the same path rules as `read`.
+  A path rule's read level and write level are separate, so a `.env` file is
+  denied to read and asked about to write. The dialog shows the rule, the
+  path, the real target when a symlink was followed, and a diff: the `-` and
+  `+` lines of an `edit`, a line diff for a `write` to an existing file, or
+  `new file` and its first lines. "Allow for this session" covers that exact
+  real path in that direction only, so allowing `.git/config` does not open
+  `.git/hooks`. The diff is read only when the dialog opens, so a session
+  allow, a judge and YOLO mode never read the file. It never reads a path
+  that is not a regular file, or a file over 1 MiB; the dialog shows a note
+  there instead, so a write to `/dev/zero` or a FIFO cannot hang the bouncer.
+  With no UI the call is blocked, as an MCP ask is. YOLO mode lets a path ask or deny through, as it
+  does for bash.
+- New path groups, each with the one line in `levels` that turns it off:
+  `path-keys` (`*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, except `*.pub`):
+  reads and writes denied, `"levels": {"path-keys": "off"}`; `path-gnupg`,
+  `path-aws`, `path-gcloud`, `path-azure`, `path-kube`, `path-docker` and
+  `path-pi-auth` (Pi's `auth.json`): reads and writes denied, each turned off
+  by its own name, such as `"levels": {"path-gnupg": "off"}`; `path-env`,
+  `path-npmrc`, `path-pypirc`, `path-netrc` and `path-git-credentials`: reads
+  denied, writes asked, such as `"levels": {"path-env": "off"}`; and
+  `path-git`, `path-shell-rc` and `path-system`: reads allowed, writes asked,
+  such as `"levels": {"path-git": "off"}`. The groups run from broad to
+  narrow, and the last matching group decides, so a secret group overrides a
+  folder group: a key at `/etc/ssl/private/server.pem`, `/usr/local/x.key` or
+  `.git/id_rsa` is denied by `path-keys` rather than allowed by `path-system`
+  or `path-git`. The home-anchored stores come after `path-keys`, so
+  `~/.ssh/id_ed25519` is still decided by `path-ssh` and `.gnupg/**/*.key` by
+  `path-gnupg`.
+- The `grep`, `find` and `ls` tools are now gated by search scope: a path
+  group also fires when an anchored pattern of it lies inside the folder being
+  searched, so `path-ssh` denies `grep token ~`, `ls ~/.ssh` and `find /`. A
+  search of a folder follows the same groups, directions and `levels` lines as
+  a read of it, such as `"levels": {"path-ssh": "off"}`. Patterns that match
+  at any depth are tested only against the search path itself, so a `grep`
+  with no path in a project that holds a `.env` stays quiet.
+- The `read` tool is now gated: `path-ssh` denies reading `~/.ssh`.
+  `"levels": {"path-ssh": "off"}` restores the old behaviour. The path is
+  checked however it is spelled (`~`, `@`, relative, absolute, `file://`) and
+  with symlinks resolved, so a link into `~/.ssh` is caught too. YOLO mode
+  lets the read through. A file tool call whose `path` is not a string, or is
+  missing from `read`, `write` or `edit`, is blocked. `/bouncer rules`, `/bouncer` status and the session log record list
+  `path-ssh`, so the tests pinning those lists changed deliberately.
+
+### Changed
+
+- `path-keys` now covers the key files inside `~/.ssh` too, so turning
+  `path-ssh` off no longer unblocks `~/.ssh/id_ed25519`; turn `path-keys` off
+  as well. The test that pinned `path-ssh` off restoring the old behaviour for
+  that path now uses `~/.ssh/known_hosts`, and a new test pins the
+  `path-keys` deny. The tests that count the `/bouncer rules` lines and list
+  the built-in levels changed deliberately, because the policy gained
+  seventeen entries.
+
+- A judge request now escapes `</content>`, `</old_text>` and `</new_text>`,
+  as it already escaped `</command>` and the closing tags of the other
+  blocks, so a change to a file cannot end the block it sits in. This runs
+  over every judge request, bash and MCP ones included.
+
+- The write dialog's diff says `(no line changes)` when the new content
+  equals the existing file or differs only by a trailing newline, where it
+  showed a blank diff. Over an existing binary file (one with a NUL byte) it
+  says `(the existing file is binary; no diff shown)` and lists the new
+  content's lines, where it diffed a garbled text decode.
+
+- The bash rows of the Jev bench's cutoff table no longer count a sample
+  whose P(effect = other) reaches 0.5: live, Jev leaves that call unsure at
+  any cutoff, as the file rows already did.
+
+- The path text the session history records for a `write` or `edit` now goes
+  through the same resolution as the path the gate checks: Unicode spaces are
+  normalised, and a `file://` URL becomes the path it names. The judge's
+  session history therefore shows a path spelled as Pi opened it.
+
+- A path group allowed in both directions lists under `Off:` in `/bouncer
+  status` and as `off` in the session record's rule levels, as a group set to
+  `off` does; `/bouncer rules` still shows its true read and write levels.
+  That is how the one level those two lists print reads until they show both
+  directions.
+
 ## [0.6.1] - 2026-10-22
 
 ### Changed

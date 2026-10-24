@@ -11,7 +11,7 @@ import {
 } from "../test/harness.ts";
 import { loadConfig } from "./config.ts";
 import { builtInPolicy } from "./rules/built-in-policy.ts";
-import { type Policy, policyEntryName } from "./rules/rule.ts";
+import { entryLevel, type Policy, policyEntryName } from "./rules/rule.ts";
 
 const DEFAULT_LOG = { rotateAboveMiB: 5, generations: 5 };
 
@@ -42,10 +42,28 @@ const BUILT_IN_LEVELS: readonly (readonly [string, string])[] = [
 	["publish", "ask"],
 	["gh-delete", "ask"],
 	["bouncer-escape", "deny"],
+	["path-bouncer", "deny"],
+	["path-system", "ask"],
+	["path-git", "ask"],
+	["path-shell-rc", "ask"],
+	["path-keys", "deny"],
+	["path-ssh", "deny"],
+	["path-gnupg", "deny"],
+	["path-aws", "deny"],
+	["path-gcloud", "deny"],
+	["path-azure", "deny"],
+	["path-kube", "deny"],
+	["path-docker", "deny"],
+	["path-pi-auth", "deny"],
+	["path-env", "deny"],
+	["path-npmrc", "deny"],
+	["path-pypirc", "deny"],
+	["path-netrc", "deny"],
+	["path-git-credentials", "deny"],
 ];
 
 function rows(policy: Policy): (readonly [string, string])[] {
-	return policy.map((entry) => [policyEntryName(entry), entry.level]);
+	return policy.map((entry) => [policyEntryName(entry), entryLevel(entry)]);
 }
 
 function builtInWith(

@@ -36,9 +36,36 @@ _Avoid_: soft deny, redirect, nudge
 
 **Custom rule**:
 A rule the user defines under `rules` in the bouncer config: a program name
-plus arguments that must all appear in order, with a rule level, or with an
-`instead` text that makes it a steer rule.
+plus arguments that must all appear in order, or `paths` globs that make it a
+path rule; with a rule level, or with an `instead` text that makes it a steer
+rule.
 _Avoid_: user rule, pattern, extra rule
+
+**Path rule**:
+A rule that recognises the paths of Pi's file tool calls (`read`, `write`,
+`edit`, `grep`, `find`, `ls`) by gitignore-style globs, never a bash
+command. It has a level per direction. Among the path rules that match one
+spelling of a path, the last in the effective policy decides; across the
+spellings of a path (as typed, made absolute, symlinks resolved), the
+strictest result wins. An untrusted project's custom path rules are
+raise-only: they only make that result stricter.
+_Avoid_: file rule, path pattern, protected path
+
+**Path group**:
+A built-in path rule, named with a `path-` prefix, such as `path-ssh`. A
+plain level in `levels` sets both directions, and an object with `read` and/or
+`write` sets the directions it names.
+_Avoid_: path preset, secret list
+
+**File access**:
+What one file tool call does: the tool, its direction, the path as the agent
+typed it, and for `write` and `edit` the change.
+_Avoid_: file operation, file event
+
+**Direction**:
+Whether a file access reads (`read`, `grep`, `find`, `ls`) or writes
+(`write`, `edit`). A path rule has a level for each.
+_Avoid_: access mode, permission
 
 **Built-in policy**:
 Every built-in rule and unreadable-command deny, in evaluation
@@ -90,7 +117,7 @@ _Avoid_: permission mode, level
 
 **Auto mode**:
 The bouncer mode in which a judge rules on every ask that no session allow
-covers; MCP calls not on `mcp.allow` are judged too. Rule-level denies, the always-deny set, the unreadable-command denies
+covers; MCP calls not on `mcp.allow` and file accesses a path rule asks about are judged too. Rule-level denies, the always-deny set, the unreadable-command denies
 and the steer rules stay denied. It is turned on by `/auto`, the "🤖 Auto
 mode" dialog choice or `pi --auto`, only when an entry of the judge list
 resolves, and has YOLO mode's lifetime.
@@ -99,11 +126,12 @@ _Avoid_: auto-approve, classifier mode
 **Judge**:
 The model that rules on an auto-mode call: it answers allow, deny with a
 reason, or hand to the user. It sees the command, or for an MCP call the tool name, description and
-arguments, the uncovered asks, a few
+arguments, or for a file access its tool, direction, real path and change
+(left out when a secret path group matches), the uncovered asks, a few
 facts, the user's latest message and up to 10 earlier ones, and the session
 history: the bouncer's own record of the bash commands the agent ran, the
 paths it wrote or edited and the MCP tools it called this session. It never
-sees tool output, file contents or the agent's own messages.
+sees tool output, the contents of files read or the agent's own messages.
 _Avoid_: reviewer, classifier
 
 **Judge list**:
@@ -124,7 +152,9 @@ allows the call; a deny score at or above `denyAt`, unless `denyAt` is `null`,
 denies it in the ordinary hard-deny form with a reason that names no judge,
 and the deny counts toward auto mode's pause like a judge's; anything else,
 including both cutoffs reached, or a failed call, goes to the judge list. It
-is not an entry of the judge list and cannot turn auto mode on.
+is not an entry of the judge list and cannot turn auto mode on. A file call
+gets four questions of its own, a deny score combined the same way, and its
+own cutoffs in place of `auto.jev`'s.
 _Avoid_: classifier mode, reviewer, first judge
 
 **Auto-mode ruling**:
@@ -161,7 +191,8 @@ _Avoid_: settings, policy file
 **Session allow**:
 A user's "Allow for this session" answer, remembered in memory for the exact
 command, working directory, rule and matched invocation until the next
-session start.
+session start. For a file call it covers that exact real path in that
+direction, and nothing else.
 _Avoid_: always allow, whitelist, trust
 
 **Bouncer log**:

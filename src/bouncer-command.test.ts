@@ -67,44 +67,66 @@ test("/bouncer status names YOLO mode and a missing parser", async () => {
 	assert.equal(lines[2], "Parser: missing, so every bash command is denied");
 });
 
+const PATH_GROUPS =
+	"Path groups (the last match wins; path-bouncer is checked first for writes):";
+
+// The path block starts after the bash rules and holds one line per group.
+function sections(text: string): { bash: string[]; groups: string[] } {
+	const lines = text.split("\n");
+	const at = lines.indexOf(PATH_GROUPS);
+	assert.ok(at > 0, text);
+	return { bash: lines.slice(0, at), groups: lines.slice(at + 1) };
+}
+
 test("/bouncer rules lists every entry with its level and summary", async () => {
 	const gate = await started({ ...PREFER_RG, levels: { "git-clean": "deny" } });
-	const lines = (await text(gate, "rules")).split("\n");
-	assert.equal(lines.length, 27);
+	const { bash, groups } = sections(await text(gate, "rules"));
+	assert.equal(bash.length, 27);
+	assert.equal(groups.length, 18);
+	assert.ok(bash.includes("unparseable (deny): the command is not valid bash"));
 	assert.ok(
-		lines.includes("unparseable (deny): the command is not valid bash"),
-	);
-	assert.ok(
-		lines.includes(
+		bash.includes(
 			"git-clean (deny): git clean deletes untracked files for good",
 		),
 	);
 	assert.ok(
-		lines.includes(
+		bash.includes(
 			"bouncer-escape (deny): starting pi with --yolo, or choosing a bouncer profile, from bash sidesteps the user's rules",
 		),
 	);
-	assert.match(lines.at(-1) ?? "", /^grep \(deny\): .*rg/);
+	assert.match(bash.at(-1) ?? "", /^grep \(deny\): .*rg/);
+	assert.match(
+		groups.find((line) => line.startsWith("- path-env ")) ?? "",
+		/^- path-env \(read deny, write ask\): .*matches \.env\*; leaves out \.env\.example/,
+	);
 });
 
 test("/bouncer status and rules show rules turned off", async () => {
 	const [grep] = PREFER_RG.rules;
 	const gate = await started({
-		levels: { "git-clean": "off" },
+		levels: { "git-clean": "off", "path-ssh": "off" },
 		rules: [{ ...grep, level: "off" }],
 	});
 	const status = (await text(gate, "status")).split("\n");
-	assert.ok(status.includes("Off: git-clean, grep"), status.join("\n"));
+	assert.ok(
+		status.includes("Off: git-clean, path-ssh, grep"),
+		status.join("\n"),
+	);
 	assert.ok(!status.find((l) => l.startsWith("Ask: "))?.includes("git-clean"));
 	assert.ok(!status.some((l) => l.startsWith("rm-root also protects")));
-	const rules = (await text(gate, "rules")).split("\n");
-	assert.equal(rules.length, 27);
+	const { bash, groups } = sections(await text(gate, "rules"));
+	assert.equal(bash.length, 27);
+	assert.equal(groups.length, 18);
 	assert.ok(
-		rules.includes(
+		bash.includes(
 			"git-clean (off): git clean deletes untracked files for good",
 		),
 	);
-	assert.match(rules.at(-1) ?? "", /^grep \(off\): /);
+	assert.match(bash.at(-1) ?? "", /^grep \(off\): /);
+	assert.match(
+		groups.find((line) => line.startsWith("- path-ssh ")) ?? "",
+		/^- path-ssh \(read off, write off\): .*matches ~\/\.ssh\/\*\*/,
+	);
 });
 
 test("/bouncer status lists the paths protect adds", async () => {
@@ -159,12 +181,14 @@ test("/bouncer check re-reads the config without applying it", async () => {
 
 test("/bouncer with an unknown subcommand shows its usage", async () => {
 	const gate = await started();
+	const usage = [
+		"Usage: /bouncer [status|rules|explain|init|check]",
+		"  explain <command> replays a bash command; explain -- <command> replays one that starts with read, write, grep, find or ls",
+		"  explain <read|write|grep|find|ls> <path> replays a file call",
+	].join("\n");
 	for (const args of ["frobnicate", "explain", "explain   "]) {
 		assert.deepEqual(await run(gate, args), [
-			{
-				message: "Usage: /bouncer [status|rules|explain <command>|init|check]",
-				level: "warning",
-			},
+			{ message: usage, level: "warning" },
 		]);
 	}
 });

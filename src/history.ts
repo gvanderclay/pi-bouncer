@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const HISTORY_MAX = 50;
 export const ENTRY_CHARS = 1_000;
@@ -61,11 +62,23 @@ export function recordEntry(history: ToolHistory, entry: HistoryEntry): void {
 	if (over > 0) history.entries.splice(0, over);
 }
 
-// `path` as Pi's `write` and `edit` resolve it.
+const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
+
+// `path` as Pi's file tools resolve it: `resolveToCwd` in Pi's
+// dist/core/tools/path-utils.js and `normalizePath` in dist/utils/paths.js,
+// mirrored from @earendil-works/pi-coding-agent 1.0.0 (POSIX paths only).
 export function absolutePath(path: string, cwd: string, home: string): string {
-	const bare = path.startsWith("@") ? path.slice(1) : path;
+	const spaced = path.replace(UNICODE_SPACES, " ");
+	const bare = spaced.startsWith("@") ? spaced.slice(1) : spaced;
 	if (bare === "~") return home;
-	const expanded = bare.startsWith("~/") ? `${home}/${bare.slice(2)}` : bare;
+	let expanded = bare.startsWith("~/") ? posix.join(home, bare.slice(2)) : bare;
+	if (/^file:\/\//.test(expanded)) {
+		try {
+			expanded = fileURLToPath(expanded);
+		} catch {
+			// A URL Pi cannot open either (a remote host): Pi's tool fails on it.
+		}
+	}
 	return posix.resolve(cwd, expanded);
 }
 

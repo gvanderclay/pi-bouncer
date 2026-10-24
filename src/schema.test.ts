@@ -46,6 +46,19 @@ const VALID: readonly unknown[] = [
 	{ $schema: schema.$id, levels: {} },
 	{ levels: { "recursive-rm": "deny", "rm-root": "ask" } },
 	{ levels: { "recursive-rm": "off", "rm-root": "deny" } },
+	{
+		levels: {
+			"path-git": "ask",
+			"path-env": { read: "allow" },
+			"path-ssh": { read: "deny", write: "ask" },
+		},
+	},
+	{ levels: { "path-env": { read: "off", write: "ask" } } },
+	{ levels: { "path-bouncer": { write: "ask" } } },
+	{
+		profiles: { reader: { levels: { "path-env": { read: "allow" } } } },
+		agents: { scout: "reader" },
+	},
 	PREFER_RG,
 	{ rules: [] },
 	{
@@ -71,6 +84,41 @@ const VALID: readonly unknown[] = [
 			},
 		],
 	},
+	{
+		rules: [
+			{ name: "notes", paths: ["~/notes/**"], level: "deny", summary: "s" },
+			{
+				name: "hooks",
+				paths: ["**/.git/hooks/**"],
+				level: { write: "allow" },
+				summary: "s",
+			},
+			{ name: "any", paths: ["**", "/srv/x/*.txt"], summary: "s" },
+			{ name: "open", paths: ["docs/**"], level: "allow", summary: "s" },
+			{
+				name: "vault",
+				paths: ["secrets/**"],
+				summary: "s",
+				instead: "Use vault.",
+				level: { read: "deny" },
+			},
+		],
+	},
+	{
+		profiles: {
+			docs: {
+				rules: [
+					{
+						name: "no-writes",
+						paths: ["**"],
+						level: { write: "deny" },
+						summary: "s",
+					},
+				],
+			},
+		},
+	},
+	{ rules: [{ name: "path-deploy", command: "kubectl", summary: "s" }] },
 	{ log: { rotateAboveMiB: 0.5, generations: 0, maxAgeDays: 30 } },
 	{ startMode: "off" },
 	{ trustAgentMade: false },
@@ -142,6 +190,39 @@ const INVALID: readonly unknown[] = [
 		],
 	},
 	{ rules: [{ name: "x", command: "x", summary: "s", other: 1 }] },
+	{ rules: [{ name: "x", summary: "s" }] },
+	{ rules: [{ name: "x", command: "x", paths: ["a"], summary: "s" }] },
+	{ rules: [{ name: "path-x", paths: ["a"], summary: "s" }] },
+	{ rules: [{ name: "x", paths: [], summary: "s" }] },
+	{ rules: [{ name: "x", paths: ["a/!b"], summary: "s" }] },
+	{ rules: [{ name: "x", paths: [" "], summary: "s" }] },
+	{ rules: [{ name: "x", paths: ["a"], args: ["b"], summary: "s" }] },
+	{ rules: [{ name: "x", paths: ["a"], level: {}, summary: "s" }] },
+	{
+		rules: [{ name: "x", paths: ["a"], level: { other: "ask" }, summary: "s" }],
+	},
+	{
+		rules: [{ name: "x", paths: ["a"], level: { read: "yes" }, summary: "s" }],
+	},
+	{
+		rules: [{ name: "x", command: "x", level: { read: "ask" }, summary: "s" }],
+	},
+	{
+		rules: [
+			{ name: "x", paths: ["a"], summary: "s", instead: "i", level: "allow" },
+		],
+	},
+	{
+		rules: [
+			{
+				name: "x",
+				paths: ["a"],
+				summary: "s",
+				instead: "i",
+				level: { write: "ask" },
+			},
+		],
+	},
 	{ levels: { grep: "deny" } },
 	{ other: true },
 	{ levels: { grep: "ask" } },
@@ -151,6 +232,13 @@ const INVALID: readonly unknown[] = [
 	{ levels: { "rm-root": "off" } },
 	{ levels: { "no-such-rule": "ask" } },
 	{ levels: { "recursive-rm": "allow" } },
+	{ levels: { "path-env": {} } },
+	{ levels: { "path-env": { read: "allow", other: "ask" } } },
+	{ levels: { "path-env": { read: "yes" } } },
+	{ levels: { "path-ssh": "allow" } },
+	{ levels: { "path-bouncer": { read: "allow" } } },
+	{ levels: { "path-bouncer": { write: "off" } } },
+	{ levels: { "path-nope": "deny" } },
 	{ levels: [] },
 	{ log: { rotateAboveMiB: 0 } },
 	{ log: { generations: 1.5 } },
@@ -184,6 +272,7 @@ const INVALID: readonly unknown[] = [
 	{ profiles: { w: { colour: 1 } } },
 	{ profiles: { "Bad Name": {} } },
 	{ profiles: { w: { levels: { "rm-root": "off" } } } },
+	{ profiles: { reader: { levels: { "path-env": { read: "yes" } } } } },
 	{ profiles: { w: {} }, agents: { scout: 1 } },
 ];
 

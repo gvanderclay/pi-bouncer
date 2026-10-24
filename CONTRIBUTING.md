@@ -14,7 +14,10 @@ pnpm check   # lint, typecheck and tests, as CI runs them
 ```
 
 One test file: `node --test src/rules/git.test.ts`. To try a change in Pi,
-load your checkout: `pi -e <path to this checkout>`.
+load your checkout: `pi -e <path to this checkout>`. Such a session cannot
+write the checkout's own source with `write` or `edit`, because
+`path-bouncer` denies writes to the bouncer's code: develop from a session
+loading another copy of the checkout, or set `"path-bouncer": "ask"`.
 
 ## Pull requests
 

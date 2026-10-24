@@ -5,19 +5,29 @@ import { parseArgs } from "node:util";
 import { agentDir as defaultAgentDir } from "../../src/agent-dir.ts";
 import type { AllowFrom } from "../../src/auto-config.ts";
 import { errorText } from "../../src/error-text.ts";
-import { allowScore, jevAsker, readReply } from "../../src/jev.ts";
+import {
+	allowScore,
+	type JevCall,
+	jevAsker,
+	readFileReply,
+	readReply,
+} from "../../src/jev.ts";
+import { OTHER_AT } from "../../src/jev-questions.ts";
+import type { JudgeRequest } from "../../src/judge-request.ts";
 import type { RulingRegistry } from "../../src/ruling.ts";
 import type { BenchCase, requestFor } from "./bench.ts";
 
 export type JevSample = {
 	readonly id: string;
 	readonly sample: number;
-	/** The number `allowAt` applies to, per `allowFrom`. */
+	/** The number `allowAt` applies to, per `allowFrom`; 1 − `unsafe` for a file call. */
 	readonly allow?: number;
 	readonly safe?: number;
 	readonly unsafe?: number;
 	readonly confidence?: number;
 	readonly error?: string;
+	/** P(effect = other) at `OTHER_AT`: live, Jev leaves the call unsure whatever the cutoffs. */
+	readonly other?: true;
 	readonly ms: number;
 };
 
@@ -28,6 +38,38 @@ export type JevBenchOptions = {
 	/** As in `auto.jev.allowFrom`. */
 	readonly allowFrom?: AllowFrom;
 };
+
+// A file call has no `safety` answer: it allows from its deny score.
+function sampleOf(
+	id: string,
+	sample: number,
+	call: JevCall,
+	request: JudgeRequest,
+	allowFrom: AllowFrom,
+): JevSample {
+	if ("error" in call) return { id, sample, error: call.error, ms: call.ms };
+	const { ms } = call;
+	if (request.file) {
+		const reading = readFileReply(call.reply);
+		if (typeof reading === "string") return { id, sample, error: reading, ms };
+		const { unsafe } = reading;
+		const other = reading.effect.other >= OTHER_AT && { other: true as const };
+		return { id, sample, allow: 1 - unsafe, unsafe, ...other, ms };
+	}
+	const reading = readReply(call.reply);
+	if (typeof reading === "string") return { id, sample, error: reading, ms };
+	const other = reading.effect.other >= OTHER_AT && { other: true as const };
+	return {
+		id,
+		sample,
+		allow: allowScore(reading, allowFrom),
+		safe: reading.safe,
+		unsafe: reading.unsafe,
+		confidence: reading.confidence,
+		...other,
+		ms,
+	};
+}
 
 // Without a key it throws before any call.
 export async function runJevBench(
@@ -49,19 +91,7 @@ export async function runJevBench(
 		const request = build(c);
 		for (let sample = 1; sample <= samples; sample += 1) {
 			const call = await ask(request);
-			const reading = "error" in call ? call.error : readReply(call.reply);
-			const result: JevSample =
-				typeof reading === "string"
-					? { id: c.id, sample, error: reading, ms: call.ms }
-					: {
-							id: c.id,
-							sample,
-							allow: allowScore(reading, allowFrom),
-							safe: reading.safe,
-							unsafe: reading.unsafe,
-							confidence: reading.confidence,
-							ms: call.ms,
-						};
+			const result = sampleOf(c.id, sample, call, request, allowFrom);
 			results.push(result);
 			onSample(result);
 		}
@@ -87,13 +117,15 @@ const CANDIDATES: readonly number[] = Array.from(
 	(_, at) => (50 + at) / 100,
 );
 
-/** Each case's samples' values of `side`; a failed sample is `undefined`. */
+/** Each case's samples' values of `side`; a failed or `other` sample is `undefined`. */
 function values(
 	samples: readonly JevSample[],
 	id: string,
 	side: "allow" | "unsafe",
 ): (number | undefined)[] {
-	return samples.filter((s) => s.id === id).map((s) => s[side]);
+	return samples
+		.filter((s) => s.id === id)
+		.map((s) => (s.other ? undefined : s[side]));
 }
 
 function reaches(value: number | undefined, cutoff: number): boolean {
@@ -145,13 +177,15 @@ function caseLine(c: BenchCase, samples: readonly JevSample[]): string {
 	const mine = samples.filter((s) => s.id === c.id);
 	const allow = mine.flatMap((s) => (s.allow === undefined ? [] : [s.allow]));
 	const errors = mine.length - allow.length;
+	const other = mine.filter((s) => s.other).length;
 	const range =
 		allow.length === 0
 			? "no answer"
 			: `allow ${Math.min(...allow).toFixed(2)}–${Math.max(...allow).toFixed(2)}`;
 	const failed =
 		errors === 0 ? "" : `, ${errors} error${errors > 1 ? "s" : ""}`;
-	return `${c.id} (expects ${c.expected.join(", ")}): ${range}${failed}`;
+	const exits = other === 0 ? "" : `, ${other} other`;
+	return `${c.id} (expects ${c.expected.join(", ")}): ${range}${failed}${exits}`;
 }
 
 function cutoffText(cutoff: number | null): string {
@@ -309,8 +343,9 @@ export function jevReport(
 }
 
 const USAGE =
-	"usage: node bench.ts jev [--agent-dir <agent dir>] [--samples N] [--model provider/id] [--allow-from deny-score|safety]\n" +
+	"usage: node bench.ts jev [--agent-dir <agent dir>] [--samples N] [--model provider/id] [--allow-from deny-score|safety] [--cases bash|file]\n" +
 	"Asks Jev about every bench and held-out case N times (default 3); spends real quota.\n" +
+	"--cases file asks about the file-call cases instead, which have no held-out set and always allow from the deny score.\n" +
 	"--model is a Pi classifier model, as in auto.jev.model; without it, OpenCode Zen with the opencode-go key.\n" +
 	"--allow-from is the number allowAt applies to, as in auto.jev.allowFrom (default deny-score).\n";
 
@@ -319,6 +354,7 @@ type JevArgs = {
 	readonly samples: number;
 	readonly model?: string;
 	readonly allowFrom: AllowFrom;
+	readonly cases: "bash" | "file";
 };
 
 function jevArgs(args: readonly string[]): JevArgs | number {
@@ -337,11 +373,15 @@ function jevArgs(args: readonly string[]): JevArgs | number {
 	const samples = Number(values.samples ?? "3");
 	const allowFrom = values["allow-from"] ?? "deny-score";
 	const known = allowFrom === "deny-score" || allowFrom === "safety";
+	const cases = values.cases ?? "bash";
+	const set = cases === "bash" || cases === "file";
 	if (
 		!Number.isInteger(samples) ||
 		samples < 1 ||
 		positionals.length > 0 ||
-		!known
+		!known ||
+		!set ||
+		(cases === "file" && allowFrom === "safety")
 	) {
 		process.stderr.write(USAGE);
 		return 2;
@@ -349,8 +389,8 @@ function jevArgs(args: readonly string[]): JevArgs | number {
 	const route = resolve(values["agent-dir"] ?? defaultAgentDir());
 	const { model } = values;
 	return model
-		? { route, samples, model, allowFrom }
-		: { route, samples, allowFrom };
+		? { route, samples, model, allowFrom, cases }
+		: { route, samples, allowFrom, cases };
 }
 
 function parse(args: readonly string[]): {
@@ -359,6 +399,7 @@ function parse(args: readonly string[]): {
 		samples?: string;
 		model?: string;
 		"allow-from"?: string;
+		cases?: string;
 		help?: boolean;
 	};
 	positionals: string[];
@@ -371,6 +412,7 @@ function parse(args: readonly string[]): {
 			samples: { type: "string" },
 			model: { type: "string" },
 			"allow-from": { type: "string" },
+			cases: { type: "string" },
 			help: { type: "boolean", short: "h" },
 		},
 	});
@@ -379,15 +421,19 @@ function parse(args: readonly string[]): {
 export async function jevMain(
 	args: readonly string[],
 	loadRegistry: (route: string) => Promise<RulingRegistry>,
-	cases: readonly BenchCase[],
+	bashCases: readonly BenchCase[],
 	build: typeof requestFor,
-	heldOut: readonly BenchCase[] = [],
+	bashHeldOut: readonly BenchCase[] = [],
+	fileCases: readonly BenchCase[] = [],
 ): Promise<void> {
 	const parsed = jevArgs(args);
 	if (typeof parsed === "number") {
 		process.exitCode = parsed;
 		return;
 	}
+	const file = parsed.cases === "file";
+	const cases = file ? fileCases : bashCases;
+	const heldOut = file ? [] : bashHeldOut;
 	const registry = await loadRegistry(parsed.route);
 	let samples: JevSample[];
 	try {
@@ -398,8 +444,8 @@ export async function jevMain(
 			parsed.samples,
 			{
 				onSample: (s: JevSample): void => {
-					const answer =
-						s.error ?? `safe ${s.safe}, deny score ${s.unsafe?.toFixed(2)}`;
+					const safe = s.safe === undefined ? "" : `safe ${s.safe}, `;
+					const answer = s.error ?? `${safe}deny score ${s.unsafe?.toFixed(2)}`;
 					process.stderr.write(
 						`${s.id} #${s.sample}: ${answer} (${s.ms} ms)\n`,
 					);

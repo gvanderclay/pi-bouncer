@@ -23,6 +23,9 @@ import {
 import { registerBouncer } from "./commands.ts";
 import { configRecord, type GateConfig, loadConfig } from "./config.ts";
 import { readRemotes } from "./facts.ts";
+import { type FileTool, isFileTool } from "./file-call.ts";
+import { decideFile } from "./file-gate.ts";
+import { fileCallIn } from "./file-wiring.ts";
 import { type Call, createGate, type Decision, type ParseFn } from "./gate.ts";
 import {
 	absolutePath,
@@ -38,6 +41,7 @@ import {
 	callRecord,
 	createLogging,
 	defaultLogDir,
+	type FilePath,
 	type Logging,
 	pruneByAge,
 	recordHead,
@@ -64,6 +68,7 @@ import { builtInPolicy } from "./rules/built-in-policy.ts";
 import type { Invocation } from "./scan/walk.ts";
 import { registerSessionLaunch } from "./session-launch.ts";
 import { findTrash } from "./trash.ts";
+import { clip } from "./verdict.ts";
 
 export type ParserLoader = () => Promise<ParseFn>;
 
@@ -176,6 +181,7 @@ type Runtime = {
 	readonly switchMode: ModeSwitch;
 	readonly stopped: Map<string, string>;
 	readonly mcpAllowed: Set<string>;
+	readonly fileAllowed: Set<string>;
 	/** Per allowed bash call that may make directories: when it ran, and what its `mkdir`s would newly make. */
 	readonly making: Map<string, Making>;
 	/** The tool call id of the latest assistant message, when it made exactly one. */
@@ -214,6 +220,7 @@ function startSession(
 	welcome(holder, config, ctx);
 	rt.stopped.clear();
 	rt.mcpAllowed.clear();
+	rt.fileAllowed.clear();
 	logging.write(ctx, () => {
 		rotateIfNeeded(logDir, config.log);
 		pruneByAge(logDir, config.log.maxAgeDays);
@@ -278,6 +285,9 @@ async function decideCall(
 		const tool = { command: mcpArgs(event.input), tool: event.toolName };
 		return settle(rt, event, ctx, outcome, tool, sent);
 	}
+	if (isFileTool(event.toolName)) {
+		return decideFileCall(rt, event, event.toolName, ctx);
+	}
 	if (!isBash(event)) return undefined;
 	const { command } = event.input;
 	// A nested call's id (`<parent>/<n>`) never matches, so it is never lone:
@@ -291,13 +301,42 @@ async function decideCall(
 	return result;
 }
 
+async function decideFileCall(
+	rt: Runtime,
+	event: ToolCallEvent,
+	tool: FileTool,
+	ctx: ExtensionContext,
+): Promise<ToolCallEventResult | undefined> {
+	let sent: JudgeSent | undefined;
+	const onSent = (counts: JudgeSent): void => {
+		sent = counts;
+	};
+	const { decision, access, paths } = await decideFile(
+		fileCallIn(rt, event, tool, ctx, onSent),
+	);
+	const path = access && {
+		direction: access.direction,
+		typed: access.path,
+		...(paths && { real: paths.real }),
+	};
+	const command = clip(access ? `${tool} ${access.path}` : tool);
+	return settle(
+		rt,
+		event,
+		ctx,
+		decision,
+		{ command, tool, ...(path && { path }) },
+		sent,
+	);
+}
+
 // Logs a decision, applies its dialog's mode switch, returns the tool_call result.
 function settle(
 	rt: Runtime,
 	event: ToolCallEvent,
 	ctx: ExtensionContext,
 	outcome: Decision,
-	{ command, tool }: { command: string; tool?: string },
+	{ command, tool, path }: { command: string; tool?: string; path?: FilePath },
 	sent?: JudgeSent,
 ): ToolCallEventResult | undefined {
 	rt.logging.write(ctx, () => {
@@ -309,6 +348,7 @@ function settle(
 			rt.session.config?.profile,
 			event.parentToolCallId,
 			tool,
+			path,
 		);
 		if (record) appendRecord(rt.logDir, record);
 	});
@@ -428,6 +468,7 @@ export default async function bouncer(
 		switchMode: createModeSwitch(holder, session, logging, logDir),
 		stopped: new Map<string, string>(),
 		mcpAllowed: new Set<string>(),
+		fileAllowed: new Set<string>(),
 		making: new Map<string, Making>(),
 		lone: {},
 	};

@@ -56,7 +56,7 @@ function* hits(
 ): Generator<Hit> {
 	for (const invocation of invocations) {
 		for (const entry of policy) {
-			if (entry.kind === "unreadable") continue;
+			if (entry.kind === "unreadable" || entry.kind === "path") continue;
 			if (entry.rule.matches(invocation, where)) {
 				yield { entry, source: invocation.source };
 			}

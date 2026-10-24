@@ -122,6 +122,105 @@ match wins over every ask: the line gets the steer block, with no dialog and
 no warning, however many asks it holds. Otherwise each ask is decided in
 turn, and a denied ask stops the line.
 
+## File tools
+
+Pi's `read`, `write`, `edit`, `grep`, `find` and `ls` tools are gated by
+path rules, the same way bash commands are gated by command rules: the policy
+holds both, and a path rule is set in `levels` and shown by `/bouncer` like
+any other. `grep`, `find` and `ls` count as reading what they search.
+
+A file access has a **direction**: `read` reads, and `write` and `edit` write.
+A path rule has a level for each direction, so the same `.env` file can be
+denied to read and asked about to write. The built-in **path groups** ship
+these levels, in evaluation order; the last one that matches decides, so they
+run from the broad folder groups to the narrow secret ones:
+
+| group | covers | read | write |
+| --- | --- | --- | --- |
+| `path-system` | `/etc`, `/usr`, `/bin`, `/sbin`, `/opt`, `/System`, `/Library`, `/Applications`, `/boot`, `/lib`, `/lib64`, `/srv`, `/dev`, `/proc`, `/sys`, `/snap`, `/nix` and `/private/etc` | allow | ask |
+| `path-git` | `**/.git/**` | allow | ask |
+| `path-shell-rc` | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.bash_login`, `.profile`, `~/.config/fish/config.fish` | allow | ask |
+| `path-keys` | `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` (not `*.pub`), at any depth | deny | deny |
+| `path-ssh` | `~/.ssh/**` | deny | deny |
+| `path-gnupg` | `~/.gnupg/**` | deny | deny |
+| `path-aws` | `~/.aws/**` | deny | deny |
+| `path-gcloud` | `~/.config/gcloud/**` | deny | deny |
+| `path-azure` | `~/.azure/**` | deny | deny |
+| `path-kube` | `~/.kube/**` | deny | deny |
+| `path-docker` | `~/.docker/config.json` | deny | deny |
+| `path-pi-auth` | `<agent dir>/auth.json` | deny | deny |
+| `path-env` | `.env*`, except `.env.example`, `.env.sample` and `.env.template` | deny | ask |
+| `path-npmrc` | `.npmrc` | deny | ask |
+| `path-pypirc` | `.pypirc` | deny | ask |
+| `path-netrc` | `.netrc` | deny | ask |
+| `path-git-credentials` | `.git-credentials` | deny | ask |
+
+`path-bouncer` stands outside that order and is checked first, for writes
+only, so no later path rule decides a path it covers:
+
+| group | covers | read | write |
+| --- | --- | --- | --- |
+| `path-bouncer` ✱ | `<agent dir>/bouncer.json`, `**/.pi/extensions/bouncer/config.json`, the folder the bouncer was loaded from, `<agent dir>/settings.json`, `**/.pi/settings.json` | allow | deny |
+
+When the agent dir's `bouncer.json`, `settings.json` or `auth.json`, or the
+session project's `.pi/settings.json` or `.pi/extensions/bouncer/config.json`,
+is a symlink, the file it points to is covered too, as Pi and the bouncer read
+that file.
+
+✱ `path-bouncer` is in the always-deny set: its write level is `ask` or
+`deny`, never `off`, and YOLO and auto mode deny the write whatever its
+level, with no judge asked. A `levels` line sets only its write level; reads
+stay allowed, so the bouncer's config can still be read for debugging. The
+folder the bouncer was loaded from is the checkout itself under
+`pi -e <checkout>`, so a session running a checkout cannot write that
+checkout's source: develop the bouncer from a session that loads another
+copy, or set `"levels": {"path-bouncer": "ask"}`.
+
+A pattern with no slash, such as `*.pem` or `.npmrc`, matches that name in
+any folder. `~` anchors at home and a leading `/` at the root. A leading
+`**/` matches in any folder on disk, so `path-git` catches a `.git` folder
+outside the session's working directory too. `path-system` has its own list
+of folders; it leaves out `/Users`, `/home`, `/var`, `/tmp` and
+`/private/var`, so ordinary work in the home folder and in a temporary
+folder never asks.
+
+A path is checked in every spelling: as the agent typed it, made absolute
+(`@` stripped, `~` expanded), and with symlinks resolved, plus the extra
+names Pi's `read` tries on macOS when the typed name does not exist. Among
+the path rules that match one spelling, the last in the effective policy
+decides; across the spellings of one path, the strictest result wins, so a
+symlink into `~/.ssh` is caught even when the link's own spelling is innocent.
+The agent dir of the running session is the one matched for `path-pi-auth`
+and `path-bouncer`.
+
+A deny blocks the call and tells the model the rule, its summary and the
+path. An ask opens the dialog, and with no UI it is blocked with a reason
+saying no one could answer it. In auto mode the judge list decides an ask
+first (see "Auto mode"). YOLO mode lets a path ask or deny through, as
+it does for bash, except a `path-bouncer` write. Session allows, `levels` and profiles work for path rules
+as they do for command rules.
+
+### Search scope
+
+`grep`, `find` and `ls` reveal what they search, not only the folder they
+name, so they are decided as a read of that folder: `path-ssh` denies
+`grep token ~` and `ls ~/.ssh`, and a home folder holds enough secret folders
+that `find /` is denied too. An omitted `path` is the session's working
+directory.
+
+A path rule also fires when its pattern is anchored (`~` or `/`) and its
+fixed leading folders lie inside the search path, so searching a home folder
+reaches `~/.ssh`, and searching `/` reaches every absolute pattern. Patterns
+with no slash, which match at any depth, are tested only against the search
+path itself, so a `grep` with no path in a project that holds a `.env` stays
+quiet. The rules that match the search path itself follow last-match-wins as
+usual; the rules found inside it combine with that result by strictest first,
+so no `allow`, built in or the user's, unblocks a search of a folder that
+holds a secret group. The deny names the search path: "The read of `~` did
+not run." A `.env` that isn't gitignored can still appear in a `grep` result;
+Pi's own tools skip gitignored files, which is what keeps an ordinary project
+search quiet.
+
 ## The dialog
 
 An ask names the rule and quotes the command, for example:
@@ -146,6 +245,23 @@ The choices are:
 Escape, or aborting the turn, denies. A line with several dangers asks once
 for each ("1 of N"). Without a UI (print, JSON or RPC mode with no dialogs),
 every ask denies.
+
+A file call's dialog names the tool and the path in place of the command
+line, and shows the change below it. When the typed path led somewhere else,
+such as through a symlink, the real target follows an arrow:
+
+```text
+Bouncer: a .git folder holds the repository's config, hooks and history (rule: path-git)
+write link/config → /work/real/.git/config
+new file
+core = true
+```
+
+An `edit` shows each piece of old and new text as `-` and `+` lines, and a
+`write` to an existing file shows the lines that change. The detail is cut to
+2,000 characters. For a file call, "Allow for this session" covers that exact
+real path in that direction and nothing else: allowing a write to
+`.git/config` does not allow a write to `.git/hooks/pre-commit`.
 
 ## Modes
 
@@ -186,12 +302,17 @@ on when no judge-list entry resolves.
 A judge-list entry whose context window cannot fit the request is skipped
 without being sent anything; the estimate is the system prompt plus the
 input, at four characters per token, plus the 2,000-token reply cap and a
-4,096-token margin. When no entry fits, the dialog says the command, or an
-MCP call's arguments, are too large for the judge instead of "no judge
-available".
+4,096-token margin. When no entry fits, the dialog says the command, an
+MCP call's arguments, or a file call's change are too large for the judge
+instead of "no judge available".
 
 An MCP call not on `mcp.allow` is judged like an ask, without Jev, unless
 `mcp.judge` is `false`; its judge denies share the pause with bash.
+
+A file call that a path rule asks about is judged the same way, Jev
+included, and its judge denies share the pause too. A judge allow runs that one call; it
+never adds a session allow. A `path-bouncer` write is denied before any judge
+is asked, as is any path rule set to `deny`.
 
 Some lines are decided before any judge is asked: rule-level denies, the
 always-deny set, unparseable commands and steer rules are denied, and
@@ -210,8 +331,9 @@ allow a call. A steer block never counts toward the pause.
 The judge sees the command, the flagged rules, the working directory, the
 git branch and remotes, your last message in full, up to 10 earlier messages
 of yours (each cut to 1,000 characters, 4,000 in all), the session history,
-and the `auto.environment` facts. It never sees tool output, file contents,
-edit text or the agent's own messages. Literal closing tags inside any of
+and the `auto.environment` facts. It never sees tool output, the contents of
+files the agent reads, or the agent's own messages; a write or edit's own
+change is the one exception, below. Literal closing tags inside any of
 these are escaped. All of this is sent to the providers of the models in the
 judge list.
 
@@ -219,6 +341,17 @@ For an MCP call the judge sees the tool name, the server's description of the
 tool (cut to 2,000 characters), the whole arguments as JSON and the same
 context in place of the command. The description and arguments go to the
 providers of the judge-list models.
+
+For a file call the judge sees, in place of the command, the tool, the
+direction, the real path after symlinks, and the change: the whole content of
+a `write`, or each old and new text of an `edit`. A `read`, `grep`, `find` or
+`ls` has no change. When the path is in any secret group (`path-keys`,
+`path-ssh`, `path-gnupg`, `path-aws`, `path-gcloud`, `path-azure`,
+`path-kube`, `path-docker`, `path-pi-auth`, `path-env`, `path-npmrc`,
+`path-pypirc`, `path-netrc` or `path-git-credentials`), whichever group
+decided the call and whatever their levels, the change is left out and the
+judge is told it was redacted, so a write to `.env` or to `.git/.env` sends
+no content. The change goes to the providers of the judge-list models.
 
 The session history is the bouncer's own record of what the agent ran: every
 bash command Pi executed, with its working directory, the absolute path
@@ -240,7 +373,8 @@ variable whose value it cannot see.
 
 Jev is TypeSafe's classifier, always called through Pi's classifier support
 with no retries. It sees exactly what the judge sees, under the same budgets,
-and answers five questions in one call. Two numbers come out of them:
+and answers five questions about a bash line in one call (a file call's
+questions are below). Two numbers come out of them:
 
 - Four short questions (what kind of change the command makes, whether the
   agent created its target, what the user asked for, and whether it deletes
@@ -267,6 +401,24 @@ cannot turn auto mode on by itself: `auto.models` stays required. Its
 default cutoffs were measured through OpenCode Zen only; another provider's
 `jev-1.13` should behave the same, but that is unverified, and the
 `auto-judge-list` skill's bench can re-measure it.
+
+A file call gets its own four questions in place of these five: what kind
+of file the path is (source code, config, secrets, docs or data), whether
+the change holds a real credential rather than a placeholder, what kind of
+change the call makes, and what the user asked for. Jev sees the tool, the
+direction, the real path, the change, the working directory, the git
+branch, the session history and the user's messages; for a path in any
+secret group the change is left out, as it is for the judge. The deny score
+is combined as for bash: harmful, asked to keep, a secrets file, or a
+credential at 0.7 or more cap routine and asked for. The allow score is
+always 1 minus that deny score. File calls use their own built-in cutoffs,
+not `auto.jev`'s `allowAt`, `denyAt` or `allowFrom`, which apply to bash
+alone. The file cutoffs are `allowAt: 1.01` and `denyAt: 0.99`: Jev never
+allows a file call, denies at or above a 0.99 deny score, and leaves the rest
+to the judge list. The `other` and failure safeguards above still apply.
+The user-run bench evidence and its limits are in `design-notes.md`,
+"Jev cutoffs for file calls". Jev's answers stay in the log record;
+removing `auto.jev` skips Jev for file calls and bash alike.
 
 ## The log
 

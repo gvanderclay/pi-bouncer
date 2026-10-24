@@ -1,4 +1,5 @@
-// Every built-in entry in evaluation order, at its shipped level.
+// Every built-in entry in evaluation order, at its shipped level: the bash
+// rules, then the path groups.
 
 import type { RuleName } from "../verdict.ts";
 import { bouncerEscape } from "./bouncer-escape.ts";
@@ -12,6 +13,7 @@ import {
 } from "./git.ts";
 import { gitPushDelete, gitPushForce } from "./git-push.ts";
 import { fdExec, findExec, opaqueExec, rgPre } from "./hidden-exec.ts";
+import { pathGroups } from "./path-groups.ts";
 import { privilege } from "./privilege.ts";
 import { ghDelete, publish } from "./publish.ts";
 import { remoteScript } from "./remote-script.ts";
@@ -45,6 +47,7 @@ export const builtInPolicy: Policy = [
 	{ kind: "rule", rule: publish, level: "ask" },
 	{ kind: "rule", rule: ghDelete, level: "ask" },
 	{ kind: "rule", rule: bouncerEscape, level: "deny" },
+	...pathGroups(),
 ];
 
 export const builtInEntries: ReadonlyMap<string, PolicyEntry> = new Map(
@@ -62,4 +65,5 @@ export const alwaysDenySet: ReadonlySet<RuleName> = new Set<RuleName>([
 	"disk-format",
 	"dd-device",
 	"rm-root",
+	"path-bouncer",
 ]);

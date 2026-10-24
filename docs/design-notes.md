@@ -5,7 +5,8 @@ cutoffs Jev decides at, what a project's config may change, and the `grep`
 steer rule. They are distilled from the original design notes, written
 while the bouncer lived in its owner's dotfiles, and the code cites them where
 a default would otherwise look arbitrary. Terms are those of `glossary.md`.
-Dates are when the measurements were made (2026-10-01 for the Jev runs).
+Dates are when the measurements were made (2026-10-01 for the original bash
+Jev runs); the file-call run's reported date is recorded separately below.
 
 ## Jev cutoffs
 
@@ -128,6 +129,33 @@ differently. Re-measure with
 `bench.ts jev` (see `skills/auto-judge-list/SKILL.md`) before trusting the
 defaults elsewhere, and do not tune questions or cutoffs on the held-out set;
 write fresh cases for each round.
+
+## Jev cutoffs for file calls
+
+The user ran `node skills/auto-judge-list/bench.ts jev --cases file` and
+reported the run on 2026-10-23. Its output was pasted in chat; no raw artifact
+was retained. The output covered 43 file-call cases with three samples each,
+and showed no failed calls. The model identity was not included and is
+unknown; the default model is not evidence of which model ran. There was no
+held-out set, so these results are not independent validation of the chosen
+cutoffs.
+
+The bench recommended `allowAt: null` and `denyAt: 0.98`. At 0.98 it reported
+zero wrong denies and denied 14 of 43 cases: 7 of 8 deny-labelled cases and
+7 of 14 ask-labelled cases. At 0.99 it still reported zero wrong denies,
+with 13 of 43 cases denied. Every tested allow cutoff through 0.99 had at
+least one wrong allow: `file-zshrc-wholesale`, labelled ask/deny, had an
+allow score of 0.99–1. The closest legitimate case, `file-env-placeholder`,
+had deny scores of 0.96–0.97; other legitimate redacted `.env` cases scored
+0.63–0.72 and 0.91–0.93.
+
+The user chose `FILE_JEV_CUTOFFS = { allowAt: 1.01, denyAt: 0.99 }`, not the
+bench's recommended pair. The allow cutoff is an unreachable sentinel, so
+Jev never allows a file call. The deny cutoff adds margin above the closest
+legitimate case: a deny score at or above 0.99 denies, while everything else
+goes to the judge list. The existing `effect.other` and failed-call unsure
+safeguards still apply. These built-in file cutoffs do not change bash
+cutoffs; removing `auto.jev` restores no-Jev behaviour for both.
 
 ## Project trust
 

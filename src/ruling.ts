@@ -1,9 +1,17 @@
 // Jev's failure stays out of the result's `tried` and joins the judge list's
 // failures only for the notices.
-import { type AutoSettings, judgeOrder } from "./auto-config.ts";
+import {
+	type AutoSettings,
+	type JevSettings,
+	judgeOrder,
+} from "./auto-config.ts";
 import { errorText } from "./error-text.ts";
 import {
 	classify,
+	classifyFile,
+	type FileJevAnswer,
+	fileJevRecord,
+	type JevAnswer,
 	type JevCall,
 	type JevKeyLookup,
 	type JevRecord,
@@ -47,6 +55,20 @@ async function callJev(
 	}
 }
 
+// A file call is classified on its own questions and FILE_JEV_CUTOFFS.
+function classified(
+	request: JudgeRequest,
+	call: JevCall,
+	settings: JevSettings,
+): { answer: JevAnswer | FileJevAnswer; jev: JevRecord } {
+	if (request.file) {
+		const answer = classifyFile(call);
+		return { answer, jev: fileJevRecord(answer, settings.model) };
+	}
+	const answer = classify(call, settings);
+	return { answer, jev: jevRecord(answer, settings.model) };
+}
+
 /**
  * With `auto.jev`: an allow score at `allowAt` allows, a deny score at `denyAt`
  * denies, anything else goes to the judge list with what is left of the line's
@@ -59,12 +81,13 @@ export async function ruleLine(
 	run: RulingRun,
 ): Promise<Ruling> {
 	const models = judgeOrder(auto, provider);
-	if (!auto?.jev || request.mcp) return runJudge(models, request, run);
+	if (!auto?.jev || request.mcp) {
+		return runJudge(models, request, run);
+	}
 	const start = Date.now();
 	const { model } = auto.jev;
 	const call = await callJev(request, run, start, model);
-	const answer = classify(call, auto.jev);
-	const jev = jevRecord(answer, model);
+	const { answer, jev } = classified(request, call, auto.jev);
 	const decided = jevVerdict(answer, jevName(model));
 	if (decided) return { ...decided, tried: [], jev };
 	const lineMs = LINE_MS - (Date.now() - start);
