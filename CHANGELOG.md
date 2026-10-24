@@ -6,6 +6,8 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
 ### Added
 
 - `/bouncer explain` replays a file call: `explain read <path>`,
@@ -452,7 +454,8 @@ dotfiles; the changes below are against that copy.
   with `pi -e <path to the checkout>` is unaffected; anything that pointed at
   `index.ts` directly must point at `src/index.ts`.
 
-[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/gvanderclay/pi-bouncer/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/gvanderclay/pi-bouncer/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/gvanderclay/pi-bouncer/compare/v0.4.0...v0.5.0
