@@ -241,6 +241,17 @@ function jevGate(
 	return judgedGate(judge, { jev }, undefined, KEYS);
 }
 
+function setFileCutoffs(
+	t: TestContext,
+	cutoffs: typeof FILE_JEV_CUTOFFS,
+): void {
+	const original = { ...FILE_JEV_CUTOFFS };
+	t.after(() => {
+		Object.assign(FILE_JEV_CUTOFFS, original);
+	});
+	Object.assign(FILE_JEV_CUTOFFS, cutoffs);
+}
+
 const SAFE_EDIT = {
 	kind: "config",
 	contains_secret: 0.01,
@@ -249,8 +260,7 @@ const SAFE_EDIT = {
 } as const;
 
 test("Jev settles a clearly safe file write before the judge list", async (t) => {
-	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
-	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	setFileCutoffs(t, { allowAt: 0.9, denyAt: null });
 	const sent = stubJev(t, fileJevReply(SAFE_EDIT));
 	const { gate: g, fake } = await jevGate(
 		verdict("deny", "should not be asked"),
@@ -346,8 +356,7 @@ test("the default file cutoffs deny at exactly 0.99 without asking the judge lis
 });
 
 test("with the placeholder cutoffs, file asks still reach the judge list", async (t) => {
-	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 1.01);
-	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	setFileCutoffs(t, { allowAt: 1.01, denyAt: null });
 	let reply = fileJevReply({ ...SAFE_EDIT, contains_secret: 0 }, 1);
 	t.mock.method(
 		globalThis,
@@ -393,8 +402,7 @@ test("Jev gets no content for a secret-group write", async (t) => {
 });
 
 test("a Jev deny at the file denyAt blocks a file write with no judge-list request", async (t) => {
-	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
-	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", 0.9);
+	setFileCutoffs(t, { allowAt: 0.9, denyAt: 0.9 });
 	stubJev(t, fileJevReply({ kind: "config", effect: "harmful" }));
 	const { gate: g, fake } = await jevGate(
 		verdict("allow", "should not be asked"),
@@ -416,8 +424,7 @@ for (const [name, labels] of [
 	["a request to keep the file", { user_intent: "asked_to_keep" }],
 ] as const) {
 	test(`Jev does not allow a file write despite a routine effect when it sees ${name}`, async (t) => {
-		t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
-		t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+		setFileCutoffs(t, { allowAt: 0.9, denyAt: null });
 		stubJev(t, fileJevReply({ ...SAFE_EDIT, ...labels }));
 		const { gate: g, fake } = await jevGate(verdict("ask", "check"));
 		await g.handler(
@@ -429,8 +436,7 @@ for (const [name, labels] of [
 }
 
 test("a credential just under the secret cutoff does not stop a Jev allow", async (t) => {
-	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
-	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	setFileCutoffs(t, { allowAt: 0.9, denyAt: null });
 	stubJev(t, fileJevReply({ ...SAFE_EDIT, contains_secret: 0.69 }));
 	const { gate: g, fake } = await jevGate(
 		verdict("deny", "should not be asked"),
@@ -444,8 +450,7 @@ test("a credential just under the secret cutoff does not stop a Jev allow", asyn
 });
 
 test("the user's auto.jev cutoffs do not apply to file calls", async (t) => {
-	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 1.01);
-	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	setFileCutoffs(t, { allowAt: 1.01, denyAt: null });
 	stubJev(t, fileJevReply(SAFE_EDIT));
 	const { gate: g, fake } = await jevGate(verdict("allow", "ok"), {
 		allowAt: 0.6,
@@ -459,8 +464,7 @@ test("the user's auto.jev cutoffs do not apply to file calls", async (t) => {
 });
 
 test("a file change Jev calls other goes to the judge list", async (t) => {
-	t.mock.property(FILE_JEV_CUTOFFS, "allowAt", 0.9);
-	t.mock.property(FILE_JEV_CUTOFFS, "denyAt", null);
+	setFileCutoffs(t, { allowAt: 0.9, denyAt: null });
 	stubJev(t, fileJevReply({ ...SAFE_EDIT, effect: "other" }));
 	const { gate: g, fake } = await jevGate(verdict("allow", "ok"));
 	await g.handler(
